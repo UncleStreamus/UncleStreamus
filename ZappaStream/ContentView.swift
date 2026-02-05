@@ -377,7 +377,8 @@ struct ContentView: View {
     // MARK: - Artist Name Helper
 
     /// Returns the artist name from metadata, or infers it from the date.
-    /// - 1966 through May 1975: "The Mothers"
+    /// - 1966 through 1974: "The Mothers of Invention"
+    /// - Jan-May 1975: "Zappa / Beefheart / Mothers" (Bongo Fury tour)
     /// - June 1975 through 1992: "Frank Zappa"
     private func artistName(from parsed: ParsedTrackInfo) -> String {
         // If metadata has an artist, use it
@@ -395,9 +396,14 @@ struct ContentView: View {
             return "Frank Zappa"
         }
 
-        // The Mothers era: 1966 through May 1975
-        if year < 1975 || (year == 1975 && month <= 5) {
-            return "The Mothers"
+        // The Mothers of Invention era: 1966 through 1974
+        if year < 1975 {
+            return "The Mothers of Invention"
+        }
+
+        // Bongo Fury era: Jan-May 1975
+        if year == 1975 && month <= 5 {
+            return "Zappa / Beefheart / Mothers"
         }
 
         // Frank Zappa era: June 1975 onwards
