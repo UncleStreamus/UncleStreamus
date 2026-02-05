@@ -122,6 +122,24 @@ struct FavoritesListView: View {
            sort: \SavedShow.showDate, order: .reverse)
     private var favorites: [SavedShow]
 
+    private var groupedFavorites: [(String, [SavedShow])] {
+        var groups: [String: [SavedShow]] = [:]
+        var groupOrder: [String] = []
+
+        for show in favorites {
+            // Extract first 4 characters: "2024 02 05" → "2024"
+            let year = String(show.showDate.prefix(4))
+            
+            if groups[year] == nil {
+                groups[year] = []
+                groupOrder.append(year)
+            }
+            groups[year]?.append(show)
+        }
+
+        return groupOrder.map { ($0, groups[$0]!) }
+    }
+
     var body: some View {
         if favorites.isEmpty {
             VStack {
@@ -137,9 +155,22 @@ struct FavoritesListView: View {
             .frame(maxWidth: .infinity)
         } else {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(favorites) { show in
-                        ShowEntryRow(savedShow: show, showDataManager: showDataManager)
+                LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
+                    ForEach(groupedFavorites, id: \.0) { year, shows in
+                        Section {
+                            ForEach(shows) { show in
+                                ShowEntryRow(savedShow: show, showDataManager: showDataManager)
+                            }
+                        } header: {
+                            Text(year)
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(.regularMaterial)
+                        }
                     }
                 }
                 .padding(.horizontal, 8)

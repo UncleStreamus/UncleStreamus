@@ -16,7 +16,6 @@ struct ContentView: View {
     @State private var currentShow: FZShow?
     @State private var showInfoExpanded: Bool = false
     @State private var isFetchingShowInfo: Bool = false
-    @State private var expandedAcronyms: Set<String> = []
     @State private var availableWidth: CGFloat = 500
     @State private var isSidebarVisible: Bool = false
 
@@ -79,25 +78,42 @@ struct ContentView: View {
                 // Track info card
                 VStack(alignment: .leading, spacing: 8) {
                     if let parsed = parsedTrack, currentTrack != "No track info" && !currentTrack.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            if let trackName = parsed.trackName {
-                                Text(trackName)
-                                    .font(.title2)
-                                    .fontWeight(.semibold)
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                if let trackName = parsed.trackName {
+                                    Text(trackName)
+                                        .font(.title2)
+                                        .fontWeight(.semibold)
+                                }
+                                
+                                HStack {
+                                    if let artist = parsed.artist {
+                                        Text(artist).font(.subheadline).foregroundColor(.secondary)
+                                    }
+                                    if let trackNumber = parsed.trackNumber {
+                                        Text("• Track \(trackNumber)").font(.caption).foregroundColor(.secondary)
+                                    }
+                                    if let trackDuration = parsed.trackDuration {
+                                        Text("• \(trackDuration)").font(.caption).foregroundColor(.secondary)
+                                    }
+                                }
                             }
-
-                            HStack {
-                                if let artist = parsed.artist {
-                                    Text(artist).font(.subheadline).foregroundColor(.secondary)
+                            
+                            Spacer()
+                            
+                            // Favorite star button
+                            if let show = currentShow {
+                                Button(action: {
+                                    showDataManager?.toggleFavorite(show: show)
+                                }) {
+                                    Image(systemName: isCurrentShowFavorite ? "star.fill" : "star")
+                                        .foregroundColor(isCurrentShowFavorite ? .yellow : .gray)
                                 }
-                                if let trackNumber = parsed.trackNumber {
-                                    Text("• Track \(trackNumber)").font(.caption).foregroundColor(.secondary)
-                                }
-                                if let trackDuration = parsed.trackDuration {
-                                    Text("• \(trackDuration)").font(.caption).foregroundColor(.secondary)
-                                }
+                                .buttonStyle(.plain)
                             }
+                        
                         }
+                        
                         Divider()
                         HStack {
                             if let date = parsed.date, let city = parsed.city, let state = parsed.state {
@@ -221,21 +237,30 @@ struct ContentView: View {
                     showInfoExpanded.toggle()
                 }) {
                     HStack {
-                        Text("Show Info")
-                            .font(.headline)
-
-                        // Favorite star button
-                        Button(action: {
-                            showDataManager?.toggleFavorite(show: show)
-                        }) {
-                            Image(systemName: isCurrentShowFavorite ? "star.fill" : "star")
-                                .foregroundColor(isCurrentShowFavorite ? .yellow : .gray)
+                        // Venue info (same as expanded content, but more compact)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(show.venue)
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                            
+                            if let note = show.note {
+                                Text(try! AttributedString(markdown: note))
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+                            
+                            if !show.showInfo.isEmpty {
+                                Text(show.showInfo)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
-                        .buttonStyle(.plain)
-
+                        
                         Spacer()
+                        
                         Image(systemName: showInfoExpanded ? "chevron.up" : "chevron.down")
                     }
+                    .contentShape(Rectangle())  // Make entire area tappable
                     .padding()
                     .background(Color.blue.opacity(0.1))
                     .cornerRadius(8)
@@ -244,26 +269,7 @@ struct ContentView: View {
 
                 if showInfoExpanded {
                     VStack(alignment: .leading, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(show.venue)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-
-                            if let note = show.note {
-                                Text(try! AttributedString(markdown: note))
-                                    .font(.caption)
-                                    .foregroundColor(.orange)
-                            }
-
-                            if !show.showInfo.isEmpty {
-                                Text(show.showInfo)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-
-                        Divider()
-
+                        
                         Text("Setlist:")
                             .font(.headline)
 
@@ -279,9 +285,7 @@ struct ContentView: View {
                                                     Text("\(index + 1). ")
                                                         .font(.caption)
                                                         .foregroundColor(.secondary)
-                                                    formatSongWithAcronyms(song: song,
-                                                                          acronyms: show.acronyms,
-                                                                          expandedAcronyms: $expandedAcronyms)
+                                                    formatSong(song)
                                                         .font(.caption)
                                                 }
                                             }
@@ -295,9 +299,7 @@ struct ContentView: View {
                                                         Text("\(midpoint + index + 1). ")
                                                             .font(.caption)
                                                             .foregroundColor(.secondary)
-                                                        formatSongWithAcronyms(song: song,
-                                                                                acronyms: show.acronyms,
-                                                                                expandedAcronyms: $expandedAcronyms)
+                                                        formatSong(song)
                                                               .font(.caption)
                                                     }
                                                 }
@@ -312,9 +314,7 @@ struct ContentView: View {
                                                 Text("\(index + 1). ")
                                                     .font(.caption)
                                                     .foregroundColor(.secondary)
-                                                formatSongWithAcronyms(song: song,
-                                                                      acronyms: show.acronyms,
-                                                                      expandedAcronyms: $expandedAcronyms)
+                                                formatSong(song)
                                                     .font(.caption)
                                             }
                                         }
@@ -346,7 +346,7 @@ struct ContentView: View {
                             }
                         }
                         .font(.caption)
-                        .padding(.top, 8)
+                        .padding(.top, 1)
                     }
                     .padding()
                     .background(Color.gray.opacity(0.05))
@@ -448,77 +448,46 @@ struct ContentView: View {
 
 
     @ViewBuilder
-    func formatSongWithAcronyms(
-        song: String,
-        acronyms: [(short: String, full: String)],
-        expandedAcronyms: Binding<Set<String>>
-    ) -> some View {
-        let bracketPattern = #"\[[^\]]+\]"#
-
-        if let bracketRange = song.range(of: bracketPattern, options: .regularExpression) {
-            let beforeBracket = String(song[..<bracketRange.lowerBound])
-            let bracketContent = String(song[bracketRange])
-
-            let matchingAcronyms = acronyms.filter { acronym in
-                bracketContent.contains(acronym.short)
+    func formatSong(_ song: String) -> some View {
+        var result = Text("")
+        var remainingText = song
+        
+        // 1. Process brackets [like this]
+        while let bracketRange = remainingText.range(of: #"\[[^\]]+\]"#, options: .regularExpression) {
+            let before = String(remainingText[..<bracketRange.lowerBound])
+            if !before.isEmpty {
+                result = result + Text(before)
             }
-
-            if !matchingAcronyms.isEmpty {
-                buildConcatenatedText(beforeBracket: beforeBracket, bracketContent: bracketContent, acronyms: matchingAcronyms, expandedAcronyms: expandedAcronyms)
-            } else {
-                Text(beforeBracket + bracketContent)
-            }
-        } else {
-            Text(song)
+            
+            let bracketContent = String(remainingText[bracketRange])
+            result = result + Text(bracketContent)
+                .foregroundColor(.secondary)
+                .italic()
+            
+            remainingText = String(remainingText[bracketRange.upperBound...])
         }
-    }
-
-    func buildConcatenatedText(
-        beforeBracket: String,
-        bracketContent: String,
-        acronyms: [(short: String, full: String)],
-        expandedAcronyms: Binding<Set<String>>
-    ) -> some View {
-        var result = Text(beforeBracket)
-        var remainingText = bracketContent
-
-        let sortedAcronyms = acronyms.sorted { first, second in
-            let range1 = remainingText.range(of: first.short)
-            let range2 = remainingText.range(of: second.short)
-            if let r1 = range1, let r2 = range2 {
-                return r1.lowerBound < r2.lowerBound
+        
+        // 2. Process parentheses (q: something) or (incl. something) ONLY
+        while let parenRange = remainingText.range(of: #"\((q:|incl\.)[^)]+\)"#, options: .regularExpression) {
+            let before = String(remainingText[..<parenRange.lowerBound])
+            if !before.isEmpty {
+                result = result + Text(before)
             }
-            return range1 != nil
+            
+            let parenContent = String(remainingText[parenRange])
+            result = result + Text(parenContent)
+                .italic()
+            
+            remainingText = String(remainingText[parenRange.upperBound...])
         }
 
-        for acronym in sortedAcronyms {
-            if let range = remainingText.range(of: acronym.short) {
-                let before = String(remainingText[..<range.lowerBound])
-                if !before.isEmpty {
-                    result = result + Text(before).foregroundColor(.white).italic()
-                }
-
-                let isExpanded = expandedAcronyms.wrappedValue.contains(acronym.short)
-                let displayText = isExpanded ? acronym.full : acronym.short
-
-                // Unfortunately we can't add tap gesture to concatenated text
-                // So we'll just show the acronym in blue/bold/underline
-                result = result + Text(displayText)
-                    .foregroundColor(.blue)
-                    .bold()
-                    .underline()
-
-                remainingText = String(remainingText[range.upperBound...])
-            }
-        }
-
+        // 3. Remaining regular text
         if !remainingText.isEmpty {
-            result = result + Text(remainingText).foregroundColor(.white).italic()
+            result = result + Text(remainingText)
         }
 
         return result
     }
-
 
     func pollMP3Metadata() {
         guard let selectedStream = selectedStream,
