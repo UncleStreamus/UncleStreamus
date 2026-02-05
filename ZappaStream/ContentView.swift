@@ -393,8 +393,10 @@ struct ContentView: View {
                     print("   Track: #\(parsed.trackNumber ?? "?") - \(parsed.trackName ?? "?")")
                     print("   Source: \(parsed.source ?? "?") Gen: \(parsed.generation ?? "?")")
                     print("   Duration: \(parsed.trackDuration ?? "?")")
+                    print("   ShowTime: \(parsed.showTime ?? "none")")
 
-                    self.fetchShowInfo(date: date)
+                    let showTime = ShowTime(from: parsed.showTime)
+                    self.fetchShowInfo(date: date, showTime: showTime)
                 }
             }
         }
@@ -547,10 +549,10 @@ struct ContentView: View {
                         print("📊 Parsed metadata (from MP3 poll):")
                         print("   Track: #\(parsed.trackNumber ?? "?") - \(parsed.trackName ?? "?")")
 
-
                         if let date = parsed.date {
-                            self.fetchShowInfo(date: date)
-                       }
+                            let showTime = ShowTime(from: parsed.showTime)
+                            self.fetchShowInfo(date: date, showTime: showTime)
+                        }
                     }
                 }
             }
@@ -565,12 +567,12 @@ struct ContentView: View {
         }
     }
 
-    func fetchShowInfo(date: String) {
-        // Only fetch if we don't already have this show
+    func fetchShowInfo(date: String, showTime: ShowTime = .none) {
+        // Only fetch if we don't already have this show (and same showTime)
         guard currentShow?.date != date else { return }
 
         isFetchingShowInfo = true
-        FZShowsFetcher.fetchShowInfo(date: date) { show in
+        FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime) { show in
             DispatchQueue.main.async {
                 self.currentShow = show
                 self.isFetchingShowInfo = false
