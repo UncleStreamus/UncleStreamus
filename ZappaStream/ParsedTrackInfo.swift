@@ -127,8 +127,12 @@ struct ParsedTrackInfo {
             if let dashIndex = parts.firstIndex(of: "-") {
                 // City and State are between date and dash
                 if dashIndex > 3 {
-                    let locationParts = Array(parts[3..<dashIndex])
-                    
+                    // Filter out (E), (L), (E), (L) show time indicators from location
+                    let locationParts = Array(parts[3..<dashIndex]).filter { part in
+                        let upper = part.uppercased()
+                        return upper != "(E)" && upper != "(L)" && !upper.hasPrefix("(E") && !upper.hasPrefix("(L")
+                    }
+
                     // Special case for NYC
                     if locationParts.contains("NYC") {
                         state = "NY"
@@ -136,6 +140,9 @@ struct ParsedTrackInfo {
                     } else if locationParts.count >= 2 {
                         state = locationParts.last
                         city = locationParts.dropLast().joined(separator: " ")
+                    } else if locationParts.count == 1 {
+                        // Just a city, no state (or state is the only part)
+                        city = locationParts[0]
                     }
                 }
                 
