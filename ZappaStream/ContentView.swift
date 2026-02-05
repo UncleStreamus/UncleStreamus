@@ -285,7 +285,7 @@ struct ContentView: View {
                                                     Text("\(index + 1). ")
                                                         .font(.caption)
                                                         .foregroundColor(.secondary)
-                                                    formatSong(song)
+                                                    formatSong(song, acronyms: show.acronyms)
                                                         .font(.caption)
                                                 }
                                             }
@@ -299,7 +299,7 @@ struct ContentView: View {
                                                         Text("\(midpoint + index + 1). ")
                                                             .font(.caption)
                                                             .foregroundColor(.secondary)
-                                                        formatSong(song)
+                                                        formatSong(song, acronyms: show.acronyms)
                                                               .font(.caption)
                                                     }
                                                 }
@@ -314,7 +314,7 @@ struct ContentView: View {
                                                 Text("\(index + 1). ")
                                                     .font(.caption)
                                                     .foregroundColor(.secondary)
-                                                formatSong(song)
+                                                formatSong(song, acronyms: show.acronyms)
                                                     .font(.caption)
                                             }
                                         }
@@ -448,42 +448,84 @@ struct ContentView: View {
 
 
     @ViewBuilder
-    func formatSong(_ song: String) -> some View {
+    func formatSong(_ song: String, acronyms: [(short: String, full: String)]) -> some View {
         var result = Text("")
         var remainingText = song
-        
-        // 1. Process brackets [like this]
+
+        // 1. Process brackets [like this] with acronym highlighting
         while let bracketRange = remainingText.range(of: #"\[[^\]]+\]"#, options: .regularExpression) {
             let before = String(remainingText[..<bracketRange.lowerBound])
             if !before.isEmpty {
                 result = result + Text(before)
             }
-            
+
             let bracketContent = String(remainingText[bracketRange])
-            result = result + Text(bracketContent)
-                .foregroundColor(.secondary)
-                .italic()
-            
+            result = result + formatBracketWithAcronyms(bracketContent, acronyms: acronyms)
+
             remainingText = String(remainingText[bracketRange.upperBound...])
         }
-        
+
         // 2. Process parentheses (q: something) or (incl. something) ONLY
         while let parenRange = remainingText.range(of: #"\((q:|incl\.)[^)]+\)"#, options: .regularExpression) {
             let before = String(remainingText[..<parenRange.lowerBound])
             if !before.isEmpty {
                 result = result + Text(before)
             }
-            
+
             let parenContent = String(remainingText[parenRange])
             result = result + Text(parenContent)
                 .italic()
-            
+
             remainingText = String(remainingText[parenRange.upperBound...])
         }
 
         // 3. Remaining regular text
         if !remainingText.isEmpty {
             result = result + Text(remainingText)
+        }
+
+        return result
+    }
+
+    /// Formats bracketed content, highlighting any acronyms found within
+    private func formatBracketWithAcronyms(_ bracket: String, acronyms: [(short: String, full: String)]) -> Text {
+        var result = Text("")
+        var remaining = bracket
+
+        // Sort acronyms by position in the bracket text
+        let sortedAcronyms = acronyms.sorted { first, second in
+            let range1 = remaining.range(of: first.short)
+            let range2 = remaining.range(of: second.short)
+            if let r1 = range1, let r2 = range2 {
+                return r1.lowerBound < r2.lowerBound
+            }
+            return range1 != nil
+        }
+
+        for acronym in sortedAcronyms {
+            if let range = remaining.range(of: acronym.short) {
+                // Text before the acronym
+                let before = String(remaining[..<range.lowerBound])
+                if !before.isEmpty {
+                    result = result + Text(before)
+                        .foregroundColor(.secondary)
+                        .italic()
+                }
+
+                // The acronym itself - highlighted distinctly
+                result = result + Text(acronym.short)
+                    .foregroundColor(.blue)
+                    .bold()
+
+                remaining = String(remaining[range.upperBound...])
+            }
+        }
+
+        // Any remaining bracket text after all acronyms
+        if !remaining.isEmpty {
+            result = result + Text(remaining)
+                .foregroundColor(.secondary)
+                .italic()
         }
 
         return result
