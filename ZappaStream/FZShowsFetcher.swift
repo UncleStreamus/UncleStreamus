@@ -197,9 +197,11 @@ class FZShowsFetcher {
     private static func parseShowFromHTML(html: String, searchDate: String, originalDate: String,
                                           showTime: ShowTime, sectionKeywords: [String]?,
                                           url: String) -> FZShow? {
-        // Find the date in HTML
-        guard let dateRange = html.range(of: searchDate) else {
-            print("❌ Date \(searchDate) not found in HTML")
+        // Find the date inside an <h4> tag (not in notes or other places)
+        // Search for "<h4>DATE" or "<h4 class=...>DATE" patterns
+        let h4Pattern = "<h4[^>]*>\(NSRegularExpression.escapedPattern(for: searchDate))"
+        guard let h4Match = html.range(of: h4Pattern, options: .regularExpression) else {
+            print("❌ Date \(searchDate) not found in any <h4> tag")
             return nil
         }
 
@@ -211,16 +213,8 @@ class FZShowsFetcher {
         var acronyms: [(short: String, full: String)] = []
         var detectedShowType: ShowTime = .none
 
-        // Search BACKWARD from date for <h4>
-        let searchStart = max(html.startIndex, html.index(dateRange.lowerBound, offsetBy: -100, limitedBy: html.startIndex) ?? html.startIndex)
-        let backwardSearch = String(html[searchStart..<html.endIndex])
-
-        guard let h4StartInBackward = backwardSearch.range(of: "<h4>") else {
-            print("❌ Could not find <h4> tag")
-            return nil
-        }
-
-        let fullH4Start = html.index(searchStart, offsetBy: backwardSearch.distance(from: backwardSearch.startIndex, to: h4StartInBackward.lowerBound))
+        // Find the start of this <h4> tag
+        let fullH4Start = h4Match.lowerBound
 
         // Find </h4> AFTER the <h4> we found
         guard let h4End = html.range(of: "</h4>", range: fullH4Start..<html.endIndex) else {
