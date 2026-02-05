@@ -215,12 +215,19 @@ class FZShowsFetcher {
         let searchStart = max(html.startIndex, html.index(dateRange.lowerBound, offsetBy: -100, limitedBy: html.startIndex) ?? html.startIndex)
         let backwardSearch = String(html[searchStart..<html.endIndex])
 
-        guard let h4Start = backwardSearch.range(of: "<h4>"),
-              let h4End = html.range(of: "</h4>", range: searchStart..<html.endIndex) else {
+        guard let h4StartInBackward = backwardSearch.range(of: "<h4>") else {
+            print("❌ Could not find <h4> tag")
             return nil
         }
 
-        let fullH4Start = html.index(searchStart, offsetBy: backwardSearch.distance(from: backwardSearch.startIndex, to: h4Start.lowerBound))
+        let fullH4Start = html.index(searchStart, offsetBy: backwardSearch.distance(from: backwardSearch.startIndex, to: h4StartInBackward.lowerBound))
+
+        // Find </h4> AFTER the <h4> we found
+        guard let h4End = html.range(of: "</h4>", range: fullH4Start..<html.endIndex) else {
+            print("❌ Could not find </h4> tag after <h4>")
+            return nil
+        }
+
         let fullH4 = String(html[fullH4Start..<h4End.upperBound])
         print("🏟️ FULL h4: '\(fullH4)'")
 
