@@ -87,9 +87,9 @@ struct ContentView: View {
                                 }
                                 
                                 HStack {
-                                    if let artist = parsed.artist {
-                                        Text(artist).font(.subheadline).foregroundColor(.secondary)
-                                    }
+                                    Text(artistName(from: parsed))
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
                                     if let trackNumber = parsed.trackNumber {
                                         Text("• Track \(trackNumber)").font(.caption).foregroundColor(.secondary)
                                     }
@@ -372,6 +372,36 @@ struct ContentView: View {
         let _ = showDataManager?.favoriteVersion
         guard let show = currentShow else { return false }
         return showDataManager?.isFavorite(showDate: show.date) ?? false
+    }
+
+    // MARK: - Artist Name Helper
+
+    /// Returns the artist name from metadata, or infers it from the date.
+    /// - 1966 through May 1975: "The Mothers"
+    /// - June 1975 through 1992: "Frank Zappa"
+    private func artistName(from parsed: ParsedTrackInfo) -> String {
+        // If metadata has an artist, use it
+        if let artist = parsed.artist, !artist.isEmpty {
+            return artist
+        }
+
+        // Otherwise, infer from date
+        guard let dateStr = parsed.date else { return "Frank Zappa" }
+
+        let parts = dateStr.components(separatedBy: " ")
+        guard parts.count >= 2,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]) else {
+            return "Frank Zappa"
+        }
+
+        // The Mothers era: 1966 through May 1975
+        if year < 1975 || (year == 1975 && month <= 5) {
+            return "The Mothers"
+        }
+
+        // Frank Zappa era: June 1975 onwards
+        return "Frank Zappa"
     }
 
     // MARK: - Player Setup
