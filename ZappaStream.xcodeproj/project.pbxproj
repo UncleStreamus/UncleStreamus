@@ -7,14 +7,23 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		21BE041F9119BEFC92D75A73 /* Pods_ZappaStream.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 774EF79169BA133AE787E350 /* Pods_ZappaStream.framework */; };
 		BE1A341F2F30C6D600647B01 /* ZappaStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */; };
 		BE1A34212F30C6D600647B01 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A34202F30C6D600647B01 /* ContentView.swift */; };
 		BE1A34232F30C6D600647B01 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A34222F30C6D600647B01 /* Item.swift */; };
 		BE1A34252F30C6D800647B01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE1A34242F30C6D800647B01 /* Assets.xcassets */; };
 		BE1A34292F30C6D800647B01 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE1A34282F30C6D800647B01 /* Preview Assets.xcassets */; };
+		BE88693F2F31043D003E52DE /* IcecastStreamReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */; };
+		BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */; };
+		BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */; };
+		BED5C49C2F30D50C009DB6FE /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BED5C49B2F30D50C009DB6FE /* Cocoa.framework */; platformFilters = (macos, ); };
+		BEE59E1F2F3223DB00230D3D /* FZShowsFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		114158B3DA31188C0E2D5237 /* Pods-ZappaStream.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZappaStream.release.xcconfig"; path = "Target Support Files/Pods-ZappaStream/Pods-ZappaStream.release.xcconfig"; sourceTree = "<group>"; };
+		774EF79169BA133AE787E350 /* Pods_ZappaStream.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ZappaStream.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		82FFBCE2D30DA600491011C3 /* Pods-ZappaStream.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZappaStream.debug.xcconfig"; path = "Target Support Files/Pods-ZappaStream/Pods-ZappaStream.debug.xcconfig"; sourceTree = "<group>"; };
 		BE1A341B2F30C6D600647B01 /* ZappaStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZappaStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZappaStreamApp.swift; sourceTree = "<group>"; };
 		BE1A34202F30C6D600647B01 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -22,6 +31,11 @@
 		BE1A34242F30C6D800647B01 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BE1A34262F30C6D800647B01 /* ZappaStream.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ZappaStream.entitlements; sourceTree = "<group>"; };
 		BE1A34282F30C6D800647B01 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IcecastStreamReader.swift; sourceTree = "<group>"; };
+		BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfo.swift; sourceTree = "<group>"; };
+		BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stream.swift; sourceTree = "<group>"; };
+		BED5C49B2F30D50C009DB6FE /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+		BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsFetcher.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -29,17 +43,39 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BED5C49C2F30D50C009DB6FE /* Cocoa.framework in Frameworks */,
+				21BE041F9119BEFC92D75A73 /* Pods_ZappaStream.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		A806FBCBFC537F38D854EC63 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				82FFBCE2D30DA600491011C3 /* Pods-ZappaStream.debug.xcconfig */,
+				114158B3DA31188C0E2D5237 /* Pods-ZappaStream.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		B7EB114D716DB2355761DC19 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				BED5C49B2F30D50C009DB6FE /* Cocoa.framework */,
+				774EF79169BA133AE787E350 /* Pods_ZappaStream.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		BE1A34122F30C6D600647B01 = {
 			isa = PBXGroup;
 			children = (
 				BE1A341D2F30C6D600647B01 /* ZappaStream */,
 				BE1A341C2F30C6D600647B01 /* Products */,
+				A806FBCBFC537F38D854EC63 /* Pods */,
+				B7EB114D716DB2355761DC19 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -54,12 +90,16 @@
 		BE1A341D2F30C6D600647B01 /* ZappaStream */ = {
 			isa = PBXGroup;
 			children = (
+				BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */,
+				BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */,
 				BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */,
 				BE1A34202F30C6D600647B01 /* ContentView.swift */,
 				BE1A34222F30C6D600647B01 /* Item.swift */,
 				BE1A34242F30C6D800647B01 /* Assets.xcassets */,
 				BE1A34262F30C6D800647B01 /* ZappaStream.entitlements */,
 				BE1A34272F30C6D800647B01 /* Preview Content */,
+				BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */,
+				BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */,
 			);
 			path = ZappaStream;
 			sourceTree = "<group>";
@@ -79,9 +119,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = BE1A342C2F30C6D800647B01 /* Build configuration list for PBXNativeTarget "ZappaStream" */;
 			buildPhases = (
+				564F4E6083CF909C1EF1B04C /* [CP] Check Pods Manifest.lock */,
 				BE1A34172F30C6D600647B01 /* Sources */,
 				BE1A34182F30C6D600647B01 /* Frameworks */,
 				BE1A34192F30C6D600647B01 /* Resources */,
+				B47B06E245917E6357ACCCC9 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -137,14 +179,58 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		564F4E6083CF909C1EF1B04C /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-ZappaStream-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		B47B06E245917E6357ACCCC9 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ZappaStream/Pods-ZappaStream-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		BE1A34172F30C6D600647B01 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				BE1A34212F30C6D600647B01 /* ContentView.swift in Sources */,
+				BEE59E1F2F3223DB00230D3D /* FZShowsFetcher.swift in Sources */,
 				BE1A34232F30C6D600647B01 /* Item.swift in Sources */,
 				BE1A341F2F30C6D600647B01 /* ZappaStreamApp.swift in Sources */,
+				BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */,
+				BE88693F2F31043D003E52DE /* IcecastStreamReader.swift in Sources */,
+				BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -267,6 +353,7 @@
 		};
 		BE1A342D2F30C6D800647B01 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 82FFBCE2D30DA600491011C3 /* Pods-ZappaStream.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -274,7 +361,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
+				DEVELOPMENT_TEAM = UZA73C6M3L;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -303,6 +392,7 @@
 		};
 		BE1A342E2F30C6D800647B01 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 114158B3DA31188C0E2D5237 /* Pods-ZappaStream.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -310,7 +400,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
+				DEVELOPMENT_TEAM = UZA73C6M3L;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
