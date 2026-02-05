@@ -10,7 +10,6 @@
 		21BE041F9119BEFC92D75A73 /* Pods_ZappaStream.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 774EF79169BA133AE787E350 /* Pods_ZappaStream.framework */; };
 		BE1A341F2F30C6D600647B01 /* ZappaStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */; };
 		BE1A34212F30C6D600647B01 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A34202F30C6D600647B01 /* ContentView.swift */; };
-		BE1A34232F30C6D600647B01 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A34222F30C6D600647B01 /* Item.swift */; };
 		BE1A34252F30C6D800647B01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE1A34242F30C6D800647B01 /* Assets.xcassets */; };
 		BE1A34292F30C6D800647B01 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE1A34282F30C6D800647B01 /* Preview Assets.xcassets */; };
 		BE88693F2F31043D003E52DE /* IcecastStreamReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */; };
@@ -18,6 +17,11 @@
 		BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */; };
 		BED5C49C2F30D50C009DB6FE /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BED5C49B2F30D50C009DB6FE /* Cocoa.framework */; platformFilters = (macos, ); };
 		BEE59E1F2F3223DB00230D3D /* FZShowsFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */; };
+		BEAA00012F34000100AA0001 /* Acronym.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00002F34000100AA0001 /* Acronym.swift */; };
+		BEAA00032F34000100AA0003 /* SavedShow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00022F34000100AA0003 /* SavedShow.swift */; };
+		BEAA00052F34000100AA0005 /* ShowDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00042F34000100AA0005 /* ShowDataManager.swift */; };
+		BEAA00072F34000100AA0007 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00062F34000100AA0007 /* SidebarView.swift */; };
+		BEAA00092F34000100AA0009 /* ShowEntryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00082F34000100AA0009 /* ShowEntryRow.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,7 +31,6 @@
 		BE1A341B2F30C6D600647B01 /* ZappaStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZappaStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZappaStreamApp.swift; sourceTree = "<group>"; };
 		BE1A34202F30C6D600647B01 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		BE1A34222F30C6D600647B01 /* Item.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Item.swift; sourceTree = "<group>"; };
 		BE1A34242F30C6D800647B01 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BE1A34262F30C6D800647B01 /* ZappaStream.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ZappaStream.entitlements; sourceTree = "<group>"; };
 		BE1A34282F30C6D800647B01 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
@@ -36,6 +39,11 @@
 		BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stream.swift; sourceTree = "<group>"; };
 		BED5C49B2F30D50C009DB6FE /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsFetcher.swift; sourceTree = "<group>"; };
+		BEAA00002F34000100AA0001 /* Acronym.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Acronym.swift; sourceTree = "<group>"; };
+		BEAA00022F34000100AA0003 /* SavedShow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedShow.swift; sourceTree = "<group>"; };
+		BEAA00042F34000100AA0005 /* ShowDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDataManager.swift; sourceTree = "<group>"; };
+		BEAA00062F34000100AA0007 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		BEAA00082F34000100AA0009 /* ShowEntryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowEntryRow.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -94,7 +102,11 @@
 				BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */,
 				BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */,
 				BE1A34202F30C6D600647B01 /* ContentView.swift */,
-				BE1A34222F30C6D600647B01 /* Item.swift */,
+				BEAA00002F34000100AA0001 /* Acronym.swift */,
+				BEAA00022F34000100AA0003 /* SavedShow.swift */,
+				BEAA00042F34000100AA0005 /* ShowDataManager.swift */,
+				BEAA00062F34000100AA0007 /* SidebarView.swift */,
+				BEAA00082F34000100AA0009 /* ShowEntryRow.swift */,
 				BE1A34242F30C6D800647B01 /* Assets.xcassets */,
 				BE1A34262F30C6D800647B01 /* ZappaStream.entitlements */,
 				BE1A34272F30C6D800647B01 /* Preview Content */,
@@ -226,7 +238,11 @@
 			files = (
 				BE1A34212F30C6D600647B01 /* ContentView.swift in Sources */,
 				BEE59E1F2F3223DB00230D3D /* FZShowsFetcher.swift in Sources */,
-				BE1A34232F30C6D600647B01 /* Item.swift in Sources */,
+				BEAA00012F34000100AA0001 /* Acronym.swift in Sources */,
+				BEAA00032F34000100AA0003 /* SavedShow.swift in Sources */,
+				BEAA00052F34000100AA0005 /* ShowDataManager.swift in Sources */,
+				BEAA00072F34000100AA0007 /* SidebarView.swift in Sources */,
+				BEAA00092F34000100AA0009 /* ShowEntryRow.swift in Sources */,
 				BE1A341F2F30C6D600647B01 /* ZappaStreamApp.swift in Sources */,
 				BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */,
 				BE88693F2F31043D003E52DE /* IcecastStreamReader.swift in Sources */,
