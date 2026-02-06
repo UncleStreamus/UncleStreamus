@@ -1,5 +1,29 @@
 import Foundation
 
+// MARK: - HTML Entity Decoding
+
+extension String {
+    /// Decodes common HTML entities like &amp; &lt; &gt; &quot; etc.
+    func decodeHTMLEntities() -> String {
+        var result = self
+        let entities: [(String, String)] = [
+            ("&amp;", "&"),
+            ("&lt;", "<"),
+            ("&gt;", ">"),
+            ("&quot;", "\""),
+            ("&apos;", "'"),
+            ("&#39;", "'"),
+            ("&nbsp;", " "),
+            ("&ndash;", "–"),
+            ("&mdash;", "—"),
+        ]
+        for (entity, char) in entities {
+            result = result.replacingOccurrences(of: entity, with: char)
+        }
+        return result
+    }
+}
+
 struct FZShow {
     let date: String
     let venue: String
@@ -337,10 +361,11 @@ class FZShowsFetcher {
                 }
             }
 
-            // Now strip HTML and parse songs
+            // Now strip HTML, decode entities, and parse songs
             let setlistText = rawSetlistText
                 .replacingOccurrences(of: #"<acronym title="([^"]+)">([^<]+)</acronym>"#, with: "$2", options: .regularExpression)
                 .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                .decodeHTMLEntities()
                 .trimmingCharacters(in: .whitespacesAndNewlines)
 
             // Split on commas, but not commas inside parentheses or brackets
