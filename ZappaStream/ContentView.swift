@@ -26,6 +26,9 @@ struct ContentView: View {
         Stream(name: "FLAC (750 kbit/s)", url: "https://shoutcast.norbert.de/zappa.flac", format: "FLAC")
     ]
 
+    private let sidebarWidth: CGFloat = 280
+    private let maxWindowWidth: CGFloat = 900
+
     var body: some View {
         HStack(spacing: 0) {
             mainContentView
@@ -38,7 +41,7 @@ struct ContentView: View {
         }
         .frame(
             minWidth: isSidebarVisible ? 630 : 350,
-            idealWidth: isSidebarVisible ? 730 : (showInfoExpanded ? 450 : 350),
+            maxWidth: maxWindowWidth,
             minHeight: 520
         )
         .onAppear {
@@ -48,6 +51,45 @@ struct ContentView: View {
             setupPlayer()
         }
         .onDisappear(perform: stopStream)
+    }
+
+    /// Toggles the sidebar and resizes the window to accommodate it
+    private func toggleSidebar() {
+        guard let window = NSApplication.shared.windows.first else {
+            isSidebarVisible.toggle()
+            return
+        }
+
+        let currentFrame = window.frame
+        let sidebarDelta = sidebarWidth + 1 // +1 for divider
+
+        if isSidebarVisible {
+            // Closing sidebar - shrink window from the right
+            let newWidth = max(350, currentFrame.width - sidebarDelta)
+            let newFrame = NSRect(
+                x: currentFrame.origin.x,
+                y: currentFrame.origin.y,
+                width: newWidth,
+                height: currentFrame.height
+            )
+            withAnimation(.easeInOut(duration: 0.25)) {
+                isSidebarVisible = false
+            }
+            window.setFrame(newFrame, display: true, animate: true)
+        } else {
+            // Opening sidebar - grow window to the right (unless at max)
+            let newWidth = min(maxWindowWidth, currentFrame.width + sidebarDelta)
+            let newFrame = NSRect(
+                x: currentFrame.origin.x,
+                y: currentFrame.origin.y,
+                width: newWidth,
+                height: currentFrame.height
+            )
+            window.setFrame(newFrame, display: true, animate: true)
+            withAnimation(.easeInOut(duration: 0.25)) {
+                isSidebarVisible = true
+            }
+        }
     }
 
     // MARK: - Main Content
@@ -63,11 +105,7 @@ struct ContentView: View {
                         .font(.largeTitle)
                         .bold()
                     Spacer()
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            isSidebarVisible.toggle()
-                        }
-                    }) {
+                    Button(action: toggleSidebar) {
                         Image(systemName: "sidebar.right")
                             .font(.title2)
                             .foregroundColor(isSidebarVisible ? .accentColor : .secondary)
@@ -336,7 +374,7 @@ struct ContentView: View {
                         }
                         .frame(maxHeight: 200)
 
-                        Button("View on FZShows website") {
+                        Button("View on FZShows") {
                             if let url = URL(string: show.url) {
                                 #if os(macOS)
                                 NSWorkspace.shared.open(url)
