@@ -77,10 +77,17 @@ struct ParsedTrackInfo {
                     showDuration = String(bracketContent[durationMatch])
                 }
                 
-                let sources = ["AUD", "SBD", "FM", "STAGE"]
-                for src in sources where bracketContent.contains(src) {
-                    source = src
-                    break
+                // Check for combined sources first (e.g., "SBD-AUD", "AUD-SBD")
+                // Then fall back to single sources
+                let combinedSourcePattern = #"(SBD-AUD|AUD-SBD|SBD-FM|FM-SBD|AUD-FM|FM-AUD)"#
+                if let combinedMatch = bracketContent.range(of: combinedSourcePattern, options: .regularExpression) {
+                    source = String(bracketContent[combinedMatch])
+                } else {
+                    let sources = ["AUD", "SBD", "FM", "STAGE"]
+                    for src in sources where bracketContent.contains(src) {
+                        source = src
+                        break
+                    }
                 }
                 
                 if let genMatch = bracketContent.range(of: #"\b(GEN|MC)\b"#, options: .regularExpression) {
@@ -163,11 +170,18 @@ struct ParsedTrackInfo {
                 }
             }
             
-            let sources = ["AUD", "SBD", "FM", "STAGE"]
+            // Check for combined sources first (e.g., "SBD-AUD", "AUD-SBD")
+            // Then fall back to single sources
             let fullTitleUpper = title.uppercased()
-            for src in sources where fullTitleUpper.contains(src) {
-                source = src
-                break
+            let combinedSourcePattern = #"(SBD-AUD|AUD-SBD|SBD-FM|FM-SBD|AUD-FM|FM-AUD)"#
+            if let combinedRange = fullTitleUpper.range(of: combinedSourcePattern, options: .regularExpression) {
+                source = String(fullTitleUpper[combinedRange])
+            } else {
+                let sources = ["AUD", "SBD", "FM", "STAGE"]
+                for src in sources where fullTitleUpper.contains(src) {
+                    source = src
+                    break
+                }
             }
             
             // ADD: Early/Late detection

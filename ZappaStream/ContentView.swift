@@ -17,7 +17,10 @@ struct ContentView: View {
     @State private var showInfoExpanded: Bool = false
     @State private var isFetchingShowInfo: Bool = false
     @State private var availableWidth: CGFloat = 500
-    @State private var isSidebarVisible: Bool = false
+    @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = false
+    @AppStorage("windowWidthBeforeSidebar") private var windowWidthBeforeSidebar: Double = 0
+    @AppStorage("textScale") private var textScale: Double = 1.1
+    @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "MP3"
 
     let streams = [
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
@@ -32,52 +35,71 @@ struct ContentView: View {
     var body: some View {
         HStack(spacing: 0) {
             mainContentView
+                .frame(minWidth: 350)
 
             if isSidebarVisible, let manager = showDataManager {
                 Divider()
                 SidebarView(showDataManager: manager)
-                    .transition(.move(edge: .trailing))
+                    .frame(width: sidebarWidth)
             }
         }
-        .frame(
-            minWidth: isSidebarVisible ? 630 : 350,
-            maxWidth: maxWindowWidth,
-            minHeight: 520
-        )
+        .frame(minHeight: 520)
+        .environment(\.fontScale, textScale)
         .onAppear {
             if showDataManager == nil {
                 showDataManager = ShowDataManager(modelContext: modelContext)
             }
+            // Restore last used stream
+            if selectedStream == nil {
+                selectedStream = streams.first { $0.format == lastStreamFormat } ?? streams.first
+            }
             setupPlayer()
+            configureWindowConstraints()
         }
         .onDisappear(perform: stopStream)
     }
 
-    /// Toggles the sidebar and resizes the window to accommodate it
-    private func toggleSidebar() {
-        guard let window = NSApplication.shared.windows.first else {
-            isSidebarVisible.toggle()
-            return
-        }
+    private let maxWindowHeight: CGFloat = 800
 
-        let currentFrame = window.frame
+    /// Configures the window's min/max size constraints
+    private func configureWindowConstraints() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            guard let window = NSApplication.shared.windows.first(where: { $0.isKeyWindow })
+                  ?? NSApplication.shared.windows.first else { return }
+            window.minSize = NSSize(width: 350, height: 520)
+            window.maxSize = NSSize(width: self.maxWindowWidth, height: self.maxWindowHeight)
+            print("🪟 Window constraints set: min=\(window.minSize), max=\(window.maxSize)")
+        }
+    }
+
+    /// Toggles the sidebar by animating the window width to reveal/hide it
+    private func toggleSidebar() {
+        guard let window = NSApplication.shared.windows.first else { return }
+
         let sidebarDelta = sidebarWidth + 1 // +1 for divider
+        let currentFrame = window.frame
 
         if isSidebarVisible {
-            // Closing sidebar - shrink window from the right
-            let newWidth = max(350, currentFrame.width - sidebarDelta)
+            // Closing sidebar - restore to previous width
+            print("🔄 Closing sidebar. Saved width: \(windowWidthBeforeSidebar), current: \(currentFrame.width)")
+            let newWidth = windowWidthBeforeSidebar > 0 ? windowWidthBeforeSidebar : max(350, currentFrame.width - sidebarDelta)
+            print("🔄 Will restore to width: \(newWidth)")
             let newFrame = NSRect(
                 x: currentFrame.origin.x,
                 y: currentFrame.origin.y,
                 width: newWidth,
                 height: currentFrame.height
             )
-            withAnimation(.easeInOut(duration: 0.25)) {
-                isSidebarVisible = false
+            isSidebarVisible = false
+            windowWidthBeforeSidebar = 0
+            // Delay to let SwiftUI update minWidth constraint first
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                window.setFrame(newFrame, display: true, animate: true)
             }
-            window.setFrame(newFrame, display: true, animate: true)
         } else {
-            // Opening sidebar - grow window to the right (unless at max)
+            // Opening sidebar - remember current width, then grow window
+            print("🔄 Opening sidebar. Saving width: \(currentFrame.width)")
+            windowWidthBeforeSidebar = currentFrame.width
             let newWidth = min(maxWindowWidth, currentFrame.width + sidebarDelta)
             let newFrame = NSRect(
                 x: currentFrame.origin.x,
@@ -85,10 +107,8 @@ struct ContentView: View {
                 width: newWidth,
                 height: currentFrame.height
             )
+            isSidebarVisible = true
             window.setFrame(newFrame, display: true, animate: true)
-            withAnimation(.easeInOut(duration: 0.25)) {
-                isSidebarVisible = true
-            }
         }
     }
 
@@ -102,12 +122,11 @@ struct ContentView: View {
                 HStack {
                     Spacer()
                     Text("Zappa Stream")
-                        .font(.largeTitle)
-                        .bold()
+                        .scaledFont(.largeTitle, weight: .bold)
                     Spacer()
                     Button(action: toggleSidebar) {
                         Image(systemName: "sidebar.right")
-                            .font(.title2)
+                            .scaledFont(.title2)
                             .foregroundColor(isSidebarVisible ? .accentColor : .secondary)
                     }
                     .buttonStyle(.plain)
@@ -120,19 +139,18 @@ struct ContentView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 if let trackName = parsed.trackName {
                                     Text(trackName)
-                                        .font(.title2)
-                                        .fontWeight(.semibold)
+                                        .scaledFont(.title2, weight: .semibold)
                                 }
                                 
                                 HStack {
                                     Text(artistName(from: parsed))
-                                        .font(.subheadline)
+                                        .scaledFont(.subheadline)
                                         .foregroundColor(.secondary)
                                     if let trackNumber = parsed.trackNumber {
-                                        Text("• Track \(trackNumber)").font(.caption).foregroundColor(.secondary)
+                                        Text("• Track \(trackNumber)").scaledFont(.caption).foregroundColor(.secondary)
                                     }
                                     if let trackDuration = parsed.trackDuration {
-                                        Text("• \(trackDuration)").font(.caption).foregroundColor(.secondary)
+                                        Text("• \(trackDuration)").scaledFont(.caption).foregroundColor(.secondary)
                                     }
                                 }
                             }
@@ -156,13 +174,13 @@ struct ContentView: View {
                         HStack {
                             if let date = parsed.date, let city = parsed.city, let state = parsed.state {
                                 Text("\(date) • \(city), \(state)")
-                                    .font(.caption)
+                                    .scaledFont(.caption)
                                     .foregroundColor(.secondary)
                             }
                             Spacer()
                             if let source = parsed.source {
                                 Text(source)
-                                    .font(.caption)
+                                    .scaledFont(.caption)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 2)
                                     .background(Color.blue.opacity(0.2))
@@ -170,8 +188,8 @@ struct ContentView: View {
                             }
                         }
                     } else {
-                        Text("No track info")
-                            .font(.headline)
+                        Text(placeholderText)
+                            .scaledFont(.headline)
                             .foregroundColor(.gray)
                     }
                 }
@@ -212,12 +230,11 @@ struct ContentView: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "antenna.radiowaves.left.and.right")
-                                .font(.caption)
+                                .scaledFont(.caption)
                             Text(selectedStream?.format ?? "Stream")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
+                                .scaledFont(.subheadline, weight: .medium)
                             Image(systemName: "chevron.up.chevron.down")
-                                .font(.caption2)
+                                .scaledFont(.caption2)
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
@@ -226,8 +243,11 @@ struct ContentView: View {
                     }
                     .buttonStyle(.plain)
                     .onChange(of: selectedStream) { _, newValue in
-                        if newValue != nil && isPlaying {
-                            playStream()
+                        if let stream = newValue {
+                            lastStreamFormat = stream.format
+                            if isPlaying {
+                                playStream()
+                            }
                         }
                     }
 
@@ -237,10 +257,9 @@ struct ContentView: View {
                     }) {
                         HStack(spacing: 6) {
                             Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                                .font(.body)
+                                .scaledFont(.body)
                             Text(isPlaying ? "Pause" : "Play")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
+                                .scaledFont(.subheadline, weight: .semibold)
                         }
                         .padding(.horizontal, 20)
                         .padding(.vertical, 8)
@@ -255,7 +274,7 @@ struct ContentView: View {
 
                 if isPlaying, let stream = selectedStream {
                     Text("Streaming \(stream.name)")
-                        .font(.caption2)
+                        .scaledFont(.caption2)
                         .foregroundColor(.secondary)
                 }
             }
@@ -278,18 +297,17 @@ struct ContentView: View {
                         // Venue info (same as expanded content, but more compact)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(show.venue)
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                            
+                                .scaledFont(.headline, weight: .semibold)
+
                             if let note = show.note {
                                 Text(try! AttributedString(markdown: note))
-                                    .font(.caption)
+                                    .scaledFont(.caption)
                                     .foregroundColor(.orange)
                             }
-                            
+
                             if !show.showInfo.isEmpty {
                                 Text(show.showInfo)
-                                    .font(.caption)
+                                    .scaledFont(.caption)
                                     .foregroundColor(.secondary)
                             }
                         }
@@ -307,9 +325,9 @@ struct ContentView: View {
 
                 if showInfoExpanded {
                     VStack(alignment: .leading, spacing: 12) {
-                        
+
                         Text("Setlist:")
-                            .font(.headline)
+                            .scaledFont(.headline)
 
                         ScrollView {
                             Group {
@@ -319,13 +337,7 @@ struct ContentView: View {
 
                                         VStack(alignment: .leading, spacing: 4) {
                                             ForEach(Array(show.setlist.prefix(midpoint).enumerated()), id: \.offset) { index, song in
-                                                HStack(alignment: .top, spacing: 4) {
-                                                    Text("\(index + 1). ")
-                                                        .font(.caption)
-                                                        .foregroundColor(.secondary)
-                                                    formatSong(song, acronyms: show.acronyms)
-                                                        .font(.caption)
-                                                }
+                                                setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
                                             }
                                         }
                                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -333,13 +345,7 @@ struct ContentView: View {
                                         if show.setlist.count > midpoint {
                                             VStack(alignment: .leading, spacing: 4) {
                                                 ForEach(Array(show.setlist.dropFirst(midpoint).enumerated()), id: \.offset) { index, song in
-                                                    HStack(alignment: .top, spacing: 4) {
-                                                        Text("\(midpoint + index + 1). ")
-                                                            .font(.caption)
-                                                            .foregroundColor(.secondary)
-                                                        formatSong(song, acronyms: show.acronyms)
-                                                              .font(.caption)
-                                                    }
+                                                    setlistRow(index: midpoint + index + 1, song: song, acronyms: show.acronyms)
                                                 }
                                             }
                                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -348,13 +354,7 @@ struct ContentView: View {
                                 } else {
                                     VStack(alignment: .leading, spacing: 4) {
                                         ForEach(Array(show.setlist.enumerated()), id: \.offset) { index, song in
-                                            HStack(alignment: .top, spacing: 4) {
-                                                Text("\(index + 1). ")
-                                                    .font(.caption)
-                                                    .foregroundColor(.secondary)
-                                                formatSong(song, acronyms: show.acronyms)
-                                                    .font(.caption)
-                                            }
+                                            setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
                                         }
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -372,7 +372,7 @@ struct ContentView: View {
                                 }
                             )
                         }
-                        .frame(maxHeight: 200)
+                        .frame(maxHeight: .infinity)
 
                         Button("View on FZShows") {
                             if let url = URL(string: show.url) {
@@ -383,7 +383,7 @@ struct ContentView: View {
                                 #endif
                             }
                         }
-                        .font(.caption)
+                        .scaledFont(.caption)
                         .padding(.top, 1)
                     }
                     .padding()
@@ -395,10 +395,22 @@ struct ContentView: View {
             HStack {
                 ProgressView()
                 Text("Loading show info...")
-                    .font(.caption)
+                    .scaledFont(.caption)
                     .foregroundColor(.secondary)
             }
             .padding()
+        }
+    }
+
+    // MARK: - Placeholder Text
+
+    private var placeholderText: String {
+        if !isPlaying {
+            return "Nothing playing"
+        } else if selectedStream?.format != "MP3" {
+            return "Waiting for info..."
+        } else {
+            return "No track info"
         }
     }
 
@@ -410,6 +422,51 @@ struct ContentView: View {
         let _ = showDataManager?.favoriteVersion
         guard let show = currentShow else { return false }
         return showDataManager?.isFavorite(showDate: show.date) ?? false
+    }
+
+    // MARK: - Current Track Matching
+
+    /// Extracts the first N words from a string for comparison
+    private func firstWords(_ text: String, count: Int = 2) -> String {
+        // Remove content in parentheses/brackets first, then get words
+        let base = text.components(separatedBy: CharacterSet(charactersIn: "([")).first?
+            .trimmingCharacters(in: .whitespaces).lowercased() ?? ""
+        // Strip punctuation from each word (like commas, apostrophes, etc.)
+        let punctuation = CharacterSet.punctuationCharacters
+        let words = base.split(separator: " ").prefix(count).map { word in
+            String(word.unicodeScalars.filter { !punctuation.contains($0) })
+        }
+        return words.joined(separator: " ")
+    }
+
+    /// Checks if a setlist song matches the currently playing track
+    private func isCurrentTrack(_ song: String) -> Bool {
+        guard let trackName = parsedTrack?.trackName else { return false }
+
+        // Compare first 2 words of each track name
+        let songWords = firstWords(song)
+        let trackWords = firstWords(trackName)
+
+        guard !songWords.isEmpty && !trackWords.isEmpty else { return false }
+
+        return songWords == trackWords
+    }
+
+    /// Renders a setlist row with current track highlighting
+    @ViewBuilder
+    private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {
+        let isCurrent = isCurrentTrack(song)
+        HStack(alignment: .top, spacing: 4) {
+            Text("\(index). ")
+                .scaledFont(.caption)
+                .foregroundColor(.secondary)
+            formatSong(song, acronyms: acronyms)
+                .scaledFont(.caption)
+                .padding(.horizontal, isCurrent ? 6 : 0)
+                .padding(.vertical, isCurrent ? 2 : 0)
+                .background(isCurrent ? Color.primary.opacity(0.12) : Color.clear)
+                .cornerRadius(4)
+        }
     }
 
     // MARK: - Artist Name Helper
@@ -523,88 +580,9 @@ struct ContentView: View {
     }
 
 
-    @ViewBuilder
-    func formatSong(_ song: String, acronyms: [(short: String, full: String)]) -> some View {
-        var result = Text("")
-        var remainingText = song
-
-        // 1. Process brackets [like this] with acronym highlighting
-        while let bracketRange = remainingText.range(of: #"\[[^\]]+\]"#, options: .regularExpression) {
-            let before = String(remainingText[..<bracketRange.lowerBound])
-            if !before.isEmpty {
-                result = result + Text(before)
-            }
-
-            let bracketContent = String(remainingText[bracketRange])
-            result = result + formatBracketWithAcronyms(bracketContent, acronyms: acronyms)
-
-            remainingText = String(remainingText[bracketRange.upperBound...])
-        }
-
-        // 2. Process parentheses (q: something) or (incl. something) ONLY
-        while let parenRange = remainingText.range(of: #"\((q:|incl\.)[^)]+\)"#, options: .regularExpression) {
-            let before = String(remainingText[..<parenRange.lowerBound])
-            if !before.isEmpty {
-                result = result + Text(before)
-            }
-
-            let parenContent = String(remainingText[parenRange])
-            result = result + Text(parenContent)
-                .italic()
-
-            remainingText = String(remainingText[parenRange.upperBound...])
-        }
-
-        // 3. Remaining regular text
-        if !remainingText.isEmpty {
-            result = result + Text(remainingText)
-        }
-
-        return result
-    }
-
-    /// Formats bracketed content, highlighting any acronyms found within
-    private func formatBracketWithAcronyms(_ bracket: String, acronyms: [(short: String, full: String)]) -> Text {
-        var result = Text("")
-        var remaining = bracket
-
-        // Sort acronyms by position in the bracket text
-        let sortedAcronyms = acronyms.sorted { first, second in
-            let range1 = remaining.range(of: first.short)
-            let range2 = remaining.range(of: second.short)
-            if let r1 = range1, let r2 = range2 {
-                return r1.lowerBound < r2.lowerBound
-            }
-            return range1 != nil
-        }
-
-        for acronym in sortedAcronyms {
-            if let range = remaining.range(of: acronym.short) {
-                // Text before the acronym
-                let before = String(remaining[..<range.lowerBound])
-                if !before.isEmpty {
-                    result = result + Text(before)
-                        .foregroundColor(.secondary)
-                        .italic()
-                }
-
-                // The acronym itself - highlighted distinctly
-                result = result + Text(acronym.short)
-                    .foregroundColor(.blue)
-                    .bold()
-
-                remaining = String(remaining[range.upperBound...])
-            }
-        }
-
-        // Any remaining bracket text after all acronyms
-        if !remaining.isEmpty {
-            result = result + Text(remaining)
-                .foregroundColor(.secondary)
-                .italic()
-        }
-
-        return result
+    /// Formats a song name using the shared SongFormatter
+    func formatSong(_ song: String, acronyms: [(short: String, full: String)]) -> Text {
+        SongFormatter.format(song, acronyms: acronyms)
     }
 
     func pollMP3Metadata() {

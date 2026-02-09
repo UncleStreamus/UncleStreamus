@@ -4,6 +4,8 @@ import SwiftData
 struct SidebarView: View {
     var showDataManager: ShowDataManager
     @State private var selectedTab: SidebarTab = .history
+    @StateObject private var historyFilter = FilterState()
+    @StateObject private var favoritesFilter = FilterState()
 
     enum SidebarTab {
         case history, favorites
@@ -22,9 +24,9 @@ struct SidebarView: View {
 
             switch selectedTab {
             case .history:
-                HistoryListView(showDataManager: showDataManager)
+                HistoryListView(showDataManager: showDataManager, filterState: historyFilter)
             case .favorites:
-                FavoritesListView(showDataManager: showDataManager)
+                FavoritesListView(showDataManager: showDataManager, filterState: favoritesFilter)
             }
         }
         .frame(width: 280)
@@ -36,19 +38,23 @@ struct SidebarView: View {
 
 struct HistoryListView: View {
     var showDataManager: ShowDataManager
+    @ObservedObject var filterState: FilterState
 
     @Query(filter: #Predicate<SavedShow> { $0.listenedAt != nil },
            sort: \SavedShow.listenedAt, order: .reverse)
     private var history: [SavedShow]
 
+    private var filteredHistory: [SavedShow] {
+        history.filtered(by: filterState)
+    }
+
     private var groupedHistory: [(String, [SavedShow])] {
         let calendar = Calendar.current
-        let now = Date()
 
         var groups: [String: [SavedShow]] = [:]
         var groupOrder: [String] = []
 
-        for show in history {
+        for show in filteredHistory {
             guard let date = show.listenedAt else { continue }
 
             let label: String
@@ -74,40 +80,60 @@ struct HistoryListView: View {
     }
 
     var body: some View {
-        if history.isEmpty {
-            VStack {
-                Spacer()
-                Text("No listening history yet")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text("Play a show to start tracking")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                Spacer()
+        VStack(spacing: 0) {
+            // Filter bar
+            if !history.isEmpty {
+                FilterBar(filterState: filterState, shows: history)
+                Divider()
             }
-            .frame(maxWidth: .infinity)
-        } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
-                    ForEach(groupedHistory, id: \.0) { dateLabel, shows in
-                        Section {
-                            ForEach(shows) { show in
-                                ShowEntryRow(savedShow: show, showDataManager: showDataManager)
+
+            if history.isEmpty {
+                VStack {
+                    Spacer()
+                    Text("No listening history yet")
+                        .scaledFont(.caption)
+                        .foregroundColor(.secondary)
+                    Text("Play a show to start tracking")
+                        .scaledFont(.caption2)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+            } else if filteredHistory.isEmpty {
+                VStack {
+                    Spacer()
+                    Text("No shows match filters")
+                        .scaledFont(.caption)
+                        .foregroundColor(.secondary)
+                    Button("Clear filters") {
+                        filterState.clear()
+                    }
+                    .scaledFont(.caption2)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
+                        ForEach(groupedHistory, id: \.0) { dateLabel, shows in
+                            Section {
+                                ForEach(shows) { show in
+                                    ShowEntryRow(savedShow: show, showDataManager: showDataManager)
+                                }
+                            } header: {
+                                Text(dateLabel)
+                                    .scaledFont(.subheadline, weight: .bold)
+                                    .foregroundColor(.primary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(nsColor: .windowBackgroundColor))
                             }
-                        } header: {
-                            Text(dateLabel)
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(.regularMaterial)
                         }
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
             }
         }
     }
@@ -117,19 +143,24 @@ struct HistoryListView: View {
 
 struct FavoritesListView: View {
     var showDataManager: ShowDataManager
+    @ObservedObject var filterState: FilterState
 
     @Query(filter: #Predicate<SavedShow> { $0.isFavorite == true },
            sort: \SavedShow.showDate, order: .reverse)
     private var favorites: [SavedShow]
 
+    private var filteredFavorites: [SavedShow] {
+        favorites.filtered(by: filterState)
+    }
+
     private var groupedFavorites: [(String, [SavedShow])] {
         var groups: [String: [SavedShow]] = [:]
         var groupOrder: [String] = []
 
-        for show in favorites {
+        for show in filteredFavorites {
             // Extract first 4 characters: "2024 02 05" → "2024"
             let year = String(show.showDate.prefix(4))
-            
+
             if groups[year] == nil {
                 groups[year] = []
                 groupOrder.append(year)
@@ -141,40 +172,60 @@ struct FavoritesListView: View {
     }
 
     var body: some View {
-        if favorites.isEmpty {
-            VStack {
-                Spacer()
-                Text("No favorites yet")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text("Tap the star on a show to save it")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                Spacer()
+        VStack(spacing: 0) {
+            // Filter bar
+            if !favorites.isEmpty {
+                FilterBar(filterState: filterState, shows: favorites)
+                Divider()
             }
-            .frame(maxWidth: .infinity)
-        } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
-                    ForEach(groupedFavorites, id: \.0) { year, shows in
-                        Section {
-                            ForEach(shows) { show in
-                                ShowEntryRow(savedShow: show, showDataManager: showDataManager)
+
+            if favorites.isEmpty {
+                VStack {
+                    Spacer()
+                    Text("No favorites yet")
+                        .scaledFont(.caption)
+                        .foregroundColor(.secondary)
+                    Text("Tap the star on a show to save it")
+                        .scaledFont(.caption2)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+            } else if filteredFavorites.isEmpty {
+                VStack {
+                    Spacer()
+                    Text("No shows match filters")
+                        .scaledFont(.caption)
+                        .foregroundColor(.secondary)
+                    Button("Clear filters") {
+                        filterState.clear()
+                    }
+                    .scaledFont(.caption2)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
+                        ForEach(groupedFavorites, id: \.0) { year, shows in
+                            Section {
+                                ForEach(shows) { show in
+                                    ShowEntryRow(savedShow: show, showDataManager: showDataManager)
+                                }
+                            } header: {
+                                Text(year)
+                                    .scaledFont(.subheadline, weight: .bold)
+                                    .foregroundColor(.primary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(nsColor: .windowBackgroundColor))
                             }
-                        } header: {
-                            Text(year)
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(.regularMaterial)
                         }
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
             }
         }
     }

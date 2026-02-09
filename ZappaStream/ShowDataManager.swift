@@ -55,4 +55,48 @@ class ShowDataManager {
         )
         return ((try? modelContext.fetch(descriptor))?.first) != nil
     }
+
+    // MARK: - Refresh Show Info
+
+    func refreshShowInfo(savedShow: SavedShow, completion: @escaping (Bool) -> Void) {
+        let showDate = savedShow.showDate
+
+        // Parse showTime from showInfo if present
+        let showTime: ShowTime
+        if savedShow.showInfo.lowercased().contains("early") {
+            showTime = .early
+        } else if savedShow.showInfo.lowercased().contains("late") {
+            showTime = .late
+        } else {
+            showTime = .none
+        }
+
+        FZShowsFetcher.fetchShowInfo(date: showDate, showTime: showTime) { [weak self] newShow in
+            DispatchQueue.main.async {
+                guard let self = self, let newShow = newShow else {
+                    completion(false)
+                    return
+                }
+
+                // Update the saved show with new data
+                savedShow.venue = newShow.venue
+                savedShow.soundcheck = newShow.soundcheck
+                savedShow.note = newShow.note
+                savedShow.showInfo = newShow.showInfo
+                savedShow.setlistData = (try? JSONEncoder().encode(newShow.setlist)) ?? Data()
+                let acronymsCodable = newShow.acronyms.map { Acronym(short: $0.short, full: $0.full) }
+                savedShow.acronymsData = (try? JSONEncoder().encode(acronymsCodable)) ?? Data()
+                savedShow.url = newShow.url
+                savedShow.city = newShow.city
+                savedShow.state = newShow.state
+                savedShow.country = newShow.country
+                savedShow.period = newShow.period
+                savedShow.tour = newShow.tour
+
+                try? self.modelContext.save()
+                print("✅ Refreshed show info for \(showDate)")
+                completion(true)
+            }
+        }
+    }
 }

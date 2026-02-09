@@ -16,9 +16,20 @@ final class SavedShow {
     var isFavorite: Bool
     var listenedAt: Date?
 
+    // Location fields
+    var city: String?
+    var state: String?
+    var country: String?
+
+    // Period and tour fields
+    var period: String?
+    var tour: String?
+
     init(showDate: String, venue: String, soundcheck: String?, note: String?,
          showInfo: String, setlistData: Data, acronymsData: Data, url: String,
-         isFavorite: Bool = false, listenedAt: Date? = nil) {
+         isFavorite: Bool = false, listenedAt: Date? = nil,
+         city: String? = nil, state: String? = nil, country: String? = nil,
+         period: String? = nil, tour: String? = nil) {
         self.showDate = showDate
         self.venue = venue
         self.soundcheck = soundcheck
@@ -29,6 +40,11 @@ final class SavedShow {
         self.url = url
         self.isFavorite = isFavorite
         self.listenedAt = listenedAt
+        self.city = city
+        self.state = state
+        self.country = country
+        self.period = period
+        self.tour = tour
     }
 
     var setlist: [String] {
@@ -52,7 +68,12 @@ final class SavedShow {
             showInfo: showInfo,
             setlist: setlist,
             acronyms: acronymTuples,
-            url: url
+            url: url,
+            city: city,
+            state: state,
+            country: country,
+            period: period,
+            tour: tour
         )
     }
 
@@ -71,7 +92,12 @@ final class SavedShow {
             acronymsData: acronymsData,
             url: show.url,
             isFavorite: isFavorite,
-            listenedAt: listenedAt
+            listenedAt: listenedAt,
+            city: show.city,
+            state: show.state,
+            country: show.country,
+            period: show.period,
+            tour: show.tour
         )
     }
 }

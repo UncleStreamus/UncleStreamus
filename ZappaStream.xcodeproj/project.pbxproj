@@ -7,7 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		07D191737EF2D1D5E95B0ADB /* ScaledFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = B859389429B13E3327751EB4 /* ScaledFont.swift */; };
 		21BE041F9119BEFC92D75A73 /* Pods_ZappaStream.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 774EF79169BA133AE787E350 /* Pods_ZappaStream.framework */; };
+		360EE955A35C50D1A38B36CD /* TourPeriods.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */; };
 		BE1A341F2F30C6D600647B01 /* ZappaStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */; };
 		BE1A34212F30C6D600647B01 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A34202F30C6D600647B01 /* ContentView.swift */; };
 		BE1A34252F30C6D800647B01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE1A34242F30C6D800647B01 /* Assets.xcassets */; };
@@ -15,19 +17,24 @@
 		BE88693F2F31043D003E52DE /* IcecastStreamReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */; };
 		BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */; };
 		BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */; };
-		BED5C49C2F30D50C009DB6FE /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BED5C49B2F30D50C009DB6FE /* Cocoa.framework */; platformFilters = (macos, ); };
-		BEE59E1F2F3223DB00230D3D /* FZShowsFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */; };
 		BEAA00012F34000100AA0001 /* Acronym.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00002F34000100AA0001 /* Acronym.swift */; };
 		BEAA00032F34000100AA0003 /* SavedShow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00022F34000100AA0003 /* SavedShow.swift */; };
 		BEAA00052F34000100AA0005 /* ShowDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00042F34000100AA0005 /* ShowDataManager.swift */; };
 		BEAA00072F34000100AA0007 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00062F34000100AA0007 /* SidebarView.swift */; };
 		BEAA00092F34000100AA0009 /* ShowEntryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00082F34000100AA0009 /* ShowEntryRow.swift */; };
+		BED5C49C2F30D50C009DB6FE /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BED5C49B2F30D50C009DB6FE /* Cocoa.framework */; platformFilters = (macos, ); };
+		BEE59E1F2F3223DB00230D3D /* FZShowsFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */; };
+		F62804A5EF88994291433F17 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
+		FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752DBEE239607630EF9BE524 /* SongFormatter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		114158B3DA31188C0E2D5237 /* Pods-ZappaStream.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZappaStream.release.xcconfig"; path = "Target Support Files/Pods-ZappaStream/Pods-ZappaStream.release.xcconfig"; sourceTree = "<group>"; };
+		5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TourPeriods.swift; sourceTree = "<group>"; };
+		752DBEE239607630EF9BE524 /* SongFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SongFormatter.swift; sourceTree = "<group>"; };
 		774EF79169BA133AE787E350 /* Pods_ZappaStream.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ZappaStream.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		82FFBCE2D30DA600491011C3 /* Pods-ZappaStream.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZappaStream.debug.xcconfig"; path = "Target Support Files/Pods-ZappaStream/Pods-ZappaStream.debug.xcconfig"; sourceTree = "<group>"; };
+		B859389429B13E3327751EB4 /* ScaledFont.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScaledFont.swift; sourceTree = "<group>"; };
 		BE1A341B2F30C6D600647B01 /* ZappaStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZappaStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZappaStreamApp.swift; sourceTree = "<group>"; };
 		BE1A34202F30C6D600647B01 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -37,13 +44,14 @@
 		BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IcecastStreamReader.swift; sourceTree = "<group>"; };
 		BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfo.swift; sourceTree = "<group>"; };
 		BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stream.swift; sourceTree = "<group>"; };
-		BED5C49B2F30D50C009DB6FE /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
-		BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsFetcher.swift; sourceTree = "<group>"; };
 		BEAA00002F34000100AA0001 /* Acronym.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Acronym.swift; sourceTree = "<group>"; };
 		BEAA00022F34000100AA0003 /* SavedShow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedShow.swift; sourceTree = "<group>"; };
 		BEAA00042F34000100AA0005 /* ShowDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDataManager.swift; sourceTree = "<group>"; };
 		BEAA00062F34000100AA0007 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		BEAA00082F34000100AA0009 /* ShowEntryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowEntryRow.swift; sourceTree = "<group>"; };
+		BED5C49B2F30D50C009DB6FE /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+		BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsFetcher.swift; sourceTree = "<group>"; };
+		DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FilterView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -112,6 +120,10 @@
 				BE1A34272F30C6D800647B01 /* Preview Content */,
 				BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */,
 				BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */,
+				B859389429B13E3327751EB4 /* ScaledFont.swift */,
+				5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */,
+				DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */,
+				752DBEE239607630EF9BE524 /* SongFormatter.swift */,
 			);
 			path = ZappaStream;
 			sourceTree = "<group>";
@@ -247,6 +259,10 @@
 				BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */,
 				BE88693F2F31043D003E52DE /* IcecastStreamReader.swift in Sources */,
 				BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */,
+				07D191737EF2D1D5E95B0ADB /* ScaledFont.swift in Sources */,
+				360EE955A35C50D1A38B36CD /* TourPeriods.swift in Sources */,
+				F62804A5EF88994291433F17 /* FilterView.swift in Sources */,
+				FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

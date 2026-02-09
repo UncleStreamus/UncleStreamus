@@ -4,17 +4,17 @@ struct ShowEntryRow: View {
     let savedShow: SavedShow
     var showDataManager: ShowDataManager?
     @State private var isExpanded: Bool = false
+    @State private var isRefreshing: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(savedShow.showDate)
-                        .font(.caption)
+                        .scaledFont(.caption)
                         .foregroundColor(.secondary)
                     Text(savedShow.venue)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                        .scaledFont(.subheadline, weight: .medium)
                         .lineLimit(isExpanded ? nil : 2)
                 }
 
@@ -26,7 +26,7 @@ struct ShowEntryRow: View {
                     }) {
                         Image(systemName: savedShow.isFavorite ? "star.fill" : "star")
                             .foregroundColor(savedShow.isFavorite ? .yellow : .gray)
-                            .font(.caption)
+                            .scaledFont(.caption)
                     }
                     .buttonStyle(.plain)
                 }
@@ -34,7 +34,7 @@ struct ShowEntryRow: View {
 
             if !savedShow.showInfo.isEmpty {
                 Text(savedShow.showInfo)
-                    .font(.caption2)
+                    .scaledFont(.caption2)
                     .foregroundColor(.secondary)
             }
 
@@ -43,7 +43,7 @@ struct ShowEntryRow: View {
 
                 if let note = savedShow.note {
                     Text(note)
-                        .font(.caption2)
+                        .scaledFont(.caption2)
                         .foregroundColor(.orange)
                 }
 
@@ -51,30 +51,29 @@ struct ShowEntryRow: View {
                 let acronyms = savedShow.acronymTuples
                 if !songs.isEmpty {
                     Text("Setlist:")
-                        .font(.caption2)
-                        .fontWeight(.semibold)
+                        .scaledFont(.caption2, weight: .semibold)
                         .padding(.top, 2)
 
                     ForEach(Array(songs.enumerated()), id: \.offset) { idx, song in
                         HStack(alignment: .top, spacing: 4) {
                             Text("\(idx + 1).")
-                                .font(.caption2)
+                                .scaledFont(.caption2)
                                 .foregroundColor(.secondary)
                             formatSong(song, acronyms: acronyms)
-                                .font(.caption2)
+                                .scaledFont(.caption2)
                         }
                     }
                 }
 
                 if !savedShow.url.isEmpty {
-                    Button("View on FZShows website") {
+                    Button("View on FZShows") {
                         if let url = URL(string: savedShow.url) {
                             #if os(macOS)
                             NSWorkspace.shared.open(url)
                             #endif
                         }
                     }
-                    .font(.caption2)
+                    .scaledFont(.caption2)
                     .padding(.top, 4)
                 }
             }
@@ -84,91 +83,53 @@ struct ShowEntryRow: View {
         .cornerRadius(6)
         .contentShape(Rectangle())
         .onTapGesture { withAnimation { isExpanded.toggle() } }
+        .contextMenu {
+            Button(action: {
+                refreshShowInfo()
+            }) {
+                Label("Refresh Info", systemImage: "arrow.clockwise")
+            }
+            .disabled(isRefreshing)
+
+            if !savedShow.url.isEmpty {
+                Button(action: {
+                    if let url = URL(string: savedShow.url) {
+                        NSWorkspace.shared.open(url)
+                    }
+                }) {
+                    Label("View on FZShows", systemImage: "safari")
+                }
+            }
+        }
+        .overlay {
+            if isRefreshing {
+                Color.black.opacity(0.3)
+                    .cornerRadius(6)
+                    .overlay {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    }
+            }
+        }
+    }
+
+    private func refreshShowInfo() {
+        guard let manager = showDataManager else { return }
+        isRefreshing = true
+        manager.refreshShowInfo(savedShow: savedShow) { success in
+            isRefreshing = false
+            if success {
+                print("✅ Show info refreshed successfully")
+            } else {
+                print("❌ Failed to refresh show info")
+            }
+        }
     }
 
     // MARK: - Song Formatting
 
-    @ViewBuilder
-    private func formatSong(_ song: String, acronyms: [(short: String, full: String)]) -> some View {
-        var result = Text("")
-        var remainingText = song
-
-        // 1. Process brackets [like this] with acronym highlighting
-        while let bracketRange = remainingText.range(of: #"\[[^\]]+\]"#, options: .regularExpression) {
-            let before = String(remainingText[..<bracketRange.lowerBound])
-            if !before.isEmpty {
-                result = result + Text(before)
-            }
-
-            let bracketContent = String(remainingText[bracketRange])
-            result = result + formatBracketWithAcronyms(bracketContent, acronyms: acronyms)
-
-            remainingText = String(remainingText[bracketRange.upperBound...])
-        }
-
-        // 2. Process parentheses (q: something) or (incl. something) ONLY
-        while let parenRange = remainingText.range(of: #"\((q:|incl\.)[^)]+\)"#, options: .regularExpression) {
-            let before = String(remainingText[..<parenRange.lowerBound])
-            if !before.isEmpty {
-                result = result + Text(before)
-            }
-
-            let parenContent = String(remainingText[parenRange])
-            result = result + Text(parenContent)
-                .italic()
-
-            remainingText = String(remainingText[parenRange.upperBound...])
-        }
-
-        // 3. Remaining regular text
-        if !remainingText.isEmpty {
-            result = result + Text(remainingText)
-        }
-
-        return result
-    }
-
-    /// Formats bracketed content, highlighting any acronyms found within
-    private func formatBracketWithAcronyms(_ bracket: String, acronyms: [(short: String, full: String)]) -> Text {
-        var result = Text("")
-        var remaining = bracket
-
-        // Sort acronyms by position in the bracket text
-        let sortedAcronyms = acronyms.sorted { first, second in
-            let range1 = remaining.range(of: first.short)
-            let range2 = remaining.range(of: second.short)
-            if let r1 = range1, let r2 = range2 {
-                return r1.lowerBound < r2.lowerBound
-            }
-            return range1 != nil
-        }
-
-        for acronym in sortedAcronyms {
-            if let range = remaining.range(of: acronym.short) {
-                // Text before the acronym
-                let before = String(remaining[..<range.lowerBound])
-                if !before.isEmpty {
-                    result = result + Text(before)
-                        .foregroundColor(.secondary)
-                        .italic()
-                }
-
-                // The acronym itself - highlighted distinctly
-                result = result + Text(acronym.short)
-                    .foregroundColor(.blue)
-                    .bold()
-
-                remaining = String(remaining[range.upperBound...])
-            }
-        }
-
-        // Any remaining bracket text after all acronyms
-        if !remaining.isEmpty {
-            result = result + Text(remaining)
-                .foregroundColor(.secondary)
-                .italic()
-        }
-
-        return result
+    /// Formats a song name using the shared SongFormatter
+    private func formatSong(_ song: String, acronyms: [(short: String, full: String)]) -> Text {
+        SongFormatter.format(song, acronyms: acronyms)
     }
 }

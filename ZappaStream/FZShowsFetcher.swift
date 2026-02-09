@@ -33,6 +33,15 @@ struct FZShow {
     let setlist: [String]
     let acronyms: [(short: String, full: String)]
     let url: String
+
+    // Location fields
+    let city: String?
+    let state: String?
+    let country: String?
+
+    // Period and tour fields
+    let period: String?
+    let tour: String?
 }
 
 /// Represents Early/Late show designation
@@ -178,7 +187,7 @@ class FZShowsFetcher {
         }
 
         let primaryURLString = "https://www.zappateers.com/fzshows/\(primaryFilename)"
-        fetchFromURL(urlString: primaryURLString, searchDate: searchDate, originalDate: date,
+        fetchFromURL(urlString: primaryURLString, filename: primaryFilename, searchDate: searchDate, originalDate: date,
                      showTime: showTime, sectionKeywords: sectionKeywords) { show in
             if let show = show {
                 completion(show)
@@ -186,7 +195,7 @@ class FZShowsFetcher {
                 // Fallback to rehearsals.html
                 print("🔄 Primary page had no match, trying rehearsals.html")
                 let rehearsalsURLString = "https://www.zappateers.com/fzshows/rehearsals.html"
-                self.fetchFromURL(urlString: rehearsalsURLString, searchDate: searchDate, originalDate: date,
+                self.fetchFromURL(urlString: rehearsalsURLString, filename: "rehearsals.html", searchDate: searchDate, originalDate: date,
                                   showTime: showTime, sectionKeywords: sectionKeywords, completion: completion)
             }
         }
@@ -194,7 +203,7 @@ class FZShowsFetcher {
 
     // MARK: - Private Helpers
 
-    private static func fetchFromURL(urlString: String, searchDate: String, originalDate: String,
+    private static func fetchFromURL(urlString: String, filename: String, searchDate: String, originalDate: String,
                                      showTime: ShowTime, sectionKeywords: [String]?,
                                      completion: @escaping (FZShow?) -> Void) {
         guard let url = URL(string: urlString) else {
@@ -212,13 +221,13 @@ class FZShowsFetcher {
                 return
             }
 
-            let show = parseShowFromHTML(html: html, searchDate: searchDate, originalDate: originalDate,
+            let show = parseShowFromHTML(html: html, filename: filename, searchDate: searchDate, originalDate: originalDate,
                                          showTime: showTime, sectionKeywords: sectionKeywords, url: urlString)
             completion(show)
         }.resume()
     }
 
-    private static func parseShowFromHTML(html: String, searchDate: String, originalDate: String,
+    private static func parseShowFromHTML(html: String, filename: String, searchDate: String, originalDate: String,
                                           showTime: ShowTime, sectionKeywords: [String]?,
                                           url: String) -> FZShow? {
         // Find the date inside an <h4> tag (not in notes or other places)
@@ -315,15 +324,39 @@ class FZShowsFetcher {
         }
 
         // Now parse from targetSection
-        // Find the h6 (show info) in this section
-        if let h6Start = targetSection.range(of: "<h6>"),
-           let h6End = targetSection.range(of: "</h6>", range: h6Start.upperBound..<targetSection.endIndex) {
-            let fullH6 = String(targetSection[h6Start.lowerBound..<h6End.upperBound])
-            showInfo = fullH6.replacingOccurrences(of: "<h6>", with: "")
-                .replacingOccurrences(of: "</h6>", with: "")
-                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            print("📊 Show info: '\(showInfo)'")
+        // Find ALL h6 tags (show info) in this section - shows can have multiple sources
+        // Each source is in a separate <h6> tag, e.g.:
+        // <h6>110 min, Aud, A/A-</h6>
+        // <h6>10 min, SBD, A</h6>
+        var allShowInfos: [String] = []
+        let h6Pattern = "<h6>([^<]+)</h6>"
+        if let h6Regex = try? NSRegularExpression(pattern: h6Pattern, options: []) {
+            // Only search up to the setlist or note to avoid picking up h6 from other shows
+            let searchEnd = targetSection.range(of: "<p class=\"setlist\">")?.lowerBound
+                ?? targetSection.range(of: "<p class=\"note\">")?.lowerBound
+                ?? targetSection.endIndex
+            let searchSection = String(targetSection[..<searchEnd])
+            let nsRange = NSRange(searchSection.startIndex..<searchSection.endIndex, in: searchSection)
+
+            h6Regex.enumerateMatches(in: searchSection, range: nsRange) { match, _, _ in
+                if let match = match, let range = Range(match.range(at: 1), in: searchSection) {
+                    let h6Content = String(searchSection[range])
+                        .replacingOccurrences(of: "<br>", with: " • ")
+                        .replacingOccurrences(of: "<br/>", with: " • ")
+                        .replacingOccurrences(of: "<br />", with: " • ")
+                        .replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !h6Content.isEmpty {
+                        allShowInfos.append(h6Content)
+                    }
+                }
+            }
+        }
+
+        if !allShowInfos.isEmpty {
+            // Join multiple sources with bullet separator
+            showInfo = allShowInfos.joined(separator: " • ")
+            print("📊 Show info (\(allShowInfos.count) source(s)): '\(showInfo)'")
         }
 
         // Find notes in this section (before the setlist)
@@ -416,7 +449,18 @@ class FZShowsFetcher {
             finalShowInfo = showInfo
         }
 
+        // Extract period name from filename
+        let period = periodName(forFilename: filename)
+
+        // Extract tour name from HTML (h3 tag preceding this show)
+        let tour = extractTourName(html: html, beforeIndex: h4Match.lowerBound)
+
+        // Parse location from venue
+        let location = parseLocation(from: venue)
+
         print("✅ SUCCESS: \(venue) | \(setlist.count) songs | \(finalShowInfo)")
+        print("   📍 Location: \(location.city ?? "?"), \(location.state ?? "?"), \(location.country ?? "?")")
+        print("   🗓️ Period: \(period ?? "?") | Tour: \(tour ?? "?")")
 
         return FZShow(
             date: originalDate,
@@ -426,7 +470,128 @@ class FZShowsFetcher {
             showInfo: finalShowInfo,
             setlist: setlist,
             acronyms: acronyms,
-            url: url
+            url: url,
+            city: location.city,
+            state: location.state,
+            country: location.country,
+            period: period,
+            tour: tour
         )
+    }
+
+    /// Extracts the tour name from the HTML structure before the show date
+    /// Structure 1 (most tours):
+    /// <h2>September - December 1977<br>
+    /// <span class="redbig">USA and Canada tour</span></h2>
+    /// Result: "USA and Canada tour (September - December 1977)"
+    ///
+    /// Structure 2 (1970-1971 tours):
+    /// <h2><span class="redbig">1970</span></h2>
+    /// <h3>The Mothers Of Invention, June - December 1970</h3>
+    /// Result: "The Mothers Of Invention (June - December 1970)"
+    private static func extractTourName(html: String, beforeIndex: String.Index) -> String? {
+        // Get the HTML before this show
+        let precedingHTML = String(html[html.startIndex..<beforeIndex])
+
+        var lastH2TourName: String? = nil
+        var lastH2Year: String? = nil  // For year-only entries like "1970"
+        var lastH2DateRange: String? = nil
+        var lastH3DateRange: String? = nil
+
+        // First, try to find h2 tags with span.redbig (most common structure)
+        let h2Pattern = "<h2[^>]*>([\\s\\S]*?)</h2>"
+        if let regex = try? NSRegularExpression(pattern: h2Pattern, options: []) {
+            let nsRange = NSRange(precedingHTML.startIndex..<precedingHTML.endIndex, in: precedingHTML)
+
+            regex.enumerateMatches(in: precedingHTML, range: nsRange) { match, _, _ in
+                guard let match = match,
+                      let range = Range(match.range(at: 1), in: precedingHTML) else { return }
+
+                let h2Content = String(precedingHTML[range])
+
+                // Extract tour name from <span class="redbig">...</span>
+                let spanPattern = "<span class=\"redbig\">([^<]+)</span>"
+                if let spanRegex = try? NSRegularExpression(pattern: spanPattern),
+                   let spanMatch = spanRegex.firstMatch(in: h2Content, range: NSRange(h2Content.startIndex..<h2Content.endIndex, in: h2Content)),
+                   let spanRange = Range(spanMatch.range(at: 1), in: h2Content) {
+                    let extracted = String(h2Content[spanRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    // Check if it's a year-only entry like "1970", "1971"
+                    if !extracted.isEmpty {
+                        if extracted.rangeOfCharacter(from: .letters) != nil && extracted.count > 4 {
+                            // It's a real tour name (contains letters and more than 4 chars)
+                            lastH2TourName = extracted
+                            lastH2Year = nil  // Clear year since we have a real tour name
+                        } else if extracted.count == 4, Int(extracted) != nil {
+                            // It's a year like "1970"
+                            lastH2Year = extracted
+                            lastH2TourName = nil  // Clear tour name since it's just a year
+                        }
+                    }
+                }
+
+                // Extract date range (text before <br> or <span>, after any <a> tag)
+                let cleanedContent = h2Content
+                    .replacingOccurrences(of: "<a[^>]*></a>", with: "", options: .regularExpression)
+                    .replacingOccurrences(of: "<a[^>]*>", with: "", options: .regularExpression)
+                    .replacingOccurrences(of: "</a>", with: "")
+
+                if let brRange = cleanedContent.range(of: "<br") {
+                    let dateCandidate = String(cleanedContent[..<brRange.lowerBound])
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !dateCandidate.isEmpty {
+                        lastH2DateRange = dateCandidate
+                    }
+                } else if let spanRange = cleanedContent.range(of: "<span") {
+                    let dateCandidate = String(cleanedContent[..<spanRange.lowerBound])
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !dateCandidate.isEmpty {
+                        lastH2DateRange = dateCandidate
+                    }
+                }
+            }
+        }
+
+        // Also look for h3 tags for 1970-1971 style pages
+        // Format: <h3>The Mothers Of Invention, June - December 1970</h3>
+        // We extract the date range
+        let h3Pattern = "<h3[^>]*>([^<]+)</h3>"
+        if let regex = try? NSRegularExpression(pattern: h3Pattern, options: []) {
+            let nsRange = NSRange(precedingHTML.startIndex..<precedingHTML.endIndex, in: precedingHTML)
+
+            regex.enumerateMatches(in: precedingHTML, range: nsRange) { match, _, _ in
+                guard let match = match,
+                      let range = Range(match.range(at: 1), in: precedingHTML) else { return }
+
+                let h3Content = String(precedingHTML[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+
+                // Parse "Band Name, Date Range" format to extract date range
+                if let commaRange = h3Content.range(of: ", ", options: .backwards) {
+                    let dateRange = String(h3Content[commaRange.upperBound...])
+                    lastH3DateRange = dateRange
+                }
+            }
+        }
+
+        // Combine tour name and date range
+        // Priority:
+        // 1. h2 tour name with h2 date range (e.g., "USA and Canada tour (September - December 1977)")
+        // 2. h2 tour name with h3 date range
+        // 3. h2 year with h3 date range (for 1970-1971 pages: "1970 (June - December 1970)")
+        if let tour = lastH2TourName {
+            if let date = lastH2DateRange, !date.isEmpty {
+                return "\(tour) (\(date))"
+            } else if let date = lastH3DateRange, !date.isEmpty {
+                return "\(tour) (\(date))"
+            } else {
+                return tour
+            }
+        }
+
+        // Fall back to year + h3 date range for pages like 1970-1971
+        if let year = lastH2Year, let dateRange = lastH3DateRange {
+            return "\(year) (\(dateRange))"
+        }
+
+        return nil
     }
 }
