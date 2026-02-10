@@ -647,16 +647,11 @@ struct ContentView: View {
     private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {
         let isCurrent = isCurrentTrack(song)
         HStack(alignment: .firstTextBaseline, spacing: 4) {
-            // Speaker icon for currently playing track
-            if isCurrent {
-                Image(systemName: "speaker.wave.2.fill")
-                    .scaledFont(.caption2)
-                    .foregroundColor(.blue)
-                    .frame(width: 14, alignment: .center)
-            } else {
-                Color.clear
-                    .frame(width: 14)
-            }
+            // Speaker icon for currently playing track (or invisible placeholder)
+            Image(systemName: "speaker.wave.2.fill")
+                .scaledFont(.caption2)
+                .foregroundColor(isCurrent ? .blue : .clear)
+                .frame(width: 14, alignment: .center)
 
             // Track number
             Text("\(index).")
