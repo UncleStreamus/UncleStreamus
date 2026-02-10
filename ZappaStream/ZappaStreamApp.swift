@@ -12,6 +12,7 @@ import SwiftData
 struct ZappaStreamApp: App {
     @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = false
     @AppStorage("textScale") private var textScale: Double = 1.1
+    @AppStorage("showInfoExpanded") private var showInfoExpanded: Bool = false
 
     // Text scale levels: Small, Default, Large
     private let textScaleLevels: [Double] = [1.0, 1.1, 1.2]
@@ -37,13 +38,26 @@ struct ZappaStreamApp: App {
         isSidebarVisible ? mainContentMinWidth + sidebarWidth + dividerWidth : mainContentMinWidth
     }
 
+    private var maxWindowWidth: CGFloat {
+        isSidebarVisible ? 900 : 900 - sidebarWidth - dividerWidth
+    }
+
+    private var minWindowHeight: CGFloat {
+        if showInfoExpanded {
+            // Scale expanded height with text size: 520 at 1.0, 570 at 1.1, 620 at 1.2
+            let baseHeight: CGFloat = 520
+            let scaleBonus = (textScale - 1.0) * 500  // +50 per 0.1 scale increase
+            return baseHeight + scaleBonus
+        } else {
+            return 380
+        }
+    }
+
     var body: some Scene {
         WindowGroup(id: "main") {
             ContentView()
-                .frame(minWidth: minWindowWidth, maxWidth: 900, minHeight: 520, maxHeight: 800)
         }
         .modelContainer(sharedModelContainer)
-        .windowResizability(.contentSize)
         .defaultSize(width: 350, height: 520)
         .commands {
             CommandGroup(after: .toolbar) {

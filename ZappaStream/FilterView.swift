@@ -8,10 +8,15 @@ class FilterState: ObservableObject {
     @Published var selectedCity: String? = nil
     @Published var selectedState: String? = nil
     @Published var selectedCountry: String? = nil
+    @Published var searchText: String = ""
 
     var isActive: Bool {
         selectedPeriod != nil || selectedTour != nil ||
         selectedCity != nil || selectedState != nil || selectedCountry != nil
+    }
+
+    var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     func clear() {
@@ -20,6 +25,15 @@ class FilterState: ObservableObject {
         selectedCity = nil
         selectedState = nil
         selectedCountry = nil
+    }
+
+    func clearSearch() {
+        searchText = ""
+    }
+
+    func clearAll() {
+        clear()
+        clearSearch()
     }
 }
 
@@ -354,24 +368,50 @@ struct FilterBar: View {
     }
 
     @State private var isExpanded: Bool = false
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Filter toggle button
-            Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() } }) {
+            // Search and Filter row
+            HStack(spacing: 8) {
+                // Search field
                 HStack(spacing: 4) {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                    if filterState.isActive {
-                        Text("Filters")
-                        Circle()
-                            .fill(Color.accentColor)
-                            .frame(width: 6, height: 6)
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                    TextField("Search shows...", text: $filterState.searchText)
+                        .textFieldStyle(.plain)
+                        .scaledFont(.caption)
+                        .focused($isSearchFocused)
+                    if filterState.isSearching {
+                        Button(action: { filterState.clearSearch() }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
-                .scaledFont(.caption)
-                .foregroundColor(filterState.isActive ? .accentColor : .secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.gray.opacity(0.15))
+                .cornerRadius(6)
+
+                // Filter toggle button
+                Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() } }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                        if filterState.isActive {
+                            Circle()
+                                .fill(Color.accentColor)
+                                .frame(width: 6, height: 6)
+                        }
+                    }
+                    .scaledFont(.caption)
+                    .foregroundColor(filterState.isActive ? .accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
 
             if isExpanded {
                 // Period & Tour row
@@ -453,11 +493,65 @@ struct FilterBar: View {
     }
 }
 
+// MARK: - Search Helper
+
+extension SavedShow {
+    /// Check if any searchable field contains the search text
+    func matches(searchText: String) -> Bool {
+        let query = searchText.lowercased().trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return true }
+
+        // Search across all relevant fields
+        let searchableFields: [String?] = [
+            showDate,
+            venue,
+            soundcheck,
+            note,
+            showInfo,
+            city,
+            state,
+            country,
+            period,
+            tour
+        ]
+
+        // Check basic fields
+        for field in searchableFields {
+            if let field = field, field.lowercased().contains(query) {
+                return true
+            }
+        }
+
+        // Check setlist items
+        for song in setlist {
+            if song.lowercased().contains(query) {
+                return true
+            }
+        }
+
+        // Check acronyms (both short and full forms)
+        for acronym in acronyms {
+            if acronym.short.lowercased().contains(query) ||
+               acronym.full.lowercased().contains(query) {
+                return true
+            }
+        }
+
+        return false
+    }
+}
+
 /// Extension to filter SavedShow arrays
 extension Array where Element == SavedShow {
     func filtered(by filterState: FilterState) -> [SavedShow] {
         var result = self
 
+        // Apply search filter first
+        if filterState.isSearching {
+            result = result.filter { $0.matches(searchText: filterState.searchText) }
+        }
+
+        // Apply dropdown filters
         if let period = filterState.selectedPeriod {
             result = result.filter { $0.period == period }
         }

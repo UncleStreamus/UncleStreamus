@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import AVFoundation
 import VLCKit
+import MediaPlayer
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
@@ -14,13 +15,13 @@ struct ContentView: View {
     @State private var mediaPlayer: VLCMediaPlayer?
     @State private var streamReader: IcecastStreamReader?
     @State private var currentShow: FZShow?
-    @State private var showInfoExpanded: Bool = false
+    @AppStorage("showInfoExpanded") private var showInfoExpanded: Bool = false
     @State private var isFetchingShowInfo: Bool = false
     @State private var availableWidth: CGFloat = 500
     @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = false
-    @AppStorage("windowWidthBeforeSidebar") private var windowWidthBeforeSidebar: Double = 0
     @AppStorage("textScale") private var textScale: Double = 1.1
     @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "MP3"
+    @State private var panelOpen: Bool = false  // Local state for panel visibility
 
     let streams = [
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
@@ -30,20 +31,34 @@ struct ContentView: View {
     ]
 
     private let sidebarWidth: CGFloat = 280
-    private let maxWindowWidth: CGFloat = 900
+    private let mainContentMaxWidth: CGFloat = 619  // Max width for main content area
+
+    /// Minimum height when setlist is expanded, scales with text size
+    private var expandedMinHeight: CGFloat {
+        // 520 at 1.0 scale, 570 at 1.1, 620 at 1.2
+        let baseHeight: CGFloat = 520
+        let scaleBonus = (textScale - 1.0) * 500  // +50 per 0.1 scale increase
+        return baseHeight + scaleBonus
+    }
 
     var body: some View {
         HStack(spacing: 0) {
+            // Main content - flexible, fills available space
             mainContentView
-                .frame(minWidth: 350)
+                .frame(minWidth: 350, maxWidth: .infinity)
 
-            if isSidebarVisible, let manager = showDataManager {
-                Divider()
+            // Right panel
+            if panelOpen, let manager = showDataManager {
+                DraggableDivider(
+                    minMainWidth: 350,
+                    maxMainWidth: mainContentMaxWidth,
+                    panelWidth: sidebarWidth
+                )
                 SidebarView(showDataManager: manager)
                     .frame(width: sidebarWidth)
             }
         }
-        .frame(minHeight: 520)
+        .frame(minHeight: showInfoExpanded ? expandedMinHeight : 380)
         .environment(\.fontScale, textScale)
         .onAppear {
             if showDataManager == nil {
@@ -53,6 +68,8 @@ struct ContentView: View {
             if selectedStream == nil {
                 selectedStream = streams.first { $0.format == lastStreamFormat } ?? streams.first
             }
+            // Sync panel state with persisted sidebar state
+            panelOpen = isSidebarVisible
             setupPlayer()
             configureWindowConstraints()
         }
@@ -64,52 +81,119 @@ struct ContentView: View {
     /// Configures the window's min/max size constraints
     private func configureWindowConstraints() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            guard let window = NSApplication.shared.windows.first(where: { $0.isKeyWindow })
-                  ?? NSApplication.shared.windows.first else { return }
-            window.minSize = NSSize(width: 350, height: 520)
-            window.maxSize = NSSize(width: self.maxWindowWidth, height: self.maxWindowHeight)
-            print("🪟 Window constraints set: min=\(window.minSize), max=\(window.maxSize)")
+            guard let window = NSApplication.shared.windows.first else { return }
+            let panelDelta = sidebarWidth + 1
+            let minHeight: CGFloat = showInfoExpanded ? expandedMinHeight : 380
+
+            let maxWidth: CGFloat
+            if panelOpen {
+                window.minSize = NSSize(width: 350 + panelDelta, height: minHeight)
+                maxWidth = mainContentMaxWidth + panelDelta
+            } else {
+                window.minSize = NSSize(width: 350, height: minHeight)
+                maxWidth = mainContentMaxWidth
+            }
+            window.maxSize = NSSize(width: maxWidth, height: maxWindowHeight)
+
+            // Install window delegate to enforce size constraints
+            WindowSizeEnforcer.shared.install(on: window, maxWidth: maxWidth, maxHeight: maxWindowHeight)
+
+            print("configureWindowConstraints: maxSize set to \(maxWidth) x \(maxWindowHeight)")
         }
     }
 
-    /// Toggles the sidebar by animating the window width to reveal/hide it
+    /// Updates window constraints when setlist is expanded/collapsed
+    private func updateWindowMinHeight() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            guard let window = NSApplication.shared.windows.first(where: { $0.isKeyWindow })
+                  ?? NSApplication.shared.windows.first else { return }
+
+            let panelDelta = sidebarWidth + 1
+            let minHeight: CGFloat = self.showInfoExpanded ? self.expandedMinHeight : 380
+
+            // Set constraints based on panel state
+            if self.panelOpen {
+                window.minSize = NSSize(width: 350 + panelDelta, height: minHeight)
+                window.maxSize = NSSize(width: self.mainContentMaxWidth + panelDelta, height: self.maxWindowHeight)
+            } else {
+                window.minSize = NSSize(width: 350, height: minHeight)
+                window.maxSize = NSSize(width: self.mainContentMaxWidth, height: self.maxWindowHeight)
+            }
+
+            // If collapsing and window is taller than needed, shrink it
+            if !self.showInfoExpanded && window.frame.height > 450 {
+                let newFrame = NSRect(
+                    x: window.frame.origin.x,
+                    y: window.frame.origin.y + (window.frame.height - minHeight),
+                    width: window.frame.width,
+                    height: minHeight
+                )
+                window.setFrame(newFrame, display: true, animate: true)
+            }
+        }
+    }
+
+    /// Toggles the right panel by expanding/contracting window to the right
+    /// Main content stays in place - panel appears/disappears to its right
     private func toggleSidebar() {
         guard let window = NSApplication.shared.windows.first else { return }
 
-        let sidebarDelta = sidebarWidth + 1 // +1 for divider
+        let panelDelta = sidebarWidth + 1 // +1 for divider
         let currentFrame = window.frame
 
-        if isSidebarVisible {
-            // Closing sidebar - restore to previous width
-            print("🔄 Closing sidebar. Saved width: \(windowWidthBeforeSidebar), current: \(currentFrame.width)")
-            let newWidth = windowWidthBeforeSidebar > 0 ? windowWidthBeforeSidebar : max(350, currentFrame.width - sidebarDelta)
-            print("🔄 Will restore to width: \(newWidth)")
-            let newFrame = NSRect(
-                x: currentFrame.origin.x,
-                y: currentFrame.origin.y,
-                width: newWidth,
-                height: currentFrame.height
-            )
+        print("=== TOGGLE PANEL ===")
+        print("Current window frame: \(currentFrame.width) x \(currentFrame.height)")
+        print("Panel currently open: \(panelOpen)")
+
+        if panelOpen {
+            // === CLOSING PANEL ===
+            // Calculate current main content width (window minus panel)
+            let currentMainWidth = currentFrame.width - panelDelta
+            print("CLOSING - current main width: \(currentMainWidth)")
+
+            // Hide panel first
+            panelOpen = false
             isSidebarVisible = false
-            windowWidthBeforeSidebar = 0
-            // Delay to let SwiftUI update minWidth constraint first
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                window.setFrame(newFrame, display: true, animate: true)
-            }
-        } else {
-            // Opening sidebar - remember current width, then grow window
-            print("🔄 Opening sidebar. Saving width: \(currentFrame.width)")
-            windowWidthBeforeSidebar = currentFrame.width
-            let newWidth = min(maxWindowWidth, currentFrame.width + sidebarDelta)
+
+            // Update constraints
+            window.minSize = NSSize(width: 350, height: window.minSize.height)
+            window.maxSize = NSSize(width: mainContentMaxWidth, height: maxWindowHeight)
+            WindowSizeEnforcer.shared.updateMaxWidth(mainContentMaxWidth)
+
+            // Shrink window - just remove the panel width, keeping main content the same
             let newFrame = NSRect(
                 x: currentFrame.origin.x,
                 y: currentFrame.origin.y,
-                width: newWidth,
+                width: currentMainWidth,
                 height: currentFrame.height
             )
+            window.setFrame(newFrame, display: true, animate: false)
+            print("Window frame set to: \(window.frame.width)")
+        } else {
+            // === OPENING PANEL ===
+            let desiredWidth = currentFrame.width + panelDelta
+            print("OPENING - expanding to: \(desiredWidth)")
+
+            // Update constraints to allow larger window (main content max + panel)
+            window.minSize = NSSize(width: 350 + panelDelta, height: window.minSize.height)
+            window.maxSize = NSSize(width: mainContentMaxWidth + panelDelta, height: maxWindowHeight)
+            WindowSizeEnforcer.shared.updateMaxWidth(mainContentMaxWidth + panelDelta)
+
+            // Expand window
+            let newFrame = NSRect(
+                x: currentFrame.origin.x,
+                y: currentFrame.origin.y,
+                width: desiredWidth,
+                height: currentFrame.height
+            )
+            window.setFrame(newFrame, display: true, animate: false)
+            print("Window frame set to: \(window.frame.width)")
+
+            // Show panel
+            panelOpen = true
             isSidebarVisible = true
-            window.setFrame(newFrame, display: true, animate: true)
         }
+        print("=== END TOGGLE ===\n")
     }
 
     // MARK: - Main Content
@@ -127,7 +211,7 @@ struct ContentView: View {
                     Button(action: toggleSidebar) {
                         Image(systemName: "sidebar.right")
                             .scaledFont(.title2)
-                            .foregroundColor(isSidebarVisible ? .accentColor : .secondary)
+                            .foregroundColor(panelOpen ? .accentColor : .secondary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -138,8 +222,7 @@ struct ContentView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 if let trackName = parsed.trackName {
-                                    Text(trackName)
-                                        .scaledFont(.title2, weight: .semibold)
+                                    MarqueeText(text: trackName, style: .title2, weight: .semibold)
                                 }
                                 
                                 HStack {
@@ -202,15 +285,38 @@ struct ContentView: View {
             .padding(.top)
             .padding(.bottom, 12)
 
-            // === MIDDLE: Show Info (fills available space) ===
-            showInfoSection
-                .padding(.horizontal)
+            // === MIDDLE: Show Info (fills available space when expanded) ===
+            if showInfoExpanded && currentShow != nil {
+                showInfoSection
+                    .padding(.horizontal)
+                    .frame(maxHeight: .infinity)
+            } else {
+                showInfoSection
+                    .padding(.horizontal)
 
-            Spacer(minLength: 12)
+                Spacer(minLength: 12)
+            }
 
             // === BOTTOM: Stream controls (pinned) ===
             VStack(spacing: 12) {
                 Divider()
+
+                // Stream status (now above controls)
+                if isPlaying, let stream = selectedStream {
+                    VStack(spacing: 2) {
+                        Text("Streaming \(stream.name)")
+                            .scaledFont(.caption2)
+                            .foregroundColor(.secondary)
+
+                        // Delay warning when not using MP3 stream
+                        if stream.format != "MP3" {
+                            Text("Info can be ~15s behind when not using MP3 stream")
+                                .scaledFont(.caption2)
+                                .foregroundColor(.secondary)
+                                .italic()
+                        }
+                    }
+                }
 
                 HStack(spacing: 12) {
                     // Stream picker
@@ -269,13 +375,8 @@ struct ContentView: View {
                         .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
+                    .keyboardShortcut(.space, modifiers: [])
                     .disabled(selectedStream == nil)
-                }
-
-                if isPlaying, let stream = selectedStream {
-                    Text("Streaming \(stream.name)")
-                        .scaledFont(.caption2)
-                        .foregroundColor(.secondary)
                 }
             }
             .padding(.horizontal)
@@ -292,6 +393,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Button(action: {
                     showInfoExpanded.toggle()
+                    updateWindowMinHeight()
                 }) {
                     HStack {
                         // Venue info (same as expanded content, but more compact)
@@ -331,7 +433,7 @@ struct ContentView: View {
 
                         ScrollView {
                             Group {
-                                if availableWidth > 350 {
+                                if availableWidth > 385 {
                                     HStack(alignment: .top, spacing: 20) {
                                         let midpoint = (show.setlist.count + 1) / 2
 
@@ -372,7 +474,6 @@ struct ContentView: View {
                                 }
                             )
                         }
-                        .frame(maxHeight: .infinity)
 
                         Button("View on FZShows") {
                             if let url = URL(string: show.url) {
@@ -386,6 +487,7 @@ struct ContentView: View {
                         .scaledFont(.caption)
                         .padding(.top, 1)
                     }
+                    .frame(maxHeight: .infinity)
                     .padding()
                     .background(Color.gray.opacity(0.05))
                     .cornerRadius(8)
@@ -457,15 +559,22 @@ struct ContentView: View {
     private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {
         let isCurrent = isCurrentTrack(song)
         HStack(alignment: .top, spacing: 4) {
-            Text("\(index). ")
+            // Track number with subtle blue background if current
+            Text("\(index).")
                 .scaledFont(.caption)
                 .foregroundColor(.secondary)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 3)
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(isCurrent ? Color.accentColor.opacity(0.2) : Color.clear)
+                )
+                .frame(minWidth: 30, alignment: .trailing)  // Right-align the whole pill
+
             formatSong(song, acronyms: acronyms)
                 .scaledFont(.caption)
-                .padding(.horizontal, isCurrent ? 6 : 0)
-                .padding(.vertical, isCurrent ? 2 : 0)
-                .background(isCurrent ? Color.primary.opacity(0.12) : Color.clear)
-                .cornerRadius(4)
         }
     }
 
@@ -529,8 +638,14 @@ struct ContentView: View {
                     let showTime = ShowTime(from: parsed.showTime)
                     self.fetchShowInfo(date: date, showTime: showTime)
                 }
+
+                // Update Now Playing info for media keys display
+                self.updateNowPlayingInfo()
             }
         }
+
+        // Setup media key controls
+        setupRemoteCommandCenter()
 
         // Timers should be here, NOT inside the callback
         Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
@@ -542,14 +657,87 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Media Key Support
+
+    /// Sets up the remote command center for media key support (play/pause buttons on keyboard)
+    private func setupRemoteCommandCenter() {
+        let commandCenter = MPRemoteCommandCenter.shared()
+
+        // Play command
+        commandCenter.playCommand.isEnabled = true
+        commandCenter.playCommand.addTarget { [self] _ in
+            if !isPlaying {
+                DispatchQueue.main.async {
+                    self.playStream()
+                }
+            }
+            return .success
+        }
+
+        // Pause command
+        commandCenter.pauseCommand.isEnabled = true
+        commandCenter.pauseCommand.addTarget { [self] _ in
+            if isPlaying {
+                DispatchQueue.main.async {
+                    self.stopStream()
+                }
+            }
+            return .success
+        }
+
+        // Toggle play/pause command (for F8 key on Mac keyboards)
+        commandCenter.togglePlayPauseCommand.isEnabled = true
+        commandCenter.togglePlayPauseCommand.addTarget { [self] _ in
+            DispatchQueue.main.async {
+                if self.isPlaying {
+                    self.stopStream()
+                } else {
+                    self.playStream()
+                }
+            }
+            return .success
+        }
+
+        // Disable skip commands (we're streaming live, can't skip)
+        commandCenter.nextTrackCommand.isEnabled = false
+        commandCenter.previousTrackCommand.isEnabled = false
+    }
+
+    /// Updates the Now Playing info center with current track info
+    private func updateNowPlayingInfo() {
+        var nowPlayingInfo = [String: Any]()
+
+        if let parsed = parsedTrack {
+            nowPlayingInfo[MPMediaItemPropertyTitle] = parsed.trackName ?? "Zappa Stream"
+            nowPlayingInfo[MPMediaItemPropertyArtist] = artistName(from: parsed)
+
+            if let show = currentShow {
+                nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = "\(show.date) • \(show.venue)"
+            }
+        } else {
+            nowPlayingInfo[MPMediaItemPropertyTitle] = "Zappa Stream"
+            nowPlayingInfo[MPMediaItemPropertyArtist] = "FZShows Radio"
+        }
+
+        // Set playback state
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
+        nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = true
+
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+    }
+
     private func checkAACState() {
         guard let player = mediaPlayer,
               isPlaying,
-              selectedStream?.format == "AAC",
-              player.state.rawValue == 6 else { return }
+              selectedStream?.format == "AAC" else { return }
 
-        print("🔄 AAC restart triggered")
-        playStream()
+        // State 6 = VLCMediaPlayerStateEnded, State 7 = VLCMediaPlayerStateError
+        // Also check if player is buffering too long (state 2)
+        let state = player.state.rawValue
+        if state == 6 || state == 7 {
+            print("🔄 AAC restart triggered (state: \(state))")
+            playStream()
+        }
     }
 
     func playStream() {
@@ -568,15 +756,21 @@ struct ContentView: View {
         if stream.format == "AAC" {
             media.addOptions(["network-caching": "3000"])
         }
+        if stream.format == "FLAC" {
+            // Add buffer for FLAC to reduce skipping
+            media.addOptions(["network-caching": "3000"])
+        }
         mediaPlayer?.media = media
         mediaPlayer?.play()
         isPlaying = true
+        updateNowPlayingInfo()
     }
 
     func stopStream() {
         mediaPlayer?.pause()
         streamReader?.stopStreaming()
         isPlaying = false
+        updateNowPlayingInfo()
     }
 
 
@@ -639,5 +833,106 @@ struct ContentView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Window Size Enforcer
+
+/// A helper class that enforces window size constraints via NSWindowDelegate
+class WindowSizeEnforcer: NSObject, NSWindowDelegate {
+    static let shared = WindowSizeEnforcer()
+
+    private var maxWidth: CGFloat = 619
+    private var maxHeight: CGFloat = 800
+    private weak var installedWindow: NSWindow?
+
+    private override init() {
+        super.init()
+    }
+
+    func install(on window: NSWindow, maxWidth: CGFloat, maxHeight: CGFloat) {
+        self.maxWidth = maxWidth
+        self.maxHeight = maxHeight
+
+        // Only install once
+        if installedWindow !== window {
+            installedWindow = window
+            window.delegate = self
+        }
+    }
+
+    func updateMaxWidth(_ width: CGFloat) {
+        self.maxWidth = width
+    }
+
+    // MARK: - NSWindowDelegate
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        var newSize = frameSize
+
+        // Enforce max width
+        if newSize.width > maxWidth {
+            newSize.width = maxWidth
+        }
+
+        // Enforce max height
+        if newSize.height > maxHeight {
+            newSize.height = maxHeight
+        }
+
+        return newSize
+    }
+}
+
+// MARK: - Draggable Divider
+
+/// A draggable divider that resizes the window width when dragged
+struct DraggableDivider: View {
+    let minMainWidth: CGFloat
+    let maxMainWidth: CGFloat
+    let panelWidth: CGFloat
+
+    @State private var isDragging = false
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.gray.opacity(0.3))
+            .frame(width: 1)
+            .contentShape(Rectangle().inset(by: -4))  // Larger hit area
+            .onHover { hovering in
+                if hovering {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        guard let window = NSApplication.shared.windows.first else { return }
+
+                        let currentFrame = window.frame
+                        let panelDelta = panelWidth + 1
+
+                        // Calculate new main content width based on drag
+                        let currentMainWidth = currentFrame.width - panelDelta
+                        let newMainWidth = currentMainWidth + value.translation.width
+
+                        // Clamp to min/max
+                        let clampedMainWidth = min(max(newMainWidth, minMainWidth), maxMainWidth)
+                        let newWindowWidth = clampedMainWidth + panelDelta
+
+                        // Only resize if width actually changed
+                        if abs(newWindowWidth - currentFrame.width) > 0.5 {
+                            let newFrame = NSRect(
+                                x: currentFrame.origin.x,
+                                y: currentFrame.origin.y,
+                                width: newWindowWidth,
+                                height: currentFrame.height
+                            )
+                            window.setFrame(newFrame, display: true, animate: false)
+                        }
+                    }
+            )
     }
 }

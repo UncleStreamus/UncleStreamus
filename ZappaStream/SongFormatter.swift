@@ -100,6 +100,7 @@ struct SongFormatter {
                 result = result + Text(acronym.short)
                     .foregroundColor(.blue)
                     .bold()
+                    .italic()
 
                 remaining = String(remaining[range.upperBound...])
             }
