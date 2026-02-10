@@ -31,6 +31,8 @@ struct ContentView: View {
     ]
 
     private let sidebarWidth: CGFloat = 280
+    private let dividerWidth: CGFloat = 1  // Width of the visible divider line
+    private let mainContentMinWidth: CGFloat = 360  // Min width for main content area
     private let mainContentMaxWidth: CGFloat = 619  // Max width for main content area
 
     /// Minimum height when setlist is expanded, scales with text size
@@ -45,14 +47,15 @@ struct ContentView: View {
         HStack(spacing: 0) {
             // Main content - flexible, fills available space
             mainContentView
-                .frame(minWidth: 350, maxWidth: .infinity)
+                .frame(minWidth: mainContentMinWidth, maxWidth: .infinity)
 
             // Right panel
             if panelOpen, let manager = showDataManager {
                 DraggableDivider(
-                    minMainWidth: 350,
+                    minMainWidth: mainContentMinWidth,
                     maxMainWidth: mainContentMaxWidth,
-                    panelWidth: sidebarWidth
+                    panelWidth: sidebarWidth,
+                    dividerWidth: dividerWidth
                 )
                 SidebarView(showDataManager: manager)
                     .frame(width: sidebarWidth)
@@ -82,15 +85,15 @@ struct ContentView: View {
     private func configureWindowConstraints() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             guard let window = NSApplication.shared.windows.first else { return }
-            let panelDelta = sidebarWidth + 1
+            let panelDelta = sidebarWidth + dividerWidth
             let minHeight: CGFloat = showInfoExpanded ? expandedMinHeight : 380
 
             let maxWidth: CGFloat
             if panelOpen {
-                window.minSize = NSSize(width: 350 + panelDelta, height: minHeight)
+                window.minSize = NSSize(width: mainContentMinWidth + panelDelta, height: minHeight)
                 maxWidth = mainContentMaxWidth + panelDelta
             } else {
-                window.minSize = NSSize(width: 350, height: minHeight)
+                window.minSize = NSSize(width: mainContentMinWidth, height: minHeight)
                 maxWidth = mainContentMaxWidth
             }
             window.maxSize = NSSize(width: maxWidth, height: maxWindowHeight)
@@ -108,27 +111,16 @@ struct ContentView: View {
             guard let window = NSApplication.shared.windows.first(where: { $0.isKeyWindow })
                   ?? NSApplication.shared.windows.first else { return }
 
-            let panelDelta = sidebarWidth + 1
+            let panelDelta = sidebarWidth + dividerWidth
             let minHeight: CGFloat = self.showInfoExpanded ? self.expandedMinHeight : 380
 
             // Set constraints based on panel state
             if self.panelOpen {
-                window.minSize = NSSize(width: 350 + panelDelta, height: minHeight)
+                window.minSize = NSSize(width: mainContentMinWidth + panelDelta, height: minHeight)
                 window.maxSize = NSSize(width: self.mainContentMaxWidth + panelDelta, height: self.maxWindowHeight)
             } else {
-                window.minSize = NSSize(width: 350, height: minHeight)
+                window.minSize = NSSize(width: mainContentMinWidth, height: minHeight)
                 window.maxSize = NSSize(width: self.mainContentMaxWidth, height: self.maxWindowHeight)
-            }
-
-            // If collapsing and window is taller than needed, shrink it
-            if !self.showInfoExpanded && window.frame.height > 450 {
-                let newFrame = NSRect(
-                    x: window.frame.origin.x,
-                    y: window.frame.origin.y + (window.frame.height - minHeight),
-                    width: window.frame.width,
-                    height: minHeight
-                )
-                window.setFrame(newFrame, display: true, animate: true)
             }
         }
     }
@@ -138,7 +130,7 @@ struct ContentView: View {
     private func toggleSidebar() {
         guard let window = NSApplication.shared.windows.first else { return }
 
-        let panelDelta = sidebarWidth + 1 // +1 for divider
+        let panelDelta = sidebarWidth + dividerWidth // +1 for divider
         let currentFrame = window.frame
 
         print("=== TOGGLE PANEL ===")
@@ -156,7 +148,7 @@ struct ContentView: View {
             isSidebarVisible = false
 
             // Update constraints
-            window.minSize = NSSize(width: 350, height: window.minSize.height)
+            window.minSize = NSSize(width: mainContentMinWidth, height: window.minSize.height)
             window.maxSize = NSSize(width: mainContentMaxWidth, height: maxWindowHeight)
             WindowSizeEnforcer.shared.updateMaxWidth(mainContentMaxWidth)
 
@@ -175,7 +167,7 @@ struct ContentView: View {
             print("OPENING - expanding to: \(desiredWidth)")
 
             // Update constraints to allow larger window (main content max + panel)
-            window.minSize = NSSize(width: 350 + panelDelta, height: window.minSize.height)
+            window.minSize = NSSize(width: mainContentMinWidth + panelDelta, height: window.minSize.height)
             window.maxSize = NSSize(width: mainContentMaxWidth + panelDelta, height: maxWindowHeight)
             WindowSizeEnforcer.shared.updateMaxWidth(mainContentMaxWidth + panelDelta)
 
@@ -382,7 +374,7 @@ struct ContentView: View {
             .padding(.horizontal)
             .padding(.bottom)
         }
-        .frame(minWidth: 350, idealWidth: showInfoExpanded ? 450 : 350)
+        .frame(minWidth: mainContentMinWidth, idealWidth: showInfoExpanded ? 450 : mainContentMinWidth)
     }
 
     // MARK: - Show Info Section
@@ -891,47 +883,72 @@ struct DraggableDivider: View {
     let minMainWidth: CGFloat
     let maxMainWidth: CGFloat
     let panelWidth: CGFloat
+    let dividerWidth: CGFloat
 
     @State private var isDragging = false
+    @State private var initialWindowWidth: CGFloat = 0
+
+    private let hitAreaExtension: CGFloat = 4  // How far hit area extends beyond visible divider on each side
 
     var body: some View {
+        // Thin visible divider line
         Rectangle()
             .fill(Color.gray.opacity(0.3))
-            .frame(width: 1)
-            .contentShape(Rectangle().inset(by: -4))  // Larger hit area
-            .onHover { hovering in
-                if hovering {
-                    NSCursor.resizeLeftRight.push()
-                } else {
-                    NSCursor.pop()
+            .frame(width: dividerWidth)
+            // Extend hit area beyond visual bounds using padding + contentShape
+            .padding(.horizontal, hitAreaExtension)
+            .contentShape(Rectangle())
+            // Negative margin to pull adjacent views closer, overlapping with hit area
+            .padding(.horizontal, -hitAreaExtension)
+            .onContinuousHover { phase in
+                switch phase {
+                case .active:
+                    if !isDragging {
+                        NSCursor.resizeLeftRight.push()
+                    }
+                case .ended:
+                    if !isDragging {
+                        NSCursor.pop()
+                    }
                 }
             }
             .gesture(
-                DragGesture(minimumDistance: 1)
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
                     .onChanged { value in
                         guard let window = NSApplication.shared.windows.first else { return }
 
-                        let currentFrame = window.frame
-                        let panelDelta = panelWidth + 1
+                        // Capture initial width on first drag event
+                        if !isDragging {
+                            isDragging = true
+                            initialWindowWidth = window.frame.width
+                            NSCursor.resizeLeftRight.push()
+                        }
 
-                        // Calculate new main content width based on drag
-                        let currentMainWidth = currentFrame.width - panelDelta
-                        let newMainWidth = currentMainWidth + value.translation.width
+                        let panelDelta = panelWidth + dividerWidth
 
-                        // Clamp to min/max
+                        // Calculate new window width based on drag from initial position
+                        let newWindowWidth = initialWindowWidth + value.translation.width
+
+                        // Calculate main content width and clamp
+                        let newMainWidth = newWindowWidth - panelDelta
                         let clampedMainWidth = min(max(newMainWidth, minMainWidth), maxMainWidth)
-                        let newWindowWidth = clampedMainWidth + panelDelta
+                        let clampedWindowWidth = clampedMainWidth + panelDelta
 
                         // Only resize if width actually changed
-                        if abs(newWindowWidth - currentFrame.width) > 0.5 {
+                        let currentFrame = window.frame
+                        if abs(clampedWindowWidth - currentFrame.width) > 0.5 {
                             let newFrame = NSRect(
                                 x: currentFrame.origin.x,
                                 y: currentFrame.origin.y,
-                                width: newWindowWidth,
+                                width: clampedWindowWidth,
                                 height: currentFrame.height
                             )
                             window.setFrame(newFrame, display: true, animate: false)
                         }
+                    }
+                    .onEnded { _ in
+                        isDragging = false
+                        NSCursor.pop()
                     }
             )
     }
