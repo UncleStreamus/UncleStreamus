@@ -91,7 +91,7 @@ struct GroupedTourDropdown: View {
             }
             Divider()
             ForEach(toursByPeriod, id: \.period) { group in
-                Section(header: Text(group.period)) {
+                Section(header: Text("— \(group.period) —").font(.headline)) {
                     ForEach(group.tours, id: \.self) { tour in
                         Button(action: {
                             selection = tour
@@ -136,7 +136,7 @@ struct GroupedStateDropdown: View {
             }
             Divider()
             ForEach(statesByCountry, id: \.country) { group in
-                Section(header: Text(group.country)) {
+                Section(header: Text("— \(group.country) —").font(.headline)) {
                     ForEach(group.states, id: \.self) { state in
                         Button(action: {
                             selection = state
@@ -181,7 +181,7 @@ struct GroupedCityDropdown: View {
             }
             Divider()
             ForEach(citiesByCountry, id: \.country) { group in
-                Section(header: Text(group.country)) {
+                Section(header: Text("— \(group.country) —").font(.headline)) {
                     ForEach(group.cities, id: \.self) { city in
                         Button(action: {
                             selection = city
@@ -400,7 +400,7 @@ struct FilterBar: View {
                 // Filter toggle button
                 Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() } }) {
                     HStack(spacing: 4) {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
+                        Text("Filter")
                         if filterState.isActive {
                             Circle()
                                 .fill(Color.accentColor)
@@ -409,6 +409,10 @@ struct FilterBar: View {
                     }
                     .scaledFont(.caption)
                     .foregroundColor(filterState.isActive ? .accentColor : .secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.gray.opacity(0.15))
+                    .cornerRadius(6)
                 }
                 .buttonStyle(.plain)
             }

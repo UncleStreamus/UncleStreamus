@@ -5,6 +5,7 @@ struct ShowEntryRow: View {
     var showDataManager: ShowDataManager?
     @State private var isExpanded: Bool = false
     @State private var isRefreshing: Bool = false
+    @State private var acronymsExpanded: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -44,7 +45,7 @@ struct ShowEntryRow: View {
                 if let note = savedShow.note {
                     Text(note)
                         .scaledFont(.caption2)
-                        .foregroundColor(.orange)
+                        .foregroundColor(Color.red.opacity(0.8))
                 }
 
                 let songs = savedShow.setlist
@@ -61,6 +62,55 @@ struct ShowEntryRow: View {
                                 .foregroundColor(.secondary)
                             formatSong(song, acronyms: acronyms)
                                 .scaledFont(.caption2)
+                        }
+                    }
+
+                    // Collapsible official releases section
+                    if !acronyms.isEmpty {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                acronymsExpanded.toggle()
+                            }
+                        }) {
+                            HStack(spacing: 1) {
+                                Text("[")
+                                    .scaledFont(.caption2, weight: .medium)
+                                    .foregroundColor(.secondary)
+                                Text("Official Releases")
+                                    .scaledFont(.caption2, weight: .medium)
+                                    .foregroundColor(Color.orange.opacity(0.8))
+                                Text("]")
+                                    .scaledFont(.caption2, weight: .medium)
+                                    .foregroundColor(.secondary)
+                                Image(systemName: acronymsExpanded ? "chevron.down" : "chevron.right")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 4)
+
+                        if acronymsExpanded {
+                            // Deduplicate acronyms (same short form only listed once)
+                            let uniqueAcronyms = acronyms.reduce(into: [(short: String, full: String)]()) { result, acronym in
+                                if !result.contains(where: { $0.short == acronym.short }) {
+                                    result.append(acronym)
+                                }
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                ForEach(uniqueAcronyms, id: \.short) { acronym in
+                                    (Text(acronym.short)
+                                        .foregroundColor(.blue)
+                                        .bold()
+                                     + Text(" = \(acronym.full)")
+                                        .foregroundColor(.secondary))
+                                        .scaledFont(.caption2)
+                                        .italic()
+                                }
+                            }
+                            .padding(.leading, 8)
                         }
                     }
                 }

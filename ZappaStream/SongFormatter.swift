@@ -56,7 +56,8 @@ struct SongFormatter {
             if isBracket {
                 result = result + formatBracketWithAcronyms(content, acronyms: acronyms)
             } else {
-                result = result + Text(content).italic()
+                // Parentheses (q: or incl.) content gets italic + secondary gray
+                result = result + Text(content).italic().foregroundColor(.secondary)
             }
 
             // Continue with remaining text
@@ -72,31 +73,38 @@ struct SongFormatter {
     }
 
     /// Formats bracketed content, highlighting any acronyms found within
+    /// Brackets [ ] are gray, inner text is orange, acronyms are blue bold
     private static func formatBracketWithAcronyms(_ bracket: String, acronyms: [(short: String, full: String)]) -> Text {
-        var result = Text("")
-        var remaining = bracket
+        // Start with gray opening bracket
+        var result = Text("[").foregroundColor(.secondary).italic()
 
-        // Sort acronyms by position in the bracket text
+        // Extract inner content (remove [ and ])
+        var inner = bracket
+        if inner.hasPrefix("[") { inner.removeFirst() }
+        if inner.hasSuffix("]") { inner.removeLast() }
+
+        // Sort acronyms by position in the inner text
         let sortedAcronyms = acronyms.sorted { first, second in
-            let range1 = remaining.range(of: first.short)
-            let range2 = remaining.range(of: second.short)
+            let range1 = inner.range(of: first.short)
+            let range2 = inner.range(of: second.short)
             if let r1 = range1, let r2 = range2 {
                 return r1.lowerBound < r2.lowerBound
             }
             return range1 != nil
         }
 
+        var remaining = inner
         for acronym in sortedAcronyms {
             if let range = remaining.range(of: acronym.short) {
-                // Text before the acronym
+                // Text before the acronym - orange
                 let before = String(remaining[..<range.lowerBound])
                 if !before.isEmpty {
                     result = result + Text(before)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.orange.opacity(0.8))
                         .italic()
                 }
 
-                // The acronym itself - highlighted distinctly
+                // The acronym itself - highlighted distinctly in blue
                 result = result + Text(acronym.short)
                     .foregroundColor(.blue)
                     .bold()
@@ -106,12 +114,15 @@ struct SongFormatter {
             }
         }
 
-        // Any remaining bracket text after all acronyms
+        // Any remaining inner text after all acronyms - orange
         if !remaining.isEmpty {
             result = result + Text(remaining)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color.orange.opacity(0.8))
                 .italic()
         }
+
+        // End with gray closing bracket
+        result = result + Text("]").foregroundColor(.secondary).italic()
 
         return result
     }

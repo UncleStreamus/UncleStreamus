@@ -144,6 +144,7 @@ struct HistoryListView: View {
 struct FavoritesListView: View {
     var showDataManager: ShowDataManager
     @ObservedObject var filterState: FilterState
+    @State private var collapsedYears: Set<String> = []
 
     @Query(filter: #Predicate<SavedShow> { $0.isFavorite == true },
            sort: \SavedShow.showDate, order: .reverse)
@@ -169,6 +170,29 @@ struct FavoritesListView: View {
         }
 
         return groupOrder.map { ($0, groups[$0]!) }
+    }
+
+    private func toggleYear(_ year: String, shiftPressed: Bool) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if shiftPressed {
+                // Shift-click: toggle all years
+                let allYears = Set(groupedFavorites.map { $0.0 })
+                if collapsedYears.contains(year) {
+                    // Expand all
+                    collapsedYears.removeAll()
+                } else {
+                    // Collapse all
+                    collapsedYears = allYears
+                }
+            } else {
+                // Normal click: toggle single year
+                if collapsedYears.contains(year) {
+                    collapsedYears.remove(year)
+                } else {
+                    collapsedYears.insert(year)
+                }
+            }
+        }
     }
 
     var body: some View {
@@ -209,17 +233,30 @@ struct FavoritesListView: View {
                     LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
                         ForEach(groupedFavorites, id: \.0) { year, shows in
                             Section {
-                                ForEach(shows) { show in
-                                    ShowEntryRow(savedShow: show, showDataManager: showDataManager)
+                                if !collapsedYears.contains(year) {
+                                    ForEach(shows) { show in
+                                        ShowEntryRow(savedShow: show, showDataManager: showDataManager)
+                                    }
                                 }
                             } header: {
-                                Text(year)
-                                    .scaledFont(.subheadline, weight: .bold)
-                                    .foregroundColor(.primary)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color(nsColor: .windowBackgroundColor))
+                                HStack {
+                                    Text(year)
+                                        .scaledFont(.subheadline, weight: .bold)
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Image(systemName: collapsedYears.contains(year) ? "chevron.right" : "chevron.down")
+                                        .scaledFont(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(nsColor: .windowBackgroundColor))
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    let shiftPressed = NSEvent.modifierFlags.contains(.shift)
+                                    toggleYear(year, shiftPressed: shiftPressed)
+                                }
                             }
                         }
                     }

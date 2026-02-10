@@ -21,7 +21,9 @@ struct ContentView: View {
     @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = false
     @AppStorage("textScale") private var textScale: Double = 1.1
     @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "MP3"
+    @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
     @State private var panelOpen: Bool = false  // Local state for panel visibility
+    @State private var acronymsExpanded: Bool = false  // Collapsible acronyms section
 
     let streams = [
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
@@ -75,8 +77,25 @@ struct ContentView: View {
             panelOpen = isSidebarVisible
             setupPlayer()
             configureWindowConstraints()
+
+            // Auto-play if stream was playing when app was last quit
+            // Read directly from UserDefaults to ensure we get the persisted value
+            let shouldAutoPlay = UserDefaults.standard.bool(forKey: "wasPlayingOnQuit")
+            print("🚀 Launch - should auto-play: \(shouldAutoPlay)")
+            if shouldAutoPlay {
+                // Small delay to ensure player is fully initialized
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    print("▶️ Auto-playing stream...")
+                    self.playStream()
+                }
+            }
         }
-        .onDisappear(perform: stopStream)
+        .onDisappear {
+            // Save playing state before quitting
+            UserDefaults.standard.set(isPlaying, forKey: "wasPlayingOnQuit")
+            print("💾 onDisappear - saving playing state: \(isPlaying)")
+            stopStream()
+        }
     }
 
     private let maxWindowHeight: CGFloat = 800
@@ -210,14 +229,18 @@ struct ContentView: View {
 
                 // Track info card
                 VStack(alignment: .leading, spacing: 8) {
-                    if let parsed = parsedTrack, currentTrack != "No track info" && !currentTrack.isEmpty {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                if let trackName = parsed.trackName {
-                                    MarqueeText(text: trackName, style: .title2, weight: .semibold)
-                                }
-                                
-                                HStack {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            if let parsed = parsedTrack, let trackName = parsed.trackName, currentTrack != "No track info" && !currentTrack.isEmpty {
+                                MarqueeText(text: trackName, style: .title2, weight: .semibold)
+                            } else {
+                                Text(placeholderText)
+                                    .scaledFont(.title2, weight: .semibold)
+                                    .foregroundColor(.gray)
+                            }
+
+                            HStack {
+                                if let parsed = parsedTrack, currentTrack != "No track info" && !currentTrack.isEmpty {
                                     Text(artistName(from: parsed))
                                         .scaledFont(.subheadline)
                                         .foregroundColor(.secondary)
@@ -227,45 +250,49 @@ struct ContentView: View {
                                     if let trackDuration = parsed.trackDuration {
                                         Text("• \(trackDuration)").scaledFont(.caption).foregroundColor(.secondary)
                                     }
+                                } else {
+                                    Text(" ")
+                                        .scaledFont(.subheadline)
+                                        .foregroundColor(.secondary)
                                 }
                             }
-                            
-                            Spacer()
-                            
-                            // Favorite star button
-                            if let show = currentShow {
-                                Button(action: {
-                                    showDataManager?.toggleFavorite(show: show)
-                                }) {
-                                    Image(systemName: isCurrentShowFavorite ? "star.fill" : "star")
-                                        .foregroundColor(isCurrentShowFavorite ? .yellow : .gray)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        
                         }
-                        
-                        Divider()
-                        HStack {
-                            if let date = parsed.date, let city = parsed.city, let state = parsed.state {
-                                Text("\(date) • \(city), \(state)")
-                                    .scaledFont(.caption)
-                                    .foregroundColor(.secondary)
+
+                        Spacer()
+
+                        // Favorite star button (only when show is loaded)
+                        if let show = currentShow {
+                            Button(action: {
+                                showDataManager?.toggleFavorite(show: show)
+                            }) {
+                                Image(systemName: isCurrentShowFavorite ? "star.fill" : "star")
+                                    .foregroundColor(isCurrentShowFavorite ? .yellow : .gray)
                             }
-                            Spacer()
-                            if let source = parsed.source {
-                                Text(source)
-                                    .scaledFont(.caption)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 2)
-                                    .background(Color.blue.opacity(0.2))
-                                    .cornerRadius(4)
-                            }
+                            .buttonStyle(.plain)
                         }
-                    } else {
-                        Text(placeholderText)
-                            .scaledFont(.headline)
-                            .foregroundColor(.gray)
+                    }
+
+                    Divider()
+
+                    HStack {
+                        if let parsed = parsedTrack, let date = parsed.date, let city = parsed.city, let state = parsed.state, currentTrack != "No track info" && !currentTrack.isEmpty {
+                            Text("\(date) • \(city), \(state)")
+                                .scaledFont(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text(" ")
+                                .scaledFont(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        if let parsed = parsedTrack, let source = parsed.source, currentTrack != "No track info" && !currentTrack.isEmpty {
+                            Text(source)
+                                .scaledFont(.caption)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color.blue.opacity(0.2))
+                                .cornerRadius(4)
+                        }
                     }
                 }
                 .frame(minHeight: 80)
@@ -302,7 +329,7 @@ struct ContentView: View {
 
                         // Delay warning when not using MP3 stream
                         if stream.format != "MP3" {
-                            Text("Info can be ~15s behind when not using MP3 stream")
+                            Text("Info can be ~30s behind when not using MP3 stream")
                                 .scaledFont(.caption2)
                                 .foregroundColor(.secondary)
                                 .italic()
@@ -381,22 +408,25 @@ struct ContentView: View {
 
     @ViewBuilder
     private var showInfoSection: some View {
-        if let show = currentShow {
-            VStack(alignment: .leading, spacing: 8) {
-                Button(action: {
+        VStack(alignment: .leading, spacing: 8) {
+            // Show info header button (always visible)
+            Button(action: {
+                // Only allow expanding if we have show data
+                if currentShow != nil {
                     showInfoExpanded.toggle()
                     updateWindowMinHeight()
-                }) {
-                    HStack {
-                        // Venue info (same as expanded content, but more compact)
-                        VStack(alignment: .leading, spacing: 2) {
+                }
+            }) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        if let show = currentShow {
                             Text(show.venue)
                                 .scaledFont(.headline, weight: .semibold)
 
                             if let note = show.note {
                                 Text(try! AttributedString(markdown: note))
                                     .scaledFont(.caption)
-                                    .foregroundColor(.orange)
+                                    .foregroundColor(Color.red.opacity(0.8))
                             }
 
                             if !show.showInfo.isEmpty {
@@ -404,95 +434,153 @@ struct ContentView: View {
                                     .scaledFont(.caption)
                                     .foregroundColor(.secondary)
                             }
+                        } else if isFetchingShowInfo {
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                Text("Loading show info...")
+                                    .scaledFont(.headline)
+                                    .foregroundColor(.gray)
+                            }
+                        } else {
+                            Text(showInfoPlaceholderText)
+                                .scaledFont(.headline)
+                                .foregroundColor(.gray)
                         }
-                        
-                        Spacer()
-                        
+                    }
+
+                    Spacer()
+
+                    // Only show chevron if we have show data
+                    if currentShow != nil {
                         Image(systemName: showInfoExpanded ? "chevron.up" : "chevron.down")
                     }
-                    .contentShape(Rectangle())  // Make entire area tappable
-                    .padding()
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(8)
                 }
-                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                .padding()
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+            .disabled(currentShow == nil)
 
-                if showInfoExpanded {
-                    VStack(alignment: .leading, spacing: 12) {
+            // Expanded setlist section (only when show is loaded)
+            if showInfoExpanded, let show = currentShow {
+                VStack(alignment: .leading, spacing: 12) {
 
-                        Text("Setlist:")
-                            .scaledFont(.headline)
+                    Text("Setlist:")
+                        .scaledFont(.headline)
 
-                        ScrollView {
-                            Group {
-                                if availableWidth > 385 {
-                                    HStack(alignment: .top, spacing: 20) {
-                                        let midpoint = (show.setlist.count + 1) / 2
+                    ScrollView {
+                        Group {
+                            if availableWidth > 385 {
+                                HStack(alignment: .top, spacing: 20) {
+                                    let midpoint = (show.setlist.count + 1) / 2
 
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            ForEach(Array(show.setlist.prefix(midpoint).enumerated()), id: \.offset) { index, song in
-                                                setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
-                                            }
-                                        }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                                        if show.setlist.count > midpoint {
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                ForEach(Array(show.setlist.dropFirst(midpoint).enumerated()), id: \.offset) { index, song in
-                                                    setlistRow(index: midpoint + index + 1, song: song, acronyms: show.acronyms)
-                                                }
-                                            }
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                        }
-                                    }
-                                } else {
                                     VStack(alignment: .leading, spacing: 4) {
-                                        ForEach(Array(show.setlist.enumerated()), id: \.offset) { index, song in
+                                        ForEach(Array(show.setlist.prefix(midpoint).enumerated()), id: \.offset) { index, song in
                                             setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
                                         }
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                            }
-                            .padding(.horizontal, 4)
-                            .background(
-                                GeometryReader { geo in
-                                    Color.clear.onAppear {
-                                        availableWidth = geo.size.width
-                                    }
-                                    .onChange(of: geo.size.width) { _, newWidth in
-                                        availableWidth = newWidth
-                                    }
-                                }
-                            )
-                        }
 
-                        Button("View on FZShows") {
-                            if let url = URL(string: show.url) {
-                                #if os(macOS)
-                                NSWorkspace.shared.open(url)
-                                #else
-                                // For iOS, we'll add Safari View Controller later
-                                #endif
+                                    if show.setlist.count > midpoint {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            ForEach(Array(show.setlist.dropFirst(midpoint).enumerated()), id: \.offset) { index, song in
+                                                setlistRow(index: midpoint + index + 1, song: song, acronyms: show.acronyms)
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                }
+                            } else {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    ForEach(Array(show.setlist.enumerated()), id: \.offset) { index, song in
+                                        setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
-                        .scaledFont(.caption)
-                        .padding(.top, 1)
+                        .padding(.horizontal, 4)
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear.onAppear {
+                                    availableWidth = geo.size.width
+                                }
+                                .onChange(of: geo.size.width) { _, newWidth in
+                                    availableWidth = newWidth
+                                }
+                            }
+                        )
                     }
-                    .frame(maxHeight: .infinity)
-                    .padding()
-                    .background(Color.gray.opacity(0.05))
-                    .cornerRadius(8)
-                }
-            }
-        } else if isFetchingShowInfo {
-            HStack {
-                ProgressView()
-                Text("Loading show info...")
+
+                    // Collapsible official releases section
+                    if !show.acronyms.isEmpty {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                acronymsExpanded.toggle()
+                            }
+                        }) {
+                            HStack(spacing: 2) {
+                                Text("[")
+                                    .scaledFont(.caption, weight: .medium)
+                                    .foregroundColor(.secondary)
+                                Text("Official Releases")
+                                    .scaledFont(.caption, weight: .medium)
+                                    .foregroundColor(Color.orange.opacity(0.8))
+                                Text("]")
+                                    .scaledFont(.caption, weight: .medium)
+                                    .foregroundColor(.secondary)
+                                Image(systemName: acronymsExpanded ? "chevron.down" : "chevron.right")
+                                    .scaledFont(.caption2)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 4)
+
+                        if acronymsExpanded {
+                            // Deduplicate acronyms (same short form only listed once)
+                            let uniqueAcronyms = show.acronyms.reduce(into: [(short: String, full: String)]()) { result, acronym in
+                                if !result.contains(where: { $0.short == acronym.short }) {
+                                    result.append(acronym)
+                                }
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                ForEach(uniqueAcronyms, id: \.short) { acronym in
+                                    (Text(acronym.short)
+                                        .foregroundColor(.blue)
+                                        .bold()
+                                     + Text(" = \(acronym.full)")
+                                        .foregroundColor(.secondary))
+                                        .scaledFont(.caption2)
+                                        .italic()
+                                }
+                            }
+                            .padding(.leading, 8)
+                        }
+                    }
+
+                    Button("View on FZShows") {
+                        if let url = URL(string: show.url) {
+                            #if os(macOS)
+                            NSWorkspace.shared.open(url)
+                            #else
+                            // For iOS, we'll add Safari View Controller later
+                            #endif
+                        }
+                    }
                     .scaledFont(.caption)
-                    .foregroundColor(.secondary)
+                    .padding(.top, 1)
+                }
+                .frame(maxHeight: .infinity)
+                .padding()
+                .background(Color.gray.opacity(0.05))
+                .cornerRadius(8)
             }
-            .padding()
         }
     }
 
@@ -505,6 +593,14 @@ struct ContentView: View {
             return "Waiting for info..."
         } else {
             return "No track info"
+        }
+    }
+
+    private var showInfoPlaceholderText: String {
+        if !isPlaying {
+            return "Show Info"
+        } else {
+            return "Waiting for show info..."
         }
     }
 
@@ -550,20 +646,25 @@ struct ContentView: View {
     @ViewBuilder
     private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {
         let isCurrent = isCurrentTrack(song)
-        HStack(alignment: .top, spacing: 4) {
-            // Track number with subtle blue background if current
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            // Speaker icon for currently playing track
+            if isCurrent {
+                Image(systemName: "speaker.wave.2.fill")
+                    .scaledFont(.caption2)
+                    .foregroundColor(.blue)
+                    .frame(width: 14, alignment: .center)
+            } else {
+                Color.clear
+                    .frame(width: 14)
+            }
+
+            // Track number
             Text("\(index).")
                 .scaledFont(.caption)
                 .foregroundColor(.secondary)
                 .lineLimit(1)
                 .fixedSize()
-                .padding(.horizontal, 3)
-                .padding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(isCurrent ? Color.accentColor.opacity(0.2) : Color.clear)
-                )
-                .frame(minWidth: 30, alignment: .trailing)  // Right-align the whole pill
+                .frame(minWidth: 20, alignment: .trailing)
 
             formatSong(song, acronyms: acronyms)
                 .scaledFont(.caption)
@@ -639,13 +740,25 @@ struct ContentView: View {
         // Setup media key controls
         setupRemoteCommandCenter()
 
+        // Save playing state when app is about to terminate
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            let currentlyPlaying = self.isPlaying
+            UserDefaults.standard.set(currentlyPlaying, forKey: "wasPlayingOnQuit")
+            UserDefaults.standard.synchronize()  // Force immediate write to disk
+            print("💾 willTerminate - saving playing state: \(currentlyPlaying)")
+        }
+
         // Timers should be here, NOT inside the callback
         Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
             self.pollMP3Metadata()
         }
 
-        Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
-            self.checkAACState()
+        Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+            self.checkStreamState()
         }
     }
 
@@ -718,16 +831,20 @@ struct ContentView: View {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
 
-    private func checkAACState() {
+    private func checkStreamState() {
         guard let player = mediaPlayer,
               isPlaying,
-              selectedStream?.format == "AAC" else { return }
+              let format = selectedStream?.format,
+              format != "MP3" else { return }
 
-        // State 6 = VLCMediaPlayerStateEnded, State 7 = VLCMediaPlayerStateError
-        // Also check if player is buffering too long (state 2)
+        // VLC Player States:
+        // 0 = NothingSpecial, 1 = Opening, 2 = Buffering, 3 = Playing
+        // 4 = Paused, 5 = Stopped, 6 = Ended, 7 = Error
         let state = player.state.rawValue
-        if state == 6 || state == 7 {
-            print("🔄 AAC restart triggered (state: \(state))")
+
+        // Only restart on definite failure states (Stopped, Ended, Error)
+        if state == 5 || state == 6 || state == 7 {
+            print("🔄 Stream restart triggered (state: \(state), format: \(format))")
             playStream()
         }
     }
@@ -756,6 +873,10 @@ struct ContentView: View {
         mediaPlayer?.play()
         isPlaying = true
         updateNowPlayingInfo()
+
+        // Persist playing state immediately so it's saved even if app terminates unexpectedly
+        UserDefaults.standard.set(true, forKey: "wasPlayingOnQuit")
+        print("▶️ Playing - saved state: true")
     }
 
     func stopStream() {
@@ -763,6 +884,10 @@ struct ContentView: View {
         streamReader?.stopStreaming()
         isPlaying = false
         updateNowPlayingInfo()
+
+        // Persist paused state immediately
+        UserDefaults.standard.set(false, forKey: "wasPlayingOnQuit")
+        print("⏸️ Stopped - saved state: false")
     }
 
 

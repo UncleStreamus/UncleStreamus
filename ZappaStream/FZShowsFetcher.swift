@@ -325,11 +325,11 @@ class FZShowsFetcher {
 
         // Now parse from targetSection
         // Find ALL h6 tags (show info) in this section - shows can have multiple sources
-        // Each source is in a separate <h6> tag, e.g.:
-        // <h6>110 min, Aud, A/A-</h6>
-        // <h6>10 min, SBD, A</h6>
+        // Sources can be in separate <h6> tags OR within a single <h6> with <br> separators:
+        // <h6>110 min, Aud, A/A-</h6>  OR  <h6>135 min, Aud, B-<br>90 min, Aud, B+</h6>
         var allShowInfos: [String] = []
-        let h6Pattern = "<h6>([^<]+)</h6>"
+        // Updated pattern to capture content including <br> tags inside h6
+        let h6Pattern = "<h6>([\\s\\S]*?)</h6>"
         if let h6Regex = try? NSRegularExpression(pattern: h6Pattern, options: []) {
             // Only search up to the setlist or note to avoid picking up h6 from other shows
             let searchEnd = targetSection.range(of: "<p class=\"setlist\">")?.lowerBound

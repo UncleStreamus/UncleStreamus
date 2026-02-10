@@ -56,6 +56,49 @@ class ShowDataManager {
         return ((try? modelContext.fetch(descriptor))?.first) != nil
     }
 
+    // MARK: - Clear Data
+
+    func clearHistory() {
+        let descriptor = FetchDescriptor<SavedShow>(
+            predicate: #Predicate { $0.listenedAt != nil }
+        )
+
+        guard let shows = try? modelContext.fetch(descriptor) else { return }
+
+        for show in shows {
+            if show.isFavorite {
+                // Keep the record but clear the listen date
+                show.listenedAt = nil
+            } else {
+                // Delete entirely if not a favorite
+                modelContext.delete(show)
+            }
+        }
+
+        try? modelContext.save()
+    }
+
+    func clearFavorites() {
+        let descriptor = FetchDescriptor<SavedShow>(
+            predicate: #Predicate { $0.isFavorite == true }
+        )
+
+        guard let shows = try? modelContext.fetch(descriptor) else { return }
+
+        for show in shows {
+            if show.listenedAt != nil {
+                // Keep the record but unfavorite
+                show.isFavorite = false
+            } else {
+                // Delete entirely if not in history
+                modelContext.delete(show)
+            }
+        }
+
+        try? modelContext.save()
+        favoriteVersion += 1
+    }
+
     // MARK: - Refresh Show Info
 
     func refreshShowInfo(savedShow: SavedShow, completion: @escaping (Bool) -> Void) {

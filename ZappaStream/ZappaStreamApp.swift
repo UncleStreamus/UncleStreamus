@@ -84,6 +84,7 @@ struct ZappaStreamApp: App {
 
         Settings {
             SettingsView()
+                .modelContainer(sharedModelContainer)
         }
     }
 
