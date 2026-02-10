@@ -10,6 +10,7 @@
 		07D191737EF2D1D5E95B0ADB /* ScaledFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = B859389429B13E3327751EB4 /* ScaledFont.swift */; };
 		21BE041F9119BEFC92D75A73 /* Pods_ZappaStream.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 774EF79169BA133AE787E350 /* Pods_ZappaStream.framework */; };
 		360EE955A35C50D1A38B36CD /* TourPeriods.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */; };
+		9D924559343B4593F5DE1323 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */; };
 		BE1A341F2F30C6D600647B01 /* ZappaStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */; };
 		BE1A34212F30C6D600647B01 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A34202F30C6D600647B01 /* ContentView.swift */; };
 		BE1A34252F30C6D800647B01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE1A34242F30C6D800647B01 /* Assets.xcassets */; };
@@ -32,6 +33,7 @@
 /* Begin PBXFileReference section */
 		114158B3DA31188C0E2D5237 /* Pods-ZappaStream.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZappaStream.release.xcconfig"; path = "Target Support Files/Pods-ZappaStream/Pods-ZappaStream.release.xcconfig"; sourceTree = "<group>"; };
 		5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TourPeriods.swift; sourceTree = "<group>"; };
+		5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		752DBEE239607630EF9BE524 /* SongFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SongFormatter.swift; sourceTree = "<group>"; };
 		774EF79169BA133AE787E350 /* Pods_ZappaStream.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ZappaStream.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		82FFBCE2D30DA600491011C3 /* Pods-ZappaStream.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZappaStream.debug.xcconfig"; path = "Target Support Files/Pods-ZappaStream/Pods-ZappaStream.debug.xcconfig"; sourceTree = "<group>"; };
@@ -127,6 +129,7 @@
 				5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */,
 				DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */,
 				752DBEE239607630EF9BE524 /* SongFormatter.swift */,
+				5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */,
 			);
 			path = ZappaStream;
 			sourceTree = "<group>";
@@ -267,6 +270,7 @@
 				360EE955A35C50D1A38B36CD /* TourPeriods.swift in Sources */,
 				F62804A5EF88994291433F17 /* FilterView.swift in Sources */,
 				FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */,
+				9D924559343B4593F5DE1323 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -81,6 +81,10 @@ struct ZappaStreamApp: App {
                 .disabled(textScale >= textScaleLevels.last!)
             }
         }
+
+        Settings {
+            SettingsView()
+        }
     }
 
     private func increaseTextScale() {
