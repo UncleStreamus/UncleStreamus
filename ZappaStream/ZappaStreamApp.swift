@@ -8,12 +8,20 @@
 import SwiftUI
 import SwiftData
 
+#if os(macOS)
+import AppKit
+#endif
+
 @main
 struct ZappaStreamApp: App {
     @AppStorage("textScale") private var textScale: Double = 1.1
 
     // Text scale levels: Small, Default, Large
     private let textScaleLevels: [Double] = [1.0, 1.1, 1.2]
+
+    #if os(macOS)
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #endif
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -132,3 +140,113 @@ struct ZappaStreamApp: App {
         }
     }
 }
+
+// MARK: - macOS App Delegate for Menubar
+
+#if os(macOS)
+/// Notification name for track info updates
+extension Notification.Name {
+    static let trackInfoUpdated = Notification.Name("trackInfoUpdated")
+}
+
+class AppDelegate: NSObject, NSApplicationDelegate {
+    private var statusItem: NSStatusItem?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        setupMenubarIcon()
+        setupTrackInfoObserver()
+    }
+
+    private func setupMenubarIcon() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+
+        if let button = statusItem?.button {
+            // Use SF Symbol for the menubar icon
+            let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+            if let image = NSImage(systemSymbolName: "radio", accessibilityDescription: "Zappa Stream") {
+                image.isTemplate = true  // Allows proper dark/light mode adaptation
+                if let configuredImage = image.withSymbolConfiguration(config) {
+                    // Create a new image with adjusted alignment to center vertically
+                    let centeredImage = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
+                        let imageSize = configuredImage.size
+                        let x = (rect.width - imageSize.width) / 2
+                        let y = (rect.height - imageSize.height) / 2
+                        configuredImage.draw(in: NSRect(x: x, y: y, width: imageSize.width, height: imageSize.height))
+                        return true
+                    }
+                    centeredImage.isTemplate = true
+                    button.image = centeredImage
+                }
+            }
+            button.action = #selector(menubarIconClicked)
+            button.target = self
+            button.toolTip = "Zappa Stream"
+        }
+    }
+
+    private func setupTrackInfoObserver() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleTrackInfoUpdate(_:)),
+            name: .trackInfoUpdated,
+            object: nil
+        )
+    }
+
+    @objc private func handleTrackInfoUpdate(_ notification: Notification) {
+        let userInfo = notification.userInfo
+
+        let trackName = userInfo?["trackName"] as? String
+        let artist = userInfo?["artist"] as? String
+        let showInfo = userInfo?["showInfo"] as? String
+
+        var tooltipLines: [String] = []
+
+        // Mirror track info card - show info regardless of playing state
+        if let track = trackName, !track.isEmpty {
+            tooltipLines.append(track)
+        }
+        if let artist = artist, !artist.isEmpty {
+            tooltipLines.append(artist)
+        }
+        if let show = showInfo, !show.isEmpty {
+            tooltipLines.append(show)
+        }
+
+        let newTooltip = tooltipLines.isEmpty ? "Zappa Stream" : tooltipLines.joined(separator: "\n")
+        print("📻 Menubar tooltip update: \(newTooltip)")
+        statusItem?.button?.toolTip = newTooltip
+    }
+
+    @objc private func menubarIconClicked() {
+        // Find the main window
+        if let window = NSApplication.shared.windows.first(where: {
+            $0.identifier?.rawValue == "main" || $0.title.contains("Zappa")
+        }) {
+            if window.isVisible && window.isKeyWindow {
+                // Window is visible and focused - close it
+                window.close()
+            } else if window.isVisible {
+                // Window is visible but not focused - bring to front
+                window.makeKeyAndOrderFront(nil)
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            } else {
+                // Window exists but is hidden - show it
+                window.makeKeyAndOrderFront(nil)
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            }
+        } else {
+            // No window exists - create one by activating the app
+            NSApplication.shared.activate(ignoringOtherApps: true)
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // When reopening the app, show the window
+        if !flag {
+            menubarIconClicked()
+        }
+        return true
+    }
+}
+#endif

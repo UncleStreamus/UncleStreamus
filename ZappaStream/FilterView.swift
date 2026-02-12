@@ -496,8 +496,10 @@ struct FilterBar: View {
         .padding(.vertical, 6)
         #if os(macOS)
         .onAppear {
-            // Prevent automatic focus on the search field
-            isSearchFocused = false
+            // Prevent automatic focus on the search field - delay needed for SwiftUI focus system
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isSearchFocused = false
+            }
         }
         #endif
     }

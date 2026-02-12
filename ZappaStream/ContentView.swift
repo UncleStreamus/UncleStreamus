@@ -30,6 +30,7 @@ struct ContentView: View {
     @State private var contentBounceOffset: CGFloat = 0
     @State private var bounceResetTask: DispatchWorkItem?
     @State private var setlistFrameInWindow: CGRect = .zero  // Track setlist area to exclude from bounce
+    @State private var consecutiveBadStates: Int = 0  // Track bad states for AAC recovery
 
     let streams = [
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
@@ -889,22 +890,71 @@ struct ContentView: View {
         nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = true
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+
+        // Update menubar tooltip
+        updateMenubarTooltip()
+    }
+
+    /// Posts notification to update menubar icon tooltip with current track info
+    private func updateMenubarTooltip() {
+        var userInfo: [String: Any] = [:]
+
+        // Mirror track info card - show info regardless of playing state
+        if let parsed = parsedTrack, currentTrack != "No track info" && !currentTrack.isEmpty {
+            userInfo["trackName"] = parsed.trackName
+            userInfo["artist"] = artistName(from: parsed)
+
+            if let show = currentShow {
+                userInfo["showInfo"] = "\(show.date) • \(show.venue)"
+            }
+        }
+
+        NotificationCenter.default.post(
+            name: .trackInfoUpdated,
+            object: nil,
+            userInfo: userInfo
+        )
     }
 
     private func checkStreamState() {
         guard let player = mediaPlayer,
               isPlaying,
               let format = selectedStream?.format,
-              format != "MP3" else { return }
+              format != "MP3" else {
+            consecutiveBadStates = 0
+            return
+        }
 
         // VLC Player States:
         // 0 = NothingSpecial, 1 = Opening, 2 = Buffering, 3 = Playing
         // 4 = Paused, 5 = Stopped, 6 = Ended, 7 = Error
         let state = player.state.rawValue
 
-        // Only restart on definite failure states (Stopped, Ended, Error)
-        if state == 5 || state == 6 || state == 7 {
-            print("🔄 Stream restart triggered (state: \(state), format: \(format))")
+        // If playing normally, reset counter
+        if state == 3 {
+            consecutiveBadStates = 0
+            return
+        }
+
+        // Opening or Buffering states are fine, just wait
+        if state == 1 || state == 2 {
+            return
+        }
+
+        // Bad state detected (0, 5, 6, 7) - increment counter
+        consecutiveBadStates += 1
+
+        // First attempt: just nudge VLC to resume
+        if consecutiveBadStates == 1 {
+            print("⚠️ Bad state detected (state: \(state)), nudging player...")
+            player.play()
+            return
+        }
+
+        // Second attempt: full restart
+        if consecutiveBadStates >= 2 {
+            print("🔄 Stream restart triggered (state: \(state), format: \(format), consecutive: \(consecutiveBadStates))")
+            consecutiveBadStates = 0
             playStream()
         }
     }
@@ -929,10 +979,17 @@ struct ContentView: View {
         if stream.format == "AAC" {
             // AAC streams need options to handle track boundary discontinuities
             media.addOptions([
-                "network-caching": "3000",
-                "live-caching": "3000",
+                "network-caching": "5000",
+                "live-caching": "5000",
+                "clock-jitter": "0",
                 "demux": "avformat",           // Use FFmpeg demuxer for better AAC handling
-                "avformat-options": "{analyzeduration:10000000,probesize:5000000}"
+                "avformat-options": "{analyzeduration:10000000,probesize:10000000,err_detect:ignore_err}",
+                "codec": "avcodec",            // Use FFmpeg decoder which is more tolerant
+                "avcodec-skiploopfilter": "4", // Skip loop filter on non-ref frames for smoother playback
+                "avcodec-skip-frame": "0",     // Don't skip any frames
+                "avcodec-skip-idct": "0",      // Don't skip IDCT
+                "avcodec-fast": "1",           // Enable fast decoding
+                "avcodec-hurry-up": "0"        // Don't hurry up (avoid skipping)
             ])
         } else if stream.format == "FLAC" {
             // Add buffer for FLAC to reduce skipping
@@ -1036,6 +1093,9 @@ struct ContentView: View {
 
                     // Auto-record to history
                     self.showDataManager?.recordListen(show: show)
+
+                    // Update menubar tooltip with show info
+                    self.updateNowPlayingInfo()
                 }
             }
         }

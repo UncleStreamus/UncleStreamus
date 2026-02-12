@@ -37,6 +37,7 @@ struct ContentView_iOS: View {
     @State private var bugReportData: BugReportData?
     @State private var bufferStopTimer: Timer?
     @AppStorage("bufferDurationMinutes") private var bufferDurationMinutes: Int = 0
+    @State private var consecutiveBadStates: Int = 0  // Track bad states for AAC recovery
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     let streams = [
@@ -813,10 +814,41 @@ struct ContentView_iOS: View {
         guard let player = mediaPlayer,
               isPlaying,
               let format = selectedStream?.format,
-              format != "MP3" else { return }
+              format != "MP3" else {
+            consecutiveBadStates = 0
+            return
+        }
 
+        // VLC Player States:
+        // 0 = NothingSpecial, 1 = Opening, 2 = Buffering, 3 = Playing
+        // 4 = Paused, 5 = Stopped, 6 = Ended, 7 = Error
         let state = player.state.rawValue
-        if state == 5 || state == 6 || state == 7 {
+
+        // If playing normally, reset counter
+        if state == 3 {
+            consecutiveBadStates = 0
+            return
+        }
+
+        // Opening or Buffering states are fine, just wait
+        if state == 1 || state == 2 {
+            return
+        }
+
+        // Bad state detected (0, 5, 6, 7) - increment counter
+        consecutiveBadStates += 1
+
+        // First attempt: just nudge VLC to resume
+        if consecutiveBadStates == 1 {
+            print("⚠️ Bad state detected (state: \(state)), nudging player...")
+            player.play()
+            return
+        }
+
+        // Second attempt: full restart
+        if consecutiveBadStates >= 2 {
+            print("🔄 Stream restart triggered (state: \(state), format: \(format), consecutive: \(consecutiveBadStates))")
+            consecutiveBadStates = 0
             playStream()
         }
     }
@@ -841,10 +873,17 @@ struct ContentView_iOS: View {
         if stream.format == "AAC" {
             // AAC streams need options to handle track boundary discontinuities
             media.addOptions([
-                "network-caching": "3000",
-                "live-caching": "3000",
+                "network-caching": "5000",
+                "live-caching": "5000",
+                "clock-jitter": "0",
                 "demux": "avformat",           // Use FFmpeg demuxer for better AAC handling
-                "avformat-options": "{analyzeduration:10000000,probesize:5000000}"
+                "avformat-options": "{analyzeduration:10000000,probesize:10000000,err_detect:ignore_err}",
+                "codec": "avcodec",            // Use FFmpeg decoder which is more tolerant
+                "avcodec-skiploopfilter": "4", // Skip loop filter on non-ref frames for smoother playback
+                "avcodec-skip-frame": "0",     // Don't skip any frames
+                "avcodec-skip-idct": "0",      // Don't skip IDCT
+                "avcodec-fast": "1",           // Enable fast decoding
+                "avcodec-hurry-up": "0"        // Don't hurry up (avoid skipping)
             ])
         } else if stream.format == "FLAC" {
             media.addOptions(["network-caching": "3000"])
