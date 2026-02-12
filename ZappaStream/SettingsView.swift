@@ -12,12 +12,11 @@ struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .sync
 
     enum SettingsTab {
-        case sync, stream, savedData, credits
+        case sync, savedData, credits
 
         var height: CGFloat {
             switch self {
             case .sync: return 200
-            case .stream: return 220
             case .savedData: return 320
             case .credits: return 280
             }
@@ -28,7 +27,6 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             Picker("", selection: $selectedTab) {
                 Text("Sync").tag(SettingsTab.sync)
-                Text("Stream").tag(SettingsTab.stream)
                 Text("Saved Data").tag(SettingsTab.savedData)
                 Text("Credits").tag(SettingsTab.credits)
             }
@@ -40,8 +38,6 @@ struct SettingsView: View {
             switch selectedTab {
             case .sync:
                 SyncSettingsView()
-            case .stream:
-                StreamSettingsView()
             case .savedData:
                 SavedDataSettingsView()
             case .credits:
@@ -117,58 +113,6 @@ struct SyncSettingsView: View {
                 Text("Coming soon - requires app to be published to the App Store.")
                     .font(.caption)
                     .foregroundColor(.orange)
-            }
-
-            Spacer()
-        }
-    }
-}
-
-// MARK: - Stream Settings
-
-struct StreamSettingsView: View {
-    @AppStorage("bufferDurationMinutes") private var bufferDurationMinutes: Int = 0
-
-    private var bufferDurationText: String {
-        if bufferDurationMinutes == 0 {
-            return "Off"
-        } else if bufferDurationMinutes == 60 {
-            return "1 hour"
-        } else {
-            return "\(bufferDurationMinutes) mins"
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SettingsSectionHeader(title: "Buffer", systemImage: "clock.arrow.circlepath")
-
-            SettingsSectionBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("Buffer when paused")
-                        Spacer()
-                        Text(bufferDurationText)
-                            .foregroundColor(.secondary)
-                    }
-
-                    Slider(
-                        value: Binding(
-                            get: { Double(bufferDurationMinutes) },
-                            set: { bufferDurationMinutes = Int($0) }
-                        ),
-                        in: 0...60,
-                        step: 5
-                    )
-
-                    Text("When paused, the stream will continue buffering for this duration. Set to Off to stop buffering immediately when paused.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Text("Note: 1 hour of FLAC streaming uses approximately 330 MB of data.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
             }
 
             Spacer()

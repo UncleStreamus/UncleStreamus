@@ -35,8 +35,6 @@ struct ContentView_iOS: View {
     @State private var showSettings: Bool = false
     @State private var showSidebar: Bool = false
     @State private var bugReportData: BugReportData?
-    @State private var bufferStopTimer: Timer?
-    @AppStorage("bufferDurationMinutes") private var bufferDurationMinutes: Int = 0
     @State private var consecutiveBadStates: Int = 0  // Track bad states for AAC recovery
     @State private var showDelayWarning: Bool = false  // Temporarily show delay warning for non-MP3 streams
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -863,10 +861,6 @@ struct ContentView_iOS: View {
     }
 
     func playStream() {
-        // Cancel any buffer timer if resuming
-        bufferStopTimer?.invalidate()
-        bufferStopTimer = nil
-
         mediaPlayer?.stop()
         streamReader?.stopStreaming()
 
@@ -926,26 +920,7 @@ struct ContentView_iOS: View {
         isPlaying = false
         updateNowPlayingInfo()
 
-        // Cancel any existing buffer timer
-        bufferStopTimer?.invalidate()
-        bufferStopTimer = nil
-
-        // Handle buffer duration setting
-        if bufferDurationMinutes > 0 {
-            // Keep stream reader running for buffer duration
-            let bufferSeconds = Double(bufferDurationMinutes * 60)
-            print("⏸️ Paused - buffering for \(bufferDurationMinutes) minutes")
-            bufferStopTimer = Timer.scheduledTimer(withTimeInterval: bufferSeconds, repeats: false) { [weak streamReader] _ in
-                DispatchQueue.main.async {
-                    streamReader?.stopStreaming()
-                    print("🛑 Buffer timer expired - stopped stream reader")
-                }
-            }
-        } else {
-            // Stop immediately when buffer is off
-            streamReader?.stopStreaming()
-            print("⏸️ Paused - no buffering")
-        }
+        streamReader?.stopStreaming()
 
         UserDefaults.standard.set(false, forKey: "wasPlayingOnQuit")
     }

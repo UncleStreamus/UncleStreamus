@@ -25,8 +25,6 @@ struct ContentView: View {
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
     @State private var panelOpen: Bool = false  // Local state for panel visibility
     @State private var acronymsExpanded: Bool = false  // Collapsible acronyms section
-    @State private var bufferStopTimer: Timer?
-    @AppStorage("bufferDurationMinutes") private var bufferDurationMinutes: Int = 0
     @State private var contentBounceOffset: CGFloat = 0
     @State private var bounceResetTask: DispatchWorkItem?
     @State private var setlistFrameInWindow: CGRect = .zero  // Track setlist area to exclude from bounce
@@ -969,10 +967,6 @@ struct ContentView: View {
     }
 
     func playStream() {
-        // Cancel any buffer timer if resuming
-        bufferStopTimer?.invalidate()
-        bufferStopTimer = nil
-
         mediaPlayer?.stop()
         streamReader?.stopStreaming()
 
@@ -1035,26 +1029,7 @@ struct ContentView: View {
         isPlaying = false
         updateNowPlayingInfo()
 
-        // Cancel any existing buffer timer
-        bufferStopTimer?.invalidate()
-        bufferStopTimer = nil
-
-        // Handle buffer duration setting
-        if bufferDurationMinutes > 0 {
-            // Keep stream reader running for buffer duration
-            let bufferSeconds = Double(bufferDurationMinutes * 60)
-            print("⏸️ Paused - buffering for \(bufferDurationMinutes) minutes")
-            bufferStopTimer = Timer.scheduledTimer(withTimeInterval: bufferSeconds, repeats: false) { [weak streamReader] _ in
-                DispatchQueue.main.async {
-                    streamReader?.stopStreaming()
-                    print("🛑 Buffer timer expired - stopped stream reader")
-                }
-            }
-        } else {
-            // Stop immediately when buffer is off
-            streamReader?.stopStreaming()
-            print("⏸️ Paused - no buffering")
-        }
+        streamReader?.stopStreaming()
 
         // Persist paused state immediately
         UserDefaults.standard.set(false, forKey: "wasPlayingOnQuit")
