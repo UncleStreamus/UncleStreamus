@@ -27,6 +27,9 @@ struct ContentView: View {
     @State private var acronymsExpanded: Bool = false  // Collapsible acronyms section
     @State private var bufferStopTimer: Timer?
     @AppStorage("bufferDurationMinutes") private var bufferDurationMinutes: Int = 0
+    @State private var contentBounceOffset: CGFloat = 0
+    @State private var bounceResetTask: DispatchWorkItem?
+    @State private var setlistFrameInWindow: CGRect = .zero  // Track setlist area to exclude from bounce
 
     let streams = [
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
@@ -214,10 +217,8 @@ struct ContentView: View {
 
     private var mainContentView: some View {
         VStack(spacing: 0) {
-            // === TOP: Title + Track Info (pinned) ===
-            VStack(spacing: 12) {
-                // Title with sidebar toggle
-                HStack {
+            // === TOP: Title (fixed, no bounce) ===
+            HStack {
                     Spacer()
                     Text("Zappa Stream")
                         .scaledFont(.largeTitle, weight: .bold)
@@ -229,8 +230,10 @@ struct ContentView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                .padding(.horizontal)
+                .padding(.top)
 
-                // Track info card
+                // === Track Info Card (bounces) ===
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
@@ -302,12 +305,12 @@ struct ContentView: View {
                 .padding()
                 .background(Color.gray.opacity(0.1))
                 .cornerRadius(8)
-            }
-            .padding(.horizontal)
-            .padding(.top)
-            .padding(.bottom, 12)
+                .padding(.horizontal)
+                .padding(.top, 12)
+                .padding(.bottom, 12)
+                .offset(y: contentBounceOffset)
 
-            // === MIDDLE: Show Info (fills available space when expanded) ===
+                // === MIDDLE: Show Info (fills available space when expanded) ===
             if showInfoExpanded && currentShow != nil {
                 showInfoSection
                     .padding(.horizontal)
@@ -406,6 +409,33 @@ struct ContentView: View {
             .padding(.bottom)
         }
         .frame(minWidth: mainContentMinWidth, idealWidth: showInfoExpanded ? 450 : mainContentMinWidth)
+        .coordinateSpace(name: "mainContent")
+        .overlay(
+            ScrollWheelOverlay(excludeZone: setlistFrameInWindow) { delta in
+                handleScrollWheel(delta: delta)
+            }
+        )
+    }
+
+    private func handleScrollWheel(delta: CGFloat) {
+        // Apply rubber band effect with immediate visual feedback
+        withAnimation(.interactiveSpring(response: 0.15, dampingFraction: 0.8, blendDuration: 0)) {
+            let newOffset = contentBounceOffset + delta * 0.12
+            // Clamp to reasonable bounds
+            contentBounceOffset = max(-25, min(25, newOffset))
+        }
+
+        // Cancel any pending reset
+        bounceResetTask?.cancel()
+
+        // Schedule spring back after scrolling stops
+        let task = DispatchWorkItem { [self] in
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                contentBounceOffset = 0
+            }
+        }
+        bounceResetTask = task
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: task)
     }
 
     // MARK: - Show Info Section
@@ -467,6 +497,7 @@ struct ContentView: View {
             }
             .buttonStyle(.plain)
             .disabled(currentShow == nil)
+            .offset(y: contentBounceOffset)
 
             // Expanded setlist section (only when show is loaded)
             if showInfoExpanded, let show = currentShow {
@@ -518,6 +549,17 @@ struct ContentView: View {
                             }
                         )
                     }
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear
+                                .onAppear {
+                                    setlistFrameInWindow = geo.frame(in: .named("mainContent"))
+                                }
+                                .onChange(of: geo.frame(in: .named("mainContent"))) { _, newFrame in
+                                    setlistFrameInWindow = newFrame
+                                }
+                        }
+                    )
 
                     // Collapsible official releases section
                     if !show.acronyms.isEmpty {
@@ -584,6 +626,7 @@ struct ContentView: View {
                 .padding()
                 .background(Color.gray.opacity(0.05))
                 .cornerRadius(8)
+                .offset(y: contentBounceOffset)
             }
         }
         .contextMenu {
@@ -1122,6 +1165,105 @@ struct DraggableDivider: View {
                         NSCursor.pop()
                     }
             )
+    }
+}
+
+// MARK: - Scroll Wheel Overlay
+
+/// A transparent overlay that monitors scroll wheel events at the window level
+struct ScrollWheelOverlay: NSViewRepresentable {
+    let excludeZone: CGRect  // Area to exclude from bounce effect (e.g., setlist ScrollView)
+    let onScroll: (CGFloat) -> Void
+
+    func makeNSView(context: Context) -> ScrollWheelMonitorNSView {
+        let view = ScrollWheelMonitorNSView()
+        view.onScroll = onScroll
+        view.excludeZone = excludeZone
+        return view
+    }
+
+    func updateNSView(_ nsView: ScrollWheelMonitorNSView, context: Context) {
+        nsView.onScroll = onScroll
+        nsView.excludeZone = excludeZone
+    }
+}
+
+class ScrollWheelMonitorNSView: NSView {
+    var onScroll: ((CGFloat) -> Void)?
+    var excludeZone: CGRect = .zero
+    private var scrollMonitor: Any?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+
+        // Remove existing monitor
+        if let monitor = scrollMonitor {
+            NSEvent.removeMonitor(monitor)
+            scrollMonitor = nil
+        }
+
+        // Add local event monitor for scroll wheel events
+        guard window != nil else { return }
+
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            guard let self = self else { return event }
+
+            // Check if the scroll is happening over this view's window
+            guard let window = self.window,
+                  event.window == window else { return event }
+
+            // Get mouse location relative to this view (which overlays mainContent)
+            let locationInWindow = event.locationInWindow
+            let locationInView = self.convert(locationInWindow, from: nil)
+
+            // Check if mouse is within our bounds (the main content area)
+            guard self.bounds.contains(locationInView) else { return event }
+
+            // Check if mouse is within the exclude zone (setlist ScrollView)
+            // excludeZone is in SwiftUI's named coordinate space (top-left origin relative to mainContent)
+            // locationInView is in NSView coordinates (bottom-left origin relative to this view)
+            // Since this overlay spans the same area as mainContent, we just need to flip Y
+            if !self.excludeZone.isEmpty {
+                // Convert NSView coordinates (bottom-left origin) to SwiftUI coordinates (top-left origin)
+                let mouseInSwiftUI = CGPoint(
+                    x: locationInView.x,
+                    y: self.bounds.height - locationInView.y
+                )
+
+                if self.excludeZone.contains(mouseInSwiftUI) {
+                    // Mouse is over setlist - let it scroll normally, no bounce
+                    return event
+                }
+            }
+
+            // Only handle if this is a trackpad/mouse scroll, not momentum
+            if event.momentumPhase == [] || event.phase != [] {
+                DispatchQueue.main.async {
+                    self.onScroll?(event.scrollingDeltaY)
+                }
+            }
+
+            return event  // Always return the event to allow normal handling
+        }
+    }
+
+    override func removeFromSuperview() {
+        if let monitor = scrollMonitor {
+            NSEvent.removeMonitor(monitor)
+            scrollMonitor = nil
+        }
+        super.removeFromSuperview()
+    }
+
+    deinit {
+        if let monitor = scrollMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
+
+    // Make this view fully transparent to all interactions
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        return nil
     }
 }
 #endif
