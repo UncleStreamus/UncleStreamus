@@ -8,7 +8,8 @@ class IcecastStreamReader: NSObject, URLSessionDataDelegate {
     private var metadataLength: Int = 0
     private var bytesUntilMetadata: Int = 0
     private var isReadingMetadata = false
-    
+    private let bufferQueue = DispatchQueue(label: "com.zappastream.audiobuffer")
+
     var onMetadataUpdate: ((String) -> Void)?
     var onAudioData: ((Data) -> Void)?
     
@@ -27,7 +28,9 @@ class IcecastStreamReader: NSObject, URLSessionDataDelegate {
     func stopStreaming() {
         dataTask?.cancel()
         session?.invalidateAndCancel()
-        audioBuffer.removeAll()
+        bufferQueue.sync {
+            audioBuffer.removeAll()
+        }
         metadataInterval = 0
         bytesUntilMetadata = 0
     }
@@ -59,8 +62,10 @@ class IcecastStreamReader: NSObject, URLSessionDataDelegate {
     }
     
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        audioBuffer.append(data)
-        processBuffer()
+        bufferQueue.async {
+            self.audioBuffer.append(data)
+            self.processBuffer()
+        }
     }
     
     private func processBuffer() {
@@ -90,6 +95,7 @@ class IcecastStreamReader: NSObject, URLSessionDataDelegate {
             } else {
                 // Reading metadata
                 if metadataLength == 0 {
+
                     // Read metadata length byte
                     guard audioBuffer.count >= 1 else { break }
                     

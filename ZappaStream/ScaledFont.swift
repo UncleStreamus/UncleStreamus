@@ -45,6 +45,12 @@ private struct ScaledFontModifier: ViewModifier {
     }
 
     func body(content: Content) -> some View {
+        #if os(iOS)
+        // Use iOS native text styles for standard readability
+        content.font(.system(style, weight: weight))
+        #else
+        // Keep custom scaled sizes for macOS
         content.font(.system(size: baseSize * fontScale, weight: weight))
+        #endif
     }
 }

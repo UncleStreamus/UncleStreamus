@@ -12,12 +12,14 @@ struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .sync
 
     enum SettingsTab {
-        case sync, savedData
+        case sync, stream, savedData, credits
 
         var height: CGFloat {
             switch self {
             case .sync: return 200
+            case .stream: return 220
             case .savedData: return 320
+            case .credits: return 280
             }
         }
     }
@@ -26,7 +28,9 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             Picker("", selection: $selectedTab) {
                 Text("Sync").tag(SettingsTab.sync)
+                Text("Stream").tag(SettingsTab.stream)
                 Text("Saved Data").tag(SettingsTab.savedData)
+                Text("Credits").tag(SettingsTab.credits)
             }
             .pickerStyle(.segmented)
             .padding()
@@ -36,12 +40,22 @@ struct SettingsView: View {
             switch selectedTab {
             case .sync:
                 SyncSettingsView()
+            case .stream:
+                StreamSettingsView()
             case .savedData:
                 SavedDataSettingsView()
+            case .credits:
+                CreditsView()
             }
+
+            #if os(iOS)
+            Spacer()
+            #endif
         }
+        #if os(macOS)
         .frame(width: 400)
         .frame(height: selectedTab.height)
+        #endif
         .navigationTitle("Settings")
         .transaction { transaction in
             transaction.animation = nil
@@ -77,7 +91,7 @@ struct SettingsSectionBox<Content: View>: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color.controlBackground)
         .cornerRadius(8)
         .padding(.horizontal, 20)
     }
@@ -96,13 +110,65 @@ struct SyncSettingsView: View {
                 Toggle("Enable iCloud Sync", isOn: $iCloudSyncEnabled)
                     .disabled(true)  // Disabled until CloudKit is configured
 
-                Text("Sync your listening history and favorites across all your devices.")
+                Text("Sync your listening history and favourites across all your devices.")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
                 Text("Coming soon - requires app to be published to the App Store.")
                     .font(.caption)
                     .foregroundColor(.orange)
+            }
+
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Stream Settings
+
+struct StreamSettingsView: View {
+    @AppStorage("bufferDurationMinutes") private var bufferDurationMinutes: Int = 0
+
+    private var bufferDurationText: String {
+        if bufferDurationMinutes == 0 {
+            return "Off"
+        } else if bufferDurationMinutes == 60 {
+            return "1 hour"
+        } else {
+            return "\(bufferDurationMinutes) mins"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SettingsSectionHeader(title: "Buffer", systemImage: "clock.arrow.circlepath")
+
+            SettingsSectionBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Buffer when paused")
+                        Spacer()
+                        Text(bufferDurationText)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Slider(
+                        value: Binding(
+                            get: { Double(bufferDurationMinutes) },
+                            set: { bufferDurationMinutes = Int($0) }
+                        ),
+                        in: 0...60,
+                        step: 5
+                    )
+
+                    Text("When paused, the stream will continue buffering for this duration. Set to Off to stop buffering immediately when paused.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text("Note: 1 hour of FLAC streaming uses approximately 330 MB of data.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
 
             Spacer()
@@ -149,30 +215,82 @@ struct SavedDataSettingsView: View {
                     .foregroundColor(.secondary)
             }
 
-            SettingsSectionHeader(title: "Favorites", systemImage: "star")
+            SettingsSectionHeader(title: "Favourites", systemImage: "star")
 
             SettingsSectionBox {
                 Button(role: .destructive) {
                     showClearFavoritesAlert = true
                 } label: {
                     HStack {
-                        Text("Clear Favorites...")
+                        Text("Clear Favourites...")
                         Spacer()
                         Image(systemName: "trash")
                     }
                 }
-                .alert("Clear Favorites", isPresented: $showClearFavoritesAlert) {
+                .alert("Clear Favourites", isPresented: $showClearFavoritesAlert) {
                     Button("Cancel", role: .cancel) { }
                     Button("Clear", role: .destructive) {
                         showDataManager.clearFavorites()
                     }
                 } message: {
-                    Text("Are you sure you want to remove all favorites? This cannot be undone.")
+                    Text("Are you sure you want to remove all favourites? This cannot be undone.")
                 }
 
-                Text("Remove all shows from your favorites list.")
+                Text("Remove all shows from your favourites list.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+            }
+
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Credits
+
+struct CreditsView: View {
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SettingsSectionHeader(title: "Stream", systemImage: "antenna.radiowaves.left.and.right")
+
+            SettingsSectionBox {
+                Text("The Zappa Stream is hosted by norbert.de.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Button {
+                    if let url = URL(string: "https://www.norbert.de/index.php/frank-zappa/") {
+                        openURL(url)
+                    }
+                } label: {
+                    HStack {
+                        Text("Visit norbert.de")
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                    }
+                }
+            }
+
+            SettingsSectionHeader(title: "Show Information", systemImage: "list.bullet.rectangle")
+
+            SettingsSectionBox {
+                Text("Setlists and show information provided by the Zappateers community.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Button {
+                    if let url = URL(string: "https://www.zappateers.com") {
+                        openURL(url)
+                    }
+                } label: {
+                    HStack {
+                        Text("Visit Zappateers")
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                    }
+                }
             }
 
             Spacer()

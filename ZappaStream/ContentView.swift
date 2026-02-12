@@ -1,3 +1,4 @@
+#if os(macOS)
 import SwiftUI
 import SwiftData
 import AVFoundation
@@ -24,6 +25,8 @@ struct ContentView: View {
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
     @State private var panelOpen: Bool = false  // Local state for panel visibility
     @State private var acronymsExpanded: Bool = false  // Collapsible acronyms section
+    @State private var bufferStopTimer: Timer?
+    @AppStorage("bufferDurationMinutes") private var bufferDurationMinutes: Int = 0
 
     let streams = [
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
@@ -540,7 +543,7 @@ struct ContentView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .padding(.top, 4)
+                        .padding(.top, 16)
 
                         if acronymsExpanded {
                             // Deduplicate acronyms (same short form only listed once)
@@ -564,7 +567,7 @@ struct ContentView: View {
                         }
                     }
 
-                    Button("View on FZShows") {
+                    Button("Go to FZShows...") {
                         if let url = URL(string: show.url) {
                             #if os(macOS)
                             NSWorkspace.shared.open(url)
@@ -574,12 +577,30 @@ struct ContentView: View {
                         }
                     }
                     .scaledFont(.caption)
-                    .padding(.top, 1)
+                    .padding(.top, 8)
                 }
                 .frame(maxHeight: .infinity)
                 .padding()
                 .background(Color.gray.opacity(0.05))
                 .cornerRadius(8)
+            }
+        }
+        .contextMenu {
+            if let show = currentShow {
+                Button(action: {
+                    let reportData = BugReportData(
+                        showDate: show.date,
+                        venue: show.venue,
+                        url: show.url,
+                        rawMetadata: parsedTrack?.rawTitle,
+                        trackName: parsedTrack?.trackName,
+                        source: parsedTrack?.source,
+                        streamFormat: selectedStream?.format
+                    )
+                    reportData.openMailClient()
+                }) {
+                    Label("Report Issue...", systemImage: "envelope")
+                }
             }
         }
     }
@@ -845,6 +866,10 @@ struct ContentView: View {
     }
 
     func playStream() {
+        // Cancel any buffer timer if resuming
+        bufferStopTimer?.invalidate()
+        bufferStopTimer = nil
+
         mediaPlayer?.stop()
         streamReader?.stopStreaming()
 
@@ -858,9 +883,14 @@ struct ContentView: View {
 
         let media = VLCMedia(url: url)
         if stream.format == "AAC" {
-            media.addOptions(["network-caching": "3000"])
-        }
-        if stream.format == "FLAC" {
+            // AAC streams need options to handle track boundary discontinuities
+            media.addOptions([
+                "network-caching": "3000",
+                "live-caching": "3000",
+                "demux": "avformat",           // Use FFmpeg demuxer for better AAC handling
+                "avformat-options": "{analyzeduration:10000000,probesize:5000000}"
+            ])
+        } else if stream.format == "FLAC" {
             // Add buffer for FLAC to reduce skipping
             media.addOptions(["network-caching": "3000"])
         }
@@ -876,9 +906,29 @@ struct ContentView: View {
 
     func stopStream() {
         mediaPlayer?.pause()
-        streamReader?.stopStreaming()
         isPlaying = false
         updateNowPlayingInfo()
+
+        // Cancel any existing buffer timer
+        bufferStopTimer?.invalidate()
+        bufferStopTimer = nil
+
+        // Handle buffer duration setting
+        if bufferDurationMinutes > 0 {
+            // Keep stream reader running for buffer duration
+            let bufferSeconds = Double(bufferDurationMinutes * 60)
+            print("⏸️ Paused - buffering for \(bufferDurationMinutes) minutes")
+            bufferStopTimer = Timer.scheduledTimer(withTimeInterval: bufferSeconds, repeats: false) { [weak streamReader] _ in
+                DispatchQueue.main.async {
+                    streamReader?.stopStreaming()
+                    print("🛑 Buffer timer expired - stopped stream reader")
+                }
+            }
+        } else {
+            // Stop immediately when buffer is off
+            streamReader?.stopStreaming()
+            print("⏸️ Paused - no buffering")
+        }
 
         // Persist paused state immediately
         UserDefaults.standard.set(false, forKey: "wasPlayingOnQuit")
@@ -1073,3 +1123,4 @@ struct DraggableDivider: View {
             )
     }
 }
+#endif

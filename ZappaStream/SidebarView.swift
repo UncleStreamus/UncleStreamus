@@ -15,7 +15,7 @@ struct SidebarView: View {
         VStack(spacing: 0) {
             Picker("", selection: $selectedTab) {
                 Text("History").tag(SidebarTab.history)
-                Text("Favorites").tag(SidebarTab.favorites)
+                Text("Favourites").tag(SidebarTab.favorites)
             }
             .pickerStyle(.segmented)
             .padding()
@@ -29,8 +29,10 @@ struct SidebarView: View {
                 FavoritesListView(showDataManager: showDataManager, filterState: favoritesFilter)
             }
         }
+        #if os(macOS)
         .frame(width: 280)
-        .background(Color(nsColor: .controlBackgroundColor))
+        #endif
+        .background(Color.controlBackground)
     }
 }
 
@@ -127,7 +129,7 @@ struct HistoryListView: View {
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color(nsColor: .windowBackgroundColor))
+                                    .background(Color.systemBackground)
                             }
                         }
                     }
@@ -206,7 +208,7 @@ struct FavoritesListView: View {
             if favorites.isEmpty {
                 VStack {
                     Spacer()
-                    Text("No favorites yet")
+                    Text("No favourites yet")
                         .scaledFont(.caption)
                         .foregroundColor(.secondary)
                     Text("Tap the star on a show to save it")
@@ -251,10 +253,14 @@ struct FavoritesListView: View {
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color(nsColor: .windowBackgroundColor))
+                                .background(Color.systemBackground)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
+                                    #if os(macOS)
                                     let shiftPressed = NSEvent.modifierFlags.contains(.shift)
+                                    #else
+                                    let shiftPressed = false
+                                    #endif
                                     toggleYear(year, shiftPressed: shiftPressed)
                                 }
                             }

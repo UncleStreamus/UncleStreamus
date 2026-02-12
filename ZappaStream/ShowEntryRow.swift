@@ -6,6 +6,11 @@ struct ShowEntryRow: View {
     @State private var isExpanded: Bool = false
     @State private var isRefreshing: Bool = false
     @State private var acronymsExpanded: Bool = false
+    #if os(iOS)
+    @State private var safariURL: IdentifiableURL?
+    @State private var bugReportData: BugReportData?
+    #endif
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -90,7 +95,7 @@ struct ShowEntryRow: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .padding(.top, 4)
+                        .padding(.top, 16)
 
                         if acronymsExpanded {
                             // Deduplicate acronyms (same short form only listed once)
@@ -116,15 +121,17 @@ struct ShowEntryRow: View {
                 }
 
                 if !savedShow.url.isEmpty {
-                    Button("View on FZShows") {
+                    Button("Go to FZShows...") {
                         if let url = URL(string: savedShow.url) {
-                            #if os(macOS)
-                            NSWorkspace.shared.open(url)
+                            #if os(iOS)
+                            safariURL = IdentifiableURL(url: url)
+                            #else
+                            openURL(url)
                             #endif
                         }
                     }
                     .scaledFont(.caption2)
-                    .padding(.top, 4)
+                    .padding(.top, 8)
                 }
             }
         }
@@ -144,13 +151,64 @@ struct ShowEntryRow: View {
             if !savedShow.url.isEmpty {
                 Button(action: {
                     if let url = URL(string: savedShow.url) {
-                        NSWorkspace.shared.open(url)
+                        #if os(iOS)
+                        safariURL = IdentifiableURL(url: url)
+                        #else
+                        openURL(url)
+                        #endif
                     }
                 }) {
-                    Label("View on FZShows", systemImage: "safari")
+                    Label("Go to FZShows...", systemImage: "safari")
                 }
             }
+
+            Button(action: {
+                let reportData = BugReportData(
+                    showDate: savedShow.showDate,
+                    venue: savedShow.venue,
+                    url: savedShow.url,
+                    rawMetadata: nil,
+                    trackName: nil,
+                    source: nil,
+                    streamFormat: nil
+                )
+                #if os(iOS)
+                bugReportData = reportData
+                #else
+                reportData.openMailClient()
+                #endif
+            }) {
+                Label("Report Issue...", systemImage: "envelope")
+            }
         }
+        #if os(iOS)
+        .sheet(item: $safariURL) { item in
+            SafariView(url: item.url)
+                .ignoresSafeArea()
+        }
+        .sheet(item: $bugReportData) { data in
+            if MailComposerView.canSendMail {
+                MailComposerView(data: data)
+            } else {
+                VStack(spacing: 16) {
+                    Image(systemName: "envelope.badge.shield.half.filled")
+                        .font(.largeTitle)
+                        .foregroundColor(.secondary)
+                    Text("Mail Not Available")
+                        .font(.headline)
+                    Text("Please configure a mail account in Settings to send bug reports.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("OK") {
+                        bugReportData = nil
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding()
+            }
+        }
+        #endif
         .overlay {
             if isRefreshing {
                 Color.black.opacity(0.3)

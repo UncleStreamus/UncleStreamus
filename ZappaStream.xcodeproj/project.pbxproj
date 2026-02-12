@@ -15,6 +15,28 @@
 		BE1A34212F30C6D600647B01 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A34202F30C6D600647B01 /* ContentView.swift */; };
 		BE1A34252F30C6D800647B01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE1A34242F30C6D800647B01 /* Assets.xcassets */; };
 		BE1A34292F30C6D800647B01 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE1A34282F30C6D800647B01 /* Preview Assets.xcassets */; };
+		BE2FCA5F2F3CB6F70038E706 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE2FCA5E2F3CB6F70038E706 /* Assets.xcassets */; };
+		BE2FCA622F3CB6F70038E706 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE2FCA612F3CB6F70038E706 /* Preview Assets.xcassets */; };
+		BE2FCA682F3CBB2E0038E706 /* PlatformHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */; };
+		BE2FCA692F3CBB2E0038E706 /* PlatformHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */; };
+		BE2FCA6B2F3CBB520038E706 /* ContentView_iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */; };
+		BE2FCA6C2F3CBBC90038E706 /* ContentView_iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */; };
+		BE2FCA6D2F3CBBCA0038E706 /* Stream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */; };
+		BE2FCA6E2F3CBBCA0038E706 /* ParsedTrackInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */; };
+		BE2FCA6F2F3CBBCA0038E706 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
+		BE2FCA702F3CBBCA0038E706 /* ShowEntryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00082F34000100AA0009 /* ShowEntryRow.swift */; };
+		BE2FCA712F3CBBCA0038E706 /* TourPeriods.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */; };
+		BE2FCA722F3CBBCA0038E706 /* ShowDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00042F34000100AA0005 /* ShowDataManager.swift */; };
+		BE2FCA732F3CBBCA0038E706 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00062F34000100AA0007 /* SidebarView.swift */; };
+		BE2FCA742F3CBBCA0038E706 /* ZappaStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */; };
+		BE2FCA752F3CBBCA0038E706 /* Acronym.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00002F34000100AA0001 /* Acronym.swift */; };
+		BE2FCA762F3CBBCA0038E706 /* FZShowsFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */; };
+		BE2FCA772F3CBBCA0038E706 /* IcecastStreamReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */; };
+		BE2FCA782F3CBBCA0038E706 /* ScaledFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = B859389429B13E3327751EB4 /* ScaledFont.swift */; };
+		BE2FCA792F3CBBCA0038E706 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */; };
+		BE2FCA7A2F3CBBCA0038E706 /* SongFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752DBEE239607630EF9BE524 /* SongFormatter.swift */; };
+		BE2FCA7B2F3CBBCA0038E706 /* SavedShow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00022F34000100AA0003 /* SavedShow.swift */; };
+		BE2FCA7C2F3CBBCA0038E706 /* MarqueeText.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */; };
 		BE88693F2F31043D003E52DE /* IcecastStreamReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */; };
 		BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */; };
 		BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */; };
@@ -28,15 +50,18 @@
 		BEF8E53E2F3A873A000B6773 /* MarqueeText.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */; };
 		F62804A5EF88994291433F17 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
 		FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752DBEE239607630EF9BE524 /* SongFormatter.swift */; };
+		FD0D9ABCE142CA8742A9D2AF /* Pods_ZappaStream_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C370087ABAC7190EF08EA5AB /* Pods_ZappaStream_iOS.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		114158B3DA31188C0E2D5237 /* Pods-ZappaStream.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZappaStream.release.xcconfig"; path = "Target Support Files/Pods-ZappaStream/Pods-ZappaStream.release.xcconfig"; sourceTree = "<group>"; };
+		4FFDBE7B5610D357DD8799E2 /* Pods-ZappaStream-iOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZappaStream-iOS.release.xcconfig"; path = "Target Support Files/Pods-ZappaStream-iOS/Pods-ZappaStream-iOS.release.xcconfig"; sourceTree = "<group>"; };
 		5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TourPeriods.swift; sourceTree = "<group>"; };
 		5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		752DBEE239607630EF9BE524 /* SongFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SongFormatter.swift; sourceTree = "<group>"; };
 		774EF79169BA133AE787E350 /* Pods_ZappaStream.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ZappaStream.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		82FFBCE2D30DA600491011C3 /* Pods-ZappaStream.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZappaStream.debug.xcconfig"; path = "Target Support Files/Pods-ZappaStream/Pods-ZappaStream.debug.xcconfig"; sourceTree = "<group>"; };
+		945CE34E0606432E5978D797 /* Pods-ZappaStream-iOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZappaStream-iOS.debug.xcconfig"; path = "Target Support Files/Pods-ZappaStream-iOS/Pods-ZappaStream-iOS.debug.xcconfig"; sourceTree = "<group>"; };
 		B859389429B13E3327751EB4 /* ScaledFont.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScaledFont.swift; sourceTree = "<group>"; };
 		BE1A341B2F30C6D600647B01 /* ZappaStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZappaStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZappaStreamApp.swift; sourceTree = "<group>"; };
@@ -44,6 +69,12 @@
 		BE1A34242F30C6D800647B01 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BE1A34262F30C6D800647B01 /* ZappaStream.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ZappaStream.entitlements; sourceTree = "<group>"; };
 		BE1A34282F30C6D800647B01 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		BE2FCA562F3CB6F60038E706 /* ZappaStream-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ZappaStream-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		BE2FCA5E2F3CB6F70038E706 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BE2FCA612F3CB6F70038E706 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		BE2FCA662F3CB93F0038E706 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PlatformHelpers.swift; sourceTree = "<group>"; };
+		BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentView_iOS.swift; sourceTree = "<group>"; };
 		BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IcecastStreamReader.swift; sourceTree = "<group>"; };
 		BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfo.swift; sourceTree = "<group>"; };
 		BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stream.swift; sourceTree = "<group>"; };
@@ -55,6 +86,7 @@
 		BED5C49B2F30D50C009DB6FE /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsFetcher.swift; sourceTree = "<group>"; };
 		BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MarqueeText.swift; sourceTree = "<group>"; };
+		C370087ABAC7190EF08EA5AB /* Pods_ZappaStream_iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ZappaStream_iOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FilterView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -68,6 +100,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BE2FCA532F3CB6F60038E706 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FD0D9ABCE142CA8742A9D2AF /* Pods_ZappaStream_iOS.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -76,6 +116,8 @@
 			children = (
 				82FFBCE2D30DA600491011C3 /* Pods-ZappaStream.debug.xcconfig */,
 				114158B3DA31188C0E2D5237 /* Pods-ZappaStream.release.xcconfig */,
+				945CE34E0606432E5978D797 /* Pods-ZappaStream-iOS.debug.xcconfig */,
+				4FFDBE7B5610D357DD8799E2 /* Pods-ZappaStream-iOS.release.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -85,6 +127,7 @@
 			children = (
 				BED5C49B2F30D50C009DB6FE /* Cocoa.framework */,
 				774EF79169BA133AE787E350 /* Pods_ZappaStream.framework */,
+				C370087ABAC7190EF08EA5AB /* Pods_ZappaStream_iOS.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -93,6 +136,7 @@
 			isa = PBXGroup;
 			children = (
 				BE1A341D2F30C6D600647B01 /* ZappaStream */,
+				BE2FCA572F3CB6F60038E706 /* ZappaStream-iOS */,
 				BE1A341C2F30C6D600647B01 /* Products */,
 				A806FBCBFC537F38D854EC63 /* Pods */,
 				B7EB114D716DB2355761DC19 /* Frameworks */,
@@ -103,6 +147,7 @@
 			isa = PBXGroup;
 			children = (
 				BE1A341B2F30C6D600647B01 /* ZappaStream.app */,
+				BE2FCA562F3CB6F60038E706 /* ZappaStream-iOS.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -110,6 +155,8 @@
 		BE1A341D2F30C6D600647B01 /* ZappaStream */ = {
 			isa = PBXGroup;
 			children = (
+				BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */,
+				BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */,
 				BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */,
 				BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */,
 				BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */,
@@ -142,6 +189,24 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
+		BE2FCA572F3CB6F60038E706 /* ZappaStream-iOS */ = {
+			isa = PBXGroup;
+			children = (
+				BE2FCA662F3CB93F0038E706 /* Info.plist */,
+				BE2FCA5E2F3CB6F70038E706 /* Assets.xcassets */,
+				BE2FCA602F3CB6F70038E706 /* Preview Content */,
+			);
+			path = "ZappaStream-iOS";
+			sourceTree = "<group>";
+		};
+		BE2FCA602F3CB6F70038E706 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				BE2FCA612F3CB6F70038E706 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -164,6 +229,25 @@
 			productReference = BE1A341B2F30C6D600647B01 /* ZappaStream.app */;
 			productType = "com.apple.product-type.application";
 		};
+		BE2FCA552F3CB6F60038E706 /* ZappaStream-iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BE2FCA652F3CB6F70038E706 /* Build configuration list for PBXNativeTarget "ZappaStream-iOS" */;
+			buildPhases = (
+				FCBB1D14B34A1EC012E80FE6 /* [CP] Check Pods Manifest.lock */,
+				BE2FCA522F3CB6F60038E706 /* Sources */,
+				BE2FCA532F3CB6F60038E706 /* Frameworks */,
+				BE2FCA542F3CB6F60038E706 /* Resources */,
+				86DC11188AE454776CDD71A9 /* [CP] Embed Pods Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "ZappaStream-iOS";
+			productName = "ZappaStream-iOS";
+			productReference = BE2FCA562F3CB6F60038E706 /* ZappaStream-iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -175,6 +259,9 @@
 				LastUpgradeCheck = 1540;
 				TargetAttributes = {
 					BE1A341A2F30C6D600647B01 = {
+						CreatedOnToolsVersion = 15.4;
+					};
+					BE2FCA552F3CB6F60038E706 = {
 						CreatedOnToolsVersion = 15.4;
 					};
 				};
@@ -193,6 +280,7 @@
 			projectRoot = "";
 			targets = (
 				BE1A341A2F30C6D600647B01 /* ZappaStream */,
+				BE2FCA552F3CB6F60038E706 /* ZappaStream-iOS */,
 			);
 		};
 /* End PBXProject section */
@@ -204,6 +292,15 @@
 			files = (
 				BE1A34292F30C6D800647B01 /* Preview Assets.xcassets in Resources */,
 				BE1A34252F30C6D800647B01 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE2FCA542F3CB6F60038E706 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BE2FCA622F3CB6F70038E706 /* Preview Assets.xcassets in Resources */,
+				BE2FCA5F2F3CB6F70038E706 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -232,6 +329,21 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
+		86DC11188AE454776CDD71A9 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ZappaStream-iOS/Pods-ZappaStream-iOS-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
 		B47B06E245917E6357ACCCC9 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -247,6 +359,28 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ZappaStream/Pods-ZappaStream-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
+		FCBB1D14B34A1EC012E80FE6 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-ZappaStream-iOS-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -260,6 +394,7 @@
 				BEAA00012F34000100AA0001 /* Acronym.swift in Sources */,
 				BEAA00032F34000100AA0003 /* SavedShow.swift in Sources */,
 				BEAA00052F34000100AA0005 /* ShowDataManager.swift in Sources */,
+				BE2FCA6C2F3CBBC90038E706 /* ContentView_iOS.swift in Sources */,
 				BEAA00072F34000100AA0007 /* SidebarView.swift in Sources */,
 				BEAA00092F34000100AA0009 /* ShowEntryRow.swift in Sources */,
 				BE1A341F2F30C6D600647B01 /* ZappaStreamApp.swift in Sources */,
@@ -268,9 +403,35 @@
 				BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */,
 				07D191737EF2D1D5E95B0ADB /* ScaledFont.swift in Sources */,
 				360EE955A35C50D1A38B36CD /* TourPeriods.swift in Sources */,
+				BE2FCA682F3CBB2E0038E706 /* PlatformHelpers.swift in Sources */,
 				F62804A5EF88994291433F17 /* FilterView.swift in Sources */,
 				FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */,
 				9D924559343B4593F5DE1323 /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE2FCA522F3CB6F60038E706 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BE2FCA692F3CBB2E0038E706 /* PlatformHelpers.swift in Sources */,
+				BE2FCA6D2F3CBBCA0038E706 /* Stream.swift in Sources */,
+				BE2FCA6E2F3CBBCA0038E706 /* ParsedTrackInfo.swift in Sources */,
+				BE2FCA6F2F3CBBCA0038E706 /* FilterView.swift in Sources */,
+				BE2FCA702F3CBBCA0038E706 /* ShowEntryRow.swift in Sources */,
+				BE2FCA712F3CBBCA0038E706 /* TourPeriods.swift in Sources */,
+				BE2FCA722F3CBBCA0038E706 /* ShowDataManager.swift in Sources */,
+				BE2FCA732F3CBBCA0038E706 /* SidebarView.swift in Sources */,
+				BE2FCA742F3CBBCA0038E706 /* ZappaStreamApp.swift in Sources */,
+				BE2FCA752F3CBBCA0038E706 /* Acronym.swift in Sources */,
+				BE2FCA762F3CBBCA0038E706 /* FZShowsFetcher.swift in Sources */,
+				BE2FCA772F3CBBCA0038E706 /* IcecastStreamReader.swift in Sources */,
+				BE2FCA782F3CBBCA0038E706 /* ScaledFont.swift in Sources */,
+				BE2FCA792F3CBBCA0038E706 /* SettingsView.swift in Sources */,
+				BE2FCA7A2F3CBBCA0038E706 /* SongFormatter.swift in Sources */,
+				BE2FCA7B2F3CBBCA0038E706 /* SavedShow.swift in Sources */,
+				BE2FCA7C2F3CBBCA0038E706 /* MarqueeText.swift in Sources */,
+				BE2FCA6B2F3CBB520038E706 /* ContentView_iOS.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -469,6 +630,75 @@
 			};
 			name = Release;
 		};
+		BE2FCA632F3CB6F70038E706 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 945CE34E0606432E5978D797 /* Pods-ZappaStream-iOS.debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
+				DEVELOPMENT_TEAM = UZA73C6M3L;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "ZappaStream-iOS/Info.plist";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.datisit.ZappaStream-iOS";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		BE2FCA642F3CB6F70038E706 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4FFDBE7B5610D357DD8799E2 /* Pods-ZappaStream-iOS.release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
+				DEVELOPMENT_TEAM = UZA73C6M3L;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "ZappaStream-iOS/Info.plist";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.datisit.ZappaStream-iOS";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -486,6 +716,15 @@
 			buildConfigurations = (
 				BE1A342D2F30C6D800647B01 /* Debug */,
 				BE1A342E2F30C6D800647B01 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BE2FCA652F3CB6F70038E706 /* Build configuration list for PBXNativeTarget "ZappaStream-iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BE2FCA632F3CB6F70038E706 /* Debug */,
+				BE2FCA642F3CB6F70038E706 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
