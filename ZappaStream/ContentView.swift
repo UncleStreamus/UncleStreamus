@@ -978,18 +978,22 @@ struct ContentView: View {
         let media = VLCMedia(url: url)
         if stream.format == "AAC" {
             // AAC streams need options to handle track boundary discontinuities
+            // The server sends AAC with discontinuities at track changes that cause decode errors
             media.addOptions([
-                "network-caching": "5000",
-                "live-caching": "5000",
+                "network-caching": "10000",     // 10 second buffer
+                "live-caching": "10000",
+                "file-caching": "10000",
                 "clock-jitter": "0",
-                "demux": "avformat",           // Use FFmpeg demuxer for better AAC handling
-                "avformat-options": "{analyzeduration:10000000,probesize:10000000,err_detect:ignore_err}",
-                "codec": "avcodec",            // Use FFmpeg decoder which is more tolerant
-                "avcodec-skiploopfilter": "4", // Skip loop filter on non-ref frames for smoother playback
-                "avcodec-skip-frame": "0",     // Don't skip any frames
-                "avcodec-skip-idct": "0",      // Don't skip IDCT
-                "avcodec-fast": "1",           // Enable fast decoding
-                "avcodec-hurry-up": "0"        // Don't hurry up (avoid skipping)
+                "clock-synchro": "0",           // Disable clock sync to avoid drops
+                "demux": "avformat",
+                "avformat-options": "{analyzeduration:20000000,probesize:20000000,err_detect:ignore_err,fflags:+discardcorrupt+ignidx}",
+                "codec": "avcodec",
+                "avcodec-skiploopfilter": "4",
+                "avcodec-skip-frame": "0",
+                "avcodec-skip-idct": "0",
+                "avcodec-fast": "1",
+                "avcodec-hurry-up": "0",
+                "avcodec-error-resilience": "4" // Maximum error resilience
             ])
         } else if stream.format == "FLAC" {
             // Add buffer for FLAC to reduce skipping
