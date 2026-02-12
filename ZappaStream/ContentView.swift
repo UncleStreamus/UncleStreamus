@@ -31,6 +31,7 @@ struct ContentView: View {
     @State private var bounceResetTask: DispatchWorkItem?
     @State private var setlistFrameInWindow: CGRect = .zero  // Track setlist area to exclude from bounce
     @State private var consecutiveBadStates: Int = 0  // Track bad states for AAC recovery
+    @State private var showDelayWarning: Bool = false  // Temporarily show delay warning for non-MP3 streams
 
     let streams = [
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
@@ -335,14 +336,16 @@ struct ContentView: View {
                             .scaledFont(.caption2)
                             .foregroundColor(.secondary)
 
-                        // Delay warning when not using MP3 stream
-                        if stream.format != "MP3" {
+                        // Delay warning when not using MP3 stream - shows briefly then hides
+                        if stream.format != "MP3" && showDelayWarning {
                             Text("Info can be ~30s behind when not using MP3 stream")
                                 .scaledFont(.caption2)
                                 .foregroundColor(.secondary)
                                 .italic()
+                                .transition(.move(edge: .top).combined(with: .opacity))
                         }
                     }
+                    .animation(.easeInOut(duration: 0.3), value: showDelayWarning)
                 }
 
                 HStack(spacing: 12) {
@@ -1009,6 +1012,18 @@ struct ContentView: View {
         mediaPlayer?.play()
         isPlaying = true
         updateNowPlayingInfo()
+
+        // Show delay warning for non-MP3 streams, then hide after 5 seconds
+        if stream.format != "MP3" {
+            showDelayWarning = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                withAnimation {
+                    self.showDelayWarning = false
+                }
+            }
+        } else {
+            showDelayWarning = false
+        }
 
         // Persist playing state immediately so it's saved even if app terminates unexpectedly
         UserDefaults.standard.set(true, forKey: "wasPlayingOnQuit")
