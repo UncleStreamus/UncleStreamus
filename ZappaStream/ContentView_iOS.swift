@@ -79,6 +79,12 @@ struct ContentView_iOS: View {
                         }
                     }
                     .offset(y: contentBounceOffset)
+                    .simultaneousGesture(
+                        TapGesture().onEnded {
+                            // Dismiss keyboard when tapping main content (useful on iPad with sidebar visible)
+                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        }
+                    )
                     .navigationTitle("Zappa Stream")
                     .navigationBarTitleDisplayMode(.large)
                     .navigationDestination(isPresented: $sidebarNavigationActive) {

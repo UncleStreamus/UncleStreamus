@@ -33,6 +33,16 @@ struct SidebarView: View {
         .frame(width: 280)
         #endif
         .background(Color.controlBackground)
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                // Dismiss keyboard/focus when tapping anywhere in the sidebar
+                #if os(iOS)
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                #elseif os(macOS)
+                NSApp.keyWindow?.makeFirstResponder(nil)
+                #endif
+            }
+        )
     }
 }
 
@@ -136,6 +146,9 @@ struct HistoryListView: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                 }
+                #if os(iOS)
+                .scrollDismissesKeyboard(.interactively)
+                #endif
             }
         }
     }
@@ -269,6 +282,9 @@ struct FavoritesListView: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                 }
+                #if os(iOS)
+                .scrollDismissesKeyboard(.interactively)
+                #endif
             }
         }
     }

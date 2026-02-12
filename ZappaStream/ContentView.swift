@@ -416,6 +416,12 @@ struct ContentView: View {
                 handleScrollWheel(delta: delta)
             }
         )
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                // Dismiss focus from search field when tapping main content
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
+        )
     }
 
     private func handleScrollWheel(delta: CGFloat) {
