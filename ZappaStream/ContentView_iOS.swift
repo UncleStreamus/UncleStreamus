@@ -37,6 +37,7 @@ struct ContentView_iOS: View {
     @State private var bugReportData: BugReportData?
     @State private var consecutiveBadStates: Int = 0  // Track bad states for AAC recovery
     @State private var showDelayWarning: Bool = false  // Temporarily show delay warning for non-MP3 streams
+    @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     let streams = [
@@ -586,7 +587,8 @@ struct ContentView_iOS: View {
 
     @ViewBuilder
     private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {
-        let isCurrent = isCurrentTrack(song)
+        let currentPosition = findCurrentTrackPosition()
+        let isCurrent = currentPosition == index
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Image(systemName: "speaker.wave.2.fill")
                 .scaledFont(.caption2)
@@ -672,12 +674,37 @@ struct ContentView_iOS: View {
         return words.joined(separator: " ")
     }
 
-    private func isCurrentTrack(_ song: String) -> Bool {
-        guard let trackName = parsedTrack?.trackName else { return false }
-        let songWords = firstWords(song)
+    /// Finds the current track position in the setlist, handling duplicate song names
+    /// by picking the first match after the last confirmed position
+    private func findCurrentTrackPosition() -> Int? {
+        guard let trackName = parsedTrack?.trackName,
+              let setlist = currentShow?.setlist else { return nil }
+
         let trackWords = firstWords(trackName)
-        guard !songWords.isEmpty && !trackWords.isEmpty else { return false }
-        return songWords == trackWords
+        guard !trackWords.isEmpty else { return nil }
+
+        // Find all positions where the song name matches
+        var matchingPositions: [Int] = []
+        for (index, song) in setlist.enumerated() {
+            let songWords = firstWords(song)
+            if songWords == trackWords {
+                matchingPositions.append(index + 1)  // 1-based position
+            }
+        }
+
+        guard !matchingPositions.isEmpty else { return nil }
+
+        // Find the first match that comes after our last confirmed position
+        // This handles cases like multiple "Improvisations" in a setlist
+        for pos in matchingPositions {
+            if pos > currentSetlistPosition {
+                return pos
+            }
+        }
+
+        // If no match after current position, return the first match
+        // (handles edge cases like restarting mid-show)
+        return matchingPositions.first
     }
 
     // MARK: - Artist Name Helper
@@ -738,6 +765,11 @@ struct ContentView_iOS: View {
                 if let parsed = self.parsedTrack, let date = parsed.date {
                     let showTime = ShowTime(from: parsed.showTime)
                     self.fetchShowInfo(date: date, showTime: showTime)
+                }
+
+                // Update current setlist position for duplicate track name handling
+                if let position = self.findCurrentTrackPosition() {
+                    self.currentSetlistPosition = position
                 }
 
                 self.updateNowPlayingInfo()
@@ -942,6 +974,11 @@ struct ContentView_iOS: View {
                         self.fetchShowInfo(date: date, showTime: showTime)
                     }
 
+                    // Update current setlist position for duplicate track name handling
+                    if let position = self.findCurrentTrackPosition() {
+                        self.currentSetlistPosition = position
+                    }
+
                     self.updateNowPlayingInfo()
                 }
             }
@@ -963,6 +1000,7 @@ struct ContentView_iOS: View {
         FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime) { show in
             DispatchQueue.main.async {
                 self.currentShow = show
+                self.currentSetlistPosition = 0  // Reset position for new show
                 self.isFetchingShowInfo = false
 
                 if let show = show {

@@ -30,6 +30,7 @@ struct ContentView: View {
     @State private var setlistFrameInWindow: CGRect = .zero  // Track setlist area to exclude from bounce
     @State private var consecutiveBadStates: Int = 0  // Track bad states for AAC recovery
     @State private var showDelayWarning: Bool = false  // Temporarily show delay warning for non-MP3 streams
+    @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
 
     let streams = [
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
@@ -702,23 +703,44 @@ struct ContentView: View {
         return words.joined(separator: " ")
     }
 
-    /// Checks if a setlist song matches the currently playing track
-    private func isCurrentTrack(_ song: String) -> Bool {
-        guard let trackName = parsedTrack?.trackName else { return false }
+    /// Finds the current track position in the setlist, handling duplicate song names
+    /// by picking the first match after the last confirmed position
+    private func findCurrentTrackPosition() -> Int? {
+        guard let trackName = parsedTrack?.trackName,
+              let setlist = currentShow?.setlist else { return nil }
 
-        // Compare first 2 words of each track name
-        let songWords = firstWords(song)
         let trackWords = firstWords(trackName)
+        guard !trackWords.isEmpty else { return nil }
 
-        guard !songWords.isEmpty && !trackWords.isEmpty else { return false }
+        // Find all positions where the song name matches
+        var matchingPositions: [Int] = []
+        for (index, song) in setlist.enumerated() {
+            let songWords = firstWords(song)
+            if songWords == trackWords {
+                matchingPositions.append(index + 1)  // 1-based position
+            }
+        }
 
-        return songWords == trackWords
+        guard !matchingPositions.isEmpty else { return nil }
+
+        // Find the first match that comes after our last confirmed position
+        // This handles cases like multiple "Improvisations" in a setlist
+        for pos in matchingPositions {
+            if pos > currentSetlistPosition {
+                return pos
+            }
+        }
+
+        // If no match after current position, return the first match
+        // (handles edge cases like restarting mid-show)
+        return matchingPositions.first
     }
 
     /// Renders a setlist row with current track highlighting
     @ViewBuilder
     private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {
-        let isCurrent = isCurrentTrack(song)
+        let currentPosition = findCurrentTrackPosition()
+        let isCurrent = currentPosition == index
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             // Speaker icon for currently playing track (or invisible placeholder)
             Image(systemName: "speaker.wave.2.fill")
@@ -798,6 +820,11 @@ struct ContentView: View {
 
                     let showTime = ShowTime(from: parsed.showTime)
                     self.fetchShowInfo(date: date, showTime: showTime)
+                }
+
+                // Update current setlist position for duplicate track name handling
+                if let position = self.findCurrentTrackPosition() {
+                    self.currentSetlistPosition = position
                 }
 
                 // Update Now Playing info for media keys display
@@ -1062,6 +1089,11 @@ struct ContentView: View {
                             let showTime = ShowTime(from: parsed.showTime)
                             self.fetchShowInfo(date: date, showTime: showTime)
                         }
+
+                        // Update current setlist position for duplicate track name handling
+                        if let position = self.findCurrentTrackPosition() {
+                            self.currentSetlistPosition = position
+                        }
                     }
                 }
             }
@@ -1084,6 +1116,7 @@ struct ContentView: View {
         FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime) { show in
             DispatchQueue.main.async {
                 self.currentShow = show
+                self.currentSetlistPosition = 0  // Reset position for new show
                 self.isFetchingShowInfo = false
 
                 if let show = show {
