@@ -494,6 +494,12 @@ struct FilterBar: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
+        #if os(macOS)
+        .onAppear {
+            // Prevent automatic focus on the search field
+            isSearchFocused = false
+        }
+        #endif
     }
 }
 

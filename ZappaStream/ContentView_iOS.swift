@@ -47,43 +47,39 @@ struct ContentView_iOS: View {
     ]
 
     @State private var sidebarNavigationActive: Bool = false
+    @State private var contentBounceOffset: CGFloat = 0
 
     var body: some View {
         HStack(spacing: 0) {
             // Main content with play bar
             VStack(spacing: 0) {
                 NavigationStack {
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            // Track info card
+                    ZStack {
+                        // Background layer to capture gestures on empty space
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .gesture(contentBounceGesture)
+
+                        VStack(spacing: 0) {
+                            // Track info card - with bounce gesture
                             trackInfoCard
+                                .padding(.horizontal)
+                                .padding(.top)
+                                .simultaneousGesture(contentBounceGesture)
 
-                            // Show info section
+                            // Show info section - with internal scrolling setlist
                             showInfoSection
+                                .padding(.horizontal)
+                                .padding(.top, 16)
+                                .padding(.bottom, 8)
 
-                            Spacer(minLength: 20)
+                            // Push content to top
+                            Spacer(minLength: 0)
                         }
-                        .padding()
                     }
+                    .offset(y: contentBounceOffset)
                     .navigationTitle("Zappa Stream")
                     .navigationBarTitleDisplayMode(.large)
-                    .gesture(
-                        DragGesture(minimumDistance: 50)
-                            .onEnded { value in
-                                // Swipe left to open sidebar
-                                if value.translation.width < -50 && abs(value.translation.height) < 100 {
-                                    if horizontalSizeClass == .regular {
-                                        // iPad: open inline sidebar
-                                        withAnimation(.easeInOut(duration: 0.25)) {
-                                            showSidebar = true
-                                        }
-                                    } else {
-                                        // iPhone: trigger navigation
-                                        sidebarNavigationActive = true
-                                    }
-                                }
-                            }
-                    )
                     .navigationDestination(isPresented: $sidebarNavigationActive) {
                         if let manager = showDataManager {
                             SidebarView(showDataManager: manager)
@@ -390,6 +386,7 @@ struct ContentView_iOS: View {
     @ViewBuilder
     private var showInfoSection: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // Venue header - with bounce effect
             Button {
                 if currentShow != nil {
                     withAnimation {
@@ -444,11 +441,14 @@ struct ContentView_iOS: View {
             }
             .buttonStyle(.plain)
             .disabled(currentShow == nil)
+            .simultaneousGesture(contentBounceGesture)
 
             if showInfoExpanded, let show = currentShow {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Setlist header
                     Text("Setlist:")
                         .scaledFont(.headline)
+                        .padding(.bottom, 8)
 
                     GeometryReader { geo in
                         Color.clear.onAppear { availableWidth = geo.size.width }
@@ -456,89 +456,98 @@ struct ContentView_iOS: View {
                     }
                     .frame(height: 0)
 
-                    if availableWidth > 500 {
-                        // Two-column layout for landscape
-                        HStack(alignment: .top, spacing: 20) {
-                            let midpoint = (show.setlist.count + 1) / 2
+                    // Scrollable setlist - NO bounce, just normal scrolling
+                    ScrollView {
+                        if availableWidth > 500 {
+                            // Two-column layout for landscape
+                            HStack(alignment: .top, spacing: 20) {
+                                let midpoint = (show.setlist.count + 1) / 2
 
+                                VStack(alignment: .leading, spacing: 4) {
+                                    ForEach(Array(show.setlist.prefix(midpoint).enumerated()), id: \.offset) { index, song in
+                                        setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                                if show.setlist.count > midpoint {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        ForEach(Array(show.setlist.dropFirst(midpoint).enumerated()), id: \.offset) { index, song in
+                                            setlistRow(index: midpoint + index + 1, song: song, acronyms: show.acronyms)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                        } else {
+                            // Single-column layout for portrait
                             VStack(alignment: .leading, spacing: 4) {
-                                ForEach(Array(show.setlist.prefix(midpoint).enumerated()), id: \.offset) { index, song in
+                                ForEach(Array(show.setlist.enumerated()), id: \.offset) { index, song in
                                     setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
 
-                            if show.setlist.count > midpoint {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    ForEach(Array(show.setlist.dropFirst(midpoint).enumerated()), id: \.offset) { index, song in
-                                        setlistRow(index: midpoint + index + 1, song: song, acronyms: show.acronyms)
+                    // Footer section - with bounce effect
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Official releases
+                        if !show.acronyms.isEmpty {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    acronymsExpanded.toggle()
+                                }
+                            } label: {
+                                HStack(spacing: 2) {
+                                    Text("[")
+                                        .scaledFont(.caption, weight: .medium)
+                                        .foregroundColor(.secondary)
+                                    Text("Official Releases")
+                                        .scaledFont(.caption, weight: .medium)
+                                        .foregroundColor(Color.orange.opacity(0.8))
+                                    Text("]")
+                                        .scaledFont(.caption, weight: .medium)
+                                        .foregroundColor(.secondary)
+                                    Image(systemName: acronymsExpanded ? "chevron.down" : "chevron.right")
+                                        .scaledFont(.caption2)
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.top, 16)
+
+                            if acronymsExpanded {
+                                let uniqueAcronyms = show.acronyms.reduce(into: [(short: String, full: String)]()) { result, acronym in
+                                    if !result.contains(where: { $0.short == acronym.short }) {
+                                        result.append(acronym)
                                     }
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-                    } else {
-                        // Single-column layout for portrait
-                        ForEach(Array(show.setlist.enumerated()), id: \.offset) { index, song in
-                            setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
-                        }
-                    }
-
-                    // Official releases
-                    if !show.acronyms.isEmpty {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                acronymsExpanded.toggle()
-                            }
-                        } label: {
-                            HStack(spacing: 2) {
-                                Text("[")
-                                    .scaledFont(.caption, weight: .medium)
-                                    .foregroundColor(.secondary)
-                                Text("Official Releases")
-                                    .scaledFont(.caption, weight: .medium)
-                                    .foregroundColor(Color.orange.opacity(0.8))
-                                Text("]")
-                                    .scaledFont(.caption, weight: .medium)
-                                    .foregroundColor(.secondary)
-                                Image(systemName: acronymsExpanded ? "chevron.down" : "chevron.right")
-                                    .scaledFont(.caption2)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.top, 16)
-
-                        if acronymsExpanded {
-                            let uniqueAcronyms = show.acronyms.reduce(into: [(short: String, full: String)]()) { result, acronym in
-                                if !result.contains(where: { $0.short == acronym.short }) {
-                                    result.append(acronym)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    ForEach(uniqueAcronyms, id: \.short) { acronym in
+                                        (Text(acronym.short)
+                                            .foregroundColor(.blue)
+                                            .bold()
+                                         + Text(" = \(acronym.full)")
+                                            .foregroundColor(.secondary))
+                                            .scaledFont(.caption2)
+                                            .italic()
+                                    }
                                 }
+                                .padding(.leading, 8)
                             }
-                            VStack(alignment: .leading, spacing: 2) {
-                                ForEach(uniqueAcronyms, id: \.short) { acronym in
-                                    (Text(acronym.short)
-                                        .foregroundColor(.blue)
-                                        .bold()
-                                     + Text(" = \(acronym.full)")
-                                        .foregroundColor(.secondary))
-                                        .scaledFont(.caption2)
-                                        .italic()
-                                }
-                            }
-                            .padding(.leading, 8)
                         }
-                    }
 
-                    Button("Go to FZShows...") {
-                        if let url = URL(string: show.url) {
-                            safariURL = IdentifiableURL(url: url)
+                        Button("Go to FZShows...") {
+                            if let url = URL(string: show.url) {
+                                safariURL = IdentifiableURL(url: url)
+                            }
                         }
+                        .scaledFont(.caption)
+                        .padding(.top, show.acronyms.isEmpty ? 16 : 8)
                     }
-                    .scaledFont(.caption)
-                    .padding(.top, 8)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
@@ -606,6 +615,33 @@ struct ContentView_iOS: View {
         } else {
             return "Waiting for show info..."
         }
+    }
+
+    // MARK: - Content Bounce Gesture
+
+    private var contentBounceGesture: some Gesture {
+        DragGesture(minimumDistance: 10)
+            .onChanged { value in
+                // Apply subtle rubber band effect in both directions
+                contentBounceOffset = value.translation.height * 0.15
+            }
+            .onEnded { value in
+                // Spring back to original position
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                    contentBounceOffset = 0
+                }
+
+                // Handle sidebar swipe gesture
+                if value.translation.width < -50 && abs(value.translation.height) < 100 {
+                    if horizontalSizeClass == .regular {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            showSidebar = true
+                        }
+                    } else {
+                        sidebarNavigationActive = true
+                    }
+                }
+            }
     }
 
     // MARK: - Favorites

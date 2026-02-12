@@ -311,6 +311,7 @@ struct ContentView: View {
             if showInfoExpanded && currentShow != nil {
                 showInfoSection
                     .padding(.horizontal)
+                    .padding(.bottom, 8)
                     .frame(maxHeight: .infinity)
             } else {
                 showInfoSection
