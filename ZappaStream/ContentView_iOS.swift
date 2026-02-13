@@ -86,7 +86,7 @@ struct ContentView_iOS: View {
                             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                         }
                     )
-                    .navigationTitle("Zappa Stream")
+                    .navigationTitle("ZappaStream")
                     .navigationBarTitleDisplayMode(.large)
                     .navigationDestination(isPresented: $sidebarNavigationActive) {
                         if let manager = showDataManager {
@@ -825,7 +825,7 @@ struct ContentView_iOS: View {
         var nowPlayingInfo = [String: Any]()
 
         if let parsed = parsedTrack {
-            nowPlayingInfo[MPMediaItemPropertyTitle] = parsed.trackName ?? "Zappa Stream"
+            nowPlayingInfo[MPMediaItemPropertyTitle] = parsed.trackName ?? "ZappaStream"
 
             if let show = currentShow {
                 // Put all info in Artist line: "Frank Zappa • 1975 10 04 • Paramount Theatre, Seattle, WA"
@@ -839,7 +839,7 @@ struct ContentView_iOS: View {
                 print("🎵 Now Playing: No show info available yet")
             }
         } else {
-            nowPlayingInfo[MPMediaItemPropertyTitle] = "Zappa Stream"
+            nowPlayingInfo[MPMediaItemPropertyTitle] = "ZappaStream"
             nowPlayingInfo[MPMediaItemPropertyArtist] = "FZShows Radio"
             print("🎵 Now Playing: Default (no parsed track)")
         }

@@ -200,7 +200,7 @@ struct CreditsView: View {
             SettingsSectionHeader(title: "Stream", systemImage: "antenna.radiowaves.left.and.right")
 
             SettingsSectionBox {
-                Text("The Zappa Stream is hosted by norbert.de.")
+                Text("The streams are hosted by norbert.de.")
                     .font(.caption)
                     .foregroundColor(.secondary)
 

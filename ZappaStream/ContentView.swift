@@ -222,7 +222,7 @@ struct ContentView: View {
             // === TOP: Title (fixed, no bounce) ===
             HStack {
                     Spacer()
-                    Text("Zappa Stream")
+                    Text("ZappaStream")
                         .scaledFont(.largeTitle, weight: .bold)
                     Spacer()
                     Button(action: toggleSidebar) {
@@ -909,14 +909,14 @@ struct ContentView: View {
         var nowPlayingInfo = [String: Any]()
 
         if let parsed = parsedTrack {
-            nowPlayingInfo[MPMediaItemPropertyTitle] = parsed.trackName ?? "Zappa Stream"
+            nowPlayingInfo[MPMediaItemPropertyTitle] = parsed.trackName ?? "ZappaStream"
             nowPlayingInfo[MPMediaItemPropertyArtist] = artistName(from: parsed)
 
             if let show = currentShow {
                 nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = "\(show.date) • \(show.venue)"
             }
         } else {
-            nowPlayingInfo[MPMediaItemPropertyTitle] = "Zappa Stream"
+            nowPlayingInfo[MPMediaItemPropertyTitle] = "ZappaStream"
             nowPlayingInfo[MPMediaItemPropertyArtist] = "FZShows Radio"
         }
 
