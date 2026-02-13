@@ -109,6 +109,7 @@ Hopefully available in the App Store if there's enough interest.
 - **Stream**: Hosted by [norbert.de](https://www.norbert.de/index.php/frank-zappa/)
 - **Setlist data**: [Zappateers](https://www.zappateers.com)
 - **Audio playback**: [VLCKit](https://code.videolan.org/videolan/VLCKit)
+- **Development**: Built with [Claude Code](https://claude.ai/code) — I'm not a developer, but I designed, directed, and managed this project while Claude wrote the code
 
 ## Contributing
 
