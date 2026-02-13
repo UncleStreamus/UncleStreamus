@@ -2,9 +2,9 @@
 
 A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted by [norbert.de](https://www.norbert.de/index.php/frank-zappa/).
 
-![macOS Screenshot](<img width="894" height="856" alt="Screenshot 2026-02-13 at 13 06 46" src="https://github.com/user-attachments/assets/d2b055d8-4c58-4938-ae1a-5b02a67bc5ee" />)
+<img width="894" height="856" alt="macOS" src="https://github.com/user-attachments/assets/d2b055d8-4c58-4938-ae1a-5b02a67bc5ee" />
 
-![iOS Screenshot](<img width="565" height="1068" alt="Screenshot 2026-02-12 at 22 15 51" src="https://github.com/user-attachments/assets/a7fc43d1-b793-4258-80ef-0017f24cca79" />)
+<img width="565" height="1068" alt="iOS iPhone 15" src="https://github.com/user-attachments/assets/a7fc43d1-b793-4258-80ef-0017f24cca79" />
 
 ## Features
 
@@ -36,9 +36,39 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 - Landscape mode on iPad
 - Adaptive layout for all screen sizes
 
+### Planned Features
+
+**iCloud Sync across all Apple devices**
+
+**Band Info:**
+- Pull more data from FZshows of the band member linup for that particular tour (and specific show, ideally).
+
+**Audio FX:**
+To slightly mould certain shows into a more favourable sound if necassary
+
+- L-R Panner
+- Mono - Stereo - Stereo-Wider slider
+- 3-band EQ
+- Compressor
+
 ## Screenshots
 
-*Add your screenshots here*
+**macOS:**
+
+<img width="890" height="912" alt="Screenshot 2026-02-13 at 13 20 35" src="https://github.com/user-attachments/assets/f21dd90a-75f6-4b90-a189-ef6b3bc2180e" />
+<img width="1126" height="932" alt="Screenshot 2026-02-13 at 12 06 25" src="https://github.com/user-attachments/assets/4010e54b-6034-4228-8d0c-5bac1827d6ab" />
+<img width="869" height="504" alt="Screenshot 2026-02-13 at 13 21 49" src="https://github.com/user-attachments/assets/417ab528-1c15-464b-836f-63d1552a3597" />
+<img width="753" height="768" alt="Screenshot 2026-02-13 at 13 23 18" src="https://github.com/user-attachments/assets/da78bd80-1e73-4df1-bc17-44db43b9421e" />
+
+**iOS/iPadOS:**
+
+<img width="565" height="1068" alt="Screenshot 2026-02-13 at 13 24 14" src="https://github.com/user-attachments/assets/399f4a80-6d44-48b3-bfbd-4686e95c9821" />
+<img width="565" height="1068" alt="Screenshot 2026-02-13 at 13 25 08" src="https://github.com/user-attachments/assets/d8cdd1d5-657d-4946-9fe5-48a75e50d7f8" />
+<img src="https://github.com/user-attachments/assets/557e9fd4-547f-410a-8cf1-4062c106a7c8" />
+
+
+
+
 
 ## Requirements
 
@@ -49,36 +79,14 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 
 ### macOS
 
-Download the latest release from the [Releases](../../releases) page, or build from source:
-
-```bash
-git clone https://github.com/Datisit/ZappaStream.git
-cd ZappaStream
-pod install
-open ZappaStream.xcworkspace
-```
-
-Build and run with Xcode.
+Download the latest release from the [Releases](../../releases) page.
 
 Hopefully availabel in the App Store at some point.
 
 ### iOS
 
-Build from source using Xcode, or hopefully available in the App Store eventually.
+Hopefully available in the App Store if there's enough interest.
 
-## Building from Source
-
-### Prerequisites
-
-- Xcode 15.0+
-- [CocoaPods](https://cocoapods.org/)
-
-### Steps
-
-1. Clone the repository
-2. Run `pod install` in the project directory
-3. Open `ZappaStream.xcworkspace` (not `.xcodeproj`)
-4. Select your target (macOS or iOS) and build
 
 ## Credits
 
