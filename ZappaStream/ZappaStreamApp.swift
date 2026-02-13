@@ -151,9 +151,12 @@ extension Notification.Name {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
+    private var statusMenu: NSMenu?
+    private let textScaleLevels: [Double] = [1.0, 1.1, 1.2]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenubarIcon()
+        setupStatusMenu()
         setupTrackInfoObserver()
     }
 
@@ -163,7 +166,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let button = statusItem?.button {
             // Use SF Symbol for the menubar icon
             let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-            if let image = NSImage(systemSymbolName: "radio", accessibilityDescription: "Zappa Stream") {
+            if let image = NSImage(systemSymbolName: "radio", accessibilityDescription: "ZappaStream") {
                 image.isTemplate = true  // Allows proper dark/light mode adaptation
                 if let configuredImage = image.withSymbolConfiguration(config) {
                     // Create a new image with adjusted alignment to center vertically
@@ -178,10 +181,50 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     button.image = centeredImage
                 }
             }
-            button.action = #selector(menubarIconClicked)
+            button.action = #selector(menubarIconClicked(_:))
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.target = self
-            button.toolTip = "Zappa Stream"
+            button.toolTip = "ZappaStream"
         }
+    }
+
+    private func setupStatusMenu() {
+        let menu = NSMenu()
+
+        // Text Size submenu
+        let textSizeItem = NSMenuItem(title: "Text Size", action: nil, keyEquivalent: "")
+        let textSizeSubmenu = NSMenu()
+
+        let smallerItem = NSMenuItem(title: "Smaller", action: #selector(smallerText), keyEquivalent: "-")
+        smallerItem.keyEquivalentModifierMask = .command
+        textSizeSubmenu.addItem(smallerItem)
+
+        let defaultItem = NSMenuItem(title: "Default", action: #selector(defaultTextSize), keyEquivalent: "0")
+        defaultItem.keyEquivalentModifierMask = .command
+        textSizeSubmenu.addItem(defaultItem)
+
+        let largerItem = NSMenuItem(title: "Larger", action: #selector(largerText), keyEquivalent: "=")
+        largerItem.keyEquivalentModifierMask = .command
+        textSizeSubmenu.addItem(largerItem)
+
+        textSizeItem.submenu = textSizeSubmenu
+        menu.addItem(textSizeItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        // Settings
+        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem.keyEquivalentModifierMask = .command
+        menu.addItem(settingsItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        // Quit
+        let quitItem = NSMenuItem(title: "Quit ZappaStream", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quitItem.keyEquivalentModifierMask = .command
+        menu.addItem(quitItem)
+
+        statusMenu = menu
     }
 
     private func setupTrackInfoObserver() {
@@ -213,13 +256,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             tooltipLines.append(show)
         }
 
-        let newTooltip = tooltipLines.isEmpty ? "Zappa Stream" : tooltipLines.joined(separator: "\n")
+        let newTooltip = tooltipLines.isEmpty ? "ZappaStream" : tooltipLines.joined(separator: "\n")
         print("📻 Menubar tooltip update: \(newTooltip)")
         statusItem?.button?.toolTip = newTooltip
     }
 
-    @objc private func menubarIconClicked() {
-        // Find the main window
+    @objc private func menubarIconClicked(_ sender: NSStatusBarButton) {
+        guard let event = NSApp.currentEvent else { return }
+
+        if event.type == .rightMouseUp {
+            // Right-click: show context menu
+            if let menu = statusMenu {
+                statusItem?.menu = menu
+                statusItem?.button?.performClick(nil)
+                statusItem?.menu = nil  // Remove menu so left-click works normally
+            }
+        } else {
+            // Left-click: toggle window
+            toggleMainWindow()
+        }
+    }
+
+    private func toggleMainWindow() {
         if let window = NSApplication.shared.windows.first(where: {
             $0.identifier?.rawValue == "main" || $0.title.contains("Zappa")
         }) {
@@ -241,10 +299,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // MARK: - Text Size Actions
+
+    @objc private func smallerText() {
+        let currentScale = UserDefaults.standard.double(forKey: "textScale")
+        let scale = currentScale == 0 ? 1.1 : currentScale  // Default if not set
+        if let currentIndex = textScaleLevels.firstIndex(of: scale), currentIndex > 0 {
+            UserDefaults.standard.set(textScaleLevels[currentIndex - 1], forKey: "textScale")
+        } else if scale > textScaleLevels.first! {
+            if let newScale = textScaleLevels.last(where: { $0 < scale }) {
+                UserDefaults.standard.set(newScale, forKey: "textScale")
+            }
+        }
+    }
+
+    @objc private func defaultTextSize() {
+        UserDefaults.standard.set(1.1, forKey: "textScale")
+    }
+
+    @objc private func largerText() {
+        let currentScale = UserDefaults.standard.double(forKey: "textScale")
+        let scale = currentScale == 0 ? 1.1 : currentScale  // Default if not set
+        if let currentIndex = textScaleLevels.firstIndex(of: scale), currentIndex < textScaleLevels.count - 1 {
+            UserDefaults.standard.set(textScaleLevels[currentIndex + 1], forKey: "textScale")
+        } else if scale < textScaleLevels.last! {
+            if let newScale = textScaleLevels.first(where: { $0 > scale }) {
+                UserDefaults.standard.set(newScale, forKey: "textScale")
+            }
+        }
+    }
+
+    @objc private func openSettings() {
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         // When reopening the app, show the window
         if !flag {
-            menubarIconClicked()
+            toggleMainWindow()
         }
         return true
     }
