@@ -163,16 +163,16 @@ struct HistoryListView: View {
                         GeometryReader { geo in
                             Color.clear.preference(
                                 key: ScrollOffsetPreferenceKey.self,
-                                value: -geo.frame(in: .named("historyScroll")).origin.y
+                                value: geo.frame(in: .named("historyScroll")).origin.y
                             )
                         }
                     )
                 }
                 .coordinateSpace(name: "historyScroll")
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
-                    // Show filter bar when user pulls down past the top (negative offset = overscroll)
+                    // Show filter bar when user pulls down past the top (positive offset = overscroll down)
                     // Once shown, keep it visible until list is empty or tab changes
-                    if offset < -10 && !showFilterBar {
+                    if offset > 10 && !showFilterBar {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             showFilterBar = true
                         }
@@ -320,16 +320,16 @@ struct FavoritesListView: View {
                         GeometryReader { geo in
                             Color.clear.preference(
                                 key: ScrollOffsetPreferenceKey.self,
-                                value: -geo.frame(in: .named("favoritesScroll")).origin.y
+                                value: geo.frame(in: .named("favoritesScroll")).origin.y
                             )
                         }
                     )
                 }
                 .coordinateSpace(name: "favoritesScroll")
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
-                    // Show filter bar when user pulls down past the top (negative offset = overscroll)
+                    // Show filter bar when user pulls down past the top (positive offset = overscroll down)
                     // Once shown, keep it visible until list is empty or tab changes
-                    if offset < -10 && !showFilterBar {
+                    if offset > 10 && !showFilterBar {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             showFilterBar = true
                         }
