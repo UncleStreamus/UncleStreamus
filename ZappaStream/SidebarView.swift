@@ -1,6 +1,15 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - Scroll Offset Tracking
+
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 struct SidebarView: View {
     var showDataManager: ShowDataManager
     @Binding var selectedTab: SidebarTab
@@ -54,6 +63,7 @@ struct SidebarView: View {
 struct HistoryListView: View {
     var showDataManager: ShowDataManager
     @ObservedObject var filterState: FilterState
+    @State private var showFilterBar: Bool = false
 
     @Query(filter: #Predicate<SavedShow> { $0.listenedAt != nil },
            sort: \SavedShow.listenedAt, order: .reverse)
@@ -96,9 +106,10 @@ struct HistoryListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Filter bar
-            if !history.isEmpty {
+            // Filter bar - shown when scrolled
+            if !history.isEmpty && showFilterBar {
                 FilterBar(filterState: filterState, shows: history)
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 Divider()
             }
 
@@ -148,12 +159,30 @@ struct HistoryListView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(
+                                key: ScrollOffsetPreferenceKey.self,
+                                value: -geo.frame(in: .named("historyScroll")).origin.y
+                            )
+                        }
+                    )
+                }
+                .coordinateSpace(name: "historyScroll")
+                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
+                    let shouldShow = offset > 10
+                    if shouldShow != showFilterBar {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showFilterBar = shouldShow
+                        }
+                    }
                 }
                 #if os(iOS)
                 .scrollDismissesKeyboard(.interactively)
                 #endif
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: showFilterBar)
     }
 }
 
@@ -163,6 +192,7 @@ struct FavoritesListView: View {
     var showDataManager: ShowDataManager
     @ObservedObject var filterState: FilterState
     @State private var collapsedYears: Set<String> = []
+    @State private var showFilterBar: Bool = false
 
     @Query(filter: #Predicate<SavedShow> { $0.isFavorite == true },
            sort: \SavedShow.showDate, order: .reverse)
@@ -215,9 +245,10 @@ struct FavoritesListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Filter bar
-            if !favorites.isEmpty {
+            // Filter bar - shown when scrolled
+            if !favorites.isEmpty && showFilterBar {
                 FilterBar(filterState: filterState, shows: favorites)
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 Divider()
             }
 
@@ -284,11 +315,29 @@ struct FavoritesListView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(
+                                key: ScrollOffsetPreferenceKey.self,
+                                value: -geo.frame(in: .named("favoritesScroll")).origin.y
+                            )
+                        }
+                    )
+                }
+                .coordinateSpace(name: "favoritesScroll")
+                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
+                    let shouldShow = offset > 10
+                    if shouldShow != showFilterBar {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showFilterBar = shouldShow
+                        }
+                    }
                 }
                 #if os(iOS)
                 .scrollDismissesKeyboard(.interactively)
                 #endif
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: showFilterBar)
     }
 }
