@@ -1,6 +1,6 @@
 # ZappaStream
 
-A native macOS and iOS app for streaming the 24/7 Frank Zappa radio stream hosted by [norbert.de](https://www.norbert.de/index.php/frank-zappa/).
+A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted by [norbert.de](https://www.norbert.de/index.php/frank-zappa/).
 
 ![macOS Screenshot](screenshots/macos.png)
 ![iOS Screenshot](screenshots/ios.png)
@@ -8,31 +8,31 @@ A native macOS and iOS app for streaming the 24/7 Frank Zappa radio stream hoste
 ## Features
 
 ### Streaming
-- **Multiple quality options** — MP3 (128 kbps), AAC (192 kbps), OGG (256 kbps), FLAC (750 kbps lossless)
+- **All 4 codec/quality options** — MP3 (128 kbps), AAC (192 kbps), OGG (256 kbps), FLAC (750 kbps lossless)
 - **Automatic stream recovery** — Handles dropouts and reconnects gracefully
-- **Resume on launch** — Optionally picks up where you left off
+- **Resume on launch** — Optionally picks up where you left off (configure in the settings)
 
 ### Now Playing
 - **Live track info** — Current song, show date, venue, and location
-- **Full setlist** — See every song in the show with the current track highlighted
-- **Smart duplicate handling** — Correctly identifies repeated songs (e.g., multiple "Improvisations")
+- **Full setlist** — Info pulled from [FZShows](https://www.zappateers.com/fzshows/index.html).  See every song in the show with the current track highlighted
+- **Smart duplicate handling** — Correctly identifies repeated songs (hopefully) (e.g., multiple "Improvisations")
 - **Acronym glossary** — Explains setlist abbreviations
 
 ### History & Favorites
 - **Listening history** — Automatically tracks shows you've heard
 - **Favorites** — Star shows to save them for later
-- **Search & filter** — Find shows by decade, year, country, or state
+- **Search & filter** — Find shows by period, tour, year, country, state & city
 
 ### Platform Features
 
 **macOS:**
 - Menu bar icon with quick controls
 - Media key support (play/pause)
-- Resizable sidebar
+- Resizable window
 
 **iOS/iPadOS:**
 - Lock screen and Control Center integration
-- Portrait mode on iPhone, landscape on iPad
+- Landscape mode on iPad
 - Adaptive layout for all screen sizes
 
 ## Screenshots
@@ -42,7 +42,7 @@ A native macOS and iOS app for streaming the 24/7 Frank Zappa radio stream hoste
 ## Requirements
 
 - **macOS**: 14.0 (Sonoma) or later
-- **iOS/iPadOS**: 17.5 or later
+- **iOS/iPadOS**: 17 or later
 
 ## Installation
 
@@ -59,9 +59,11 @@ open ZappaStream.xcworkspace
 
 Build and run with Xcode.
 
+Hopefully availabel in the App Store at some point.
+
 ### iOS
 
-Build from source using Xcode, or TestFlight (coming soon).
+Build from source using Xcode, or hopefully available in the App Store eventually.
 
 ## Building from Source
 
