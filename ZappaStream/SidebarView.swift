@@ -22,27 +22,30 @@ struct SidebarView: View {
 
             Divider()
 
-            switch selectedTab {
-            case .history:
-                HistoryListView(showDataManager: showDataManager, filterState: historyFilter)
-            case .favorites:
-                FavoritesListView(showDataManager: showDataManager, filterState: favoritesFilter)
+            // Wrap list content with tap gesture for keyboard dismissal
+            // (not the picker, which needs its own tap handling)
+            Group {
+                switch selectedTab {
+                case .history:
+                    HistoryListView(showDataManager: showDataManager, filterState: historyFilter)
+                case .favorites:
+                    FavoritesListView(showDataManager: showDataManager, filterState: favoritesFilter)
+                }
             }
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    #if os(iOS)
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    #elseif os(macOS)
+                    NSApp.keyWindow?.makeFirstResponder(nil)
+                    #endif
+                }
+            )
         }
         #if os(macOS)
         .frame(width: 280)
         #endif
         .background(Color.controlBackground)
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                // Dismiss keyboard/focus when tapping anywhere in the sidebar
-                #if os(iOS)
-                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                #elseif os(macOS)
-                NSApp.keyWindow?.makeFirstResponder(nil)
-                #endif
-            }
-        )
     }
 }
 
