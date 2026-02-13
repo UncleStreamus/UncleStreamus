@@ -27,9 +27,9 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 ### Platform Features
 
 **macOS:**
-- Menu bar icon with quick controls
+- A Menu bar only app
 - Media key support (play/pause)
-- Resizable window
+- Resizable window with adaptable layout
 
 **iOS/iPadOS:**
 - Lock screen and Control Center integration
