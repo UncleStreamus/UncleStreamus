@@ -144,20 +144,34 @@ struct ZappaStreamApp: App {
 // MARK: - macOS App Delegate for Menubar
 
 #if os(macOS)
-/// Notification name for track info updates
+/// Notification names for menubar updates
 extension Notification.Name {
     static let trackInfoUpdated = Notification.Name("trackInfoUpdated")
+    static let playbackStateChanged = Notification.Name("playbackStateChanged")
+    static let streamSelectionChanged = Notification.Name("streamSelectionChanged")
+    static let togglePlayback = Notification.Name("togglePlayback")
+    static let selectStream = Notification.Name("selectStream")
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
     private let textScaleLevels: [Double] = [1.0, 1.1, 1.2]
 
+    // Current state for menu
+    private var currentTrackName: String?
+    private var currentArtist: String?
+    private var currentShowInfo: String?
+    private var isPlaying: Bool = false
+    private var selectedStreamFormat: String = "MP3"
+
+    // Available streams (must match ContentView)
+    private let streamFormats = ["MP3", "AAC", "OGG", "FLAC"]
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenubarIcon()
         setupStatusMenu()
-        setupTrackInfoObserver()
+        setupObservers()
     }
 
     private func setupMenubarIcon() {
@@ -190,6 +204,63 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupStatusMenu() {
         let menu = NSMenu()
+        menu.delegate = self
+        statusMenu = menu
+    }
+
+    private func rebuildMenu() {
+        guard let menu = statusMenu else { return }
+        menu.removeAllItems()
+
+        // Now Playing info (if available)
+        if currentTrackName != nil || currentShowInfo != nil {
+            if let track = currentTrackName, !track.isEmpty {
+                let trackItem = NSMenuItem(title: track, action: nil, keyEquivalent: "")
+                trackItem.isEnabled = false
+                menu.addItem(trackItem)
+            }
+            if let artist = currentArtist, !artist.isEmpty {
+                let artistItem = NSMenuItem(title: artist, action: nil, keyEquivalent: "")
+                artistItem.isEnabled = false
+                artistItem.attributedTitle = NSAttributedString(
+                    string: artist,
+                    attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: NSFont.systemFont(ofSize: 13)]
+                )
+                menu.addItem(artistItem)
+            }
+            if let show = currentShowInfo, !show.isEmpty {
+                let showItem = NSMenuItem(title: show, action: nil, keyEquivalent: "")
+                showItem.isEnabled = false
+                showItem.attributedTitle = NSAttributedString(
+                    string: show,
+                    attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: NSFont.systemFont(ofSize: 13)]
+                )
+                menu.addItem(showItem)
+            }
+            menu.addItem(NSMenuItem.separator())
+        }
+
+        // Play/Pause button
+        let playPauseTitle = isPlaying ? "Pause" : "Play"
+        let playPauseItem = NSMenuItem(title: playPauseTitle, action: #selector(togglePlayPause), keyEquivalent: " ")
+        playPauseItem.keyEquivalentModifierMask = []
+        menu.addItem(playPauseItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        // Stream picker submenu
+        let streamItem = NSMenuItem(title: "Stream", action: nil, keyEquivalent: "")
+        let streamSubmenu = NSMenu()
+
+        for format in streamFormats {
+            let formatItem = NSMenuItem(title: format, action: #selector(selectStreamFormat(_:)), keyEquivalent: "")
+            formatItem.representedObject = format
+            formatItem.state = (format == selectedStreamFormat) ? .on : .off
+            streamSubmenu.addItem(formatItem)
+        }
+
+        streamItem.submenu = streamSubmenu
+        menu.addItem(streamItem)
 
         // Text Size submenu
         let textSizeItem = NSMenuItem(title: "Text Size", action: nil, keyEquivalent: "")
@@ -223,15 +294,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let quitItem = NSMenuItem(title: "Quit ZappaStream", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quitItem.keyEquivalentModifierMask = .command
         menu.addItem(quitItem)
-
-        statusMenu = menu
     }
 
-    private func setupTrackInfoObserver() {
+    // MARK: - NSMenuDelegate
+
+    func menuWillOpen(_ menu: NSMenu) {
+        rebuildMenu()
+    }
+
+    private func setupObservers() {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleTrackInfoUpdate(_:)),
             name: .trackInfoUpdated,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handlePlaybackStateChanged(_:)),
+            name: .playbackStateChanged,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleStreamSelectionChanged(_:)),
+            name: .streamSelectionChanged,
             object: nil
         )
     }
@@ -239,26 +326,53 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func handleTrackInfoUpdate(_ notification: Notification) {
         let userInfo = notification.userInfo
 
-        let trackName = userInfo?["trackName"] as? String
-        let artist = userInfo?["artist"] as? String
-        let showInfo = userInfo?["showInfo"] as? String
+        currentTrackName = userInfo?["trackName"] as? String
+        currentArtist = userInfo?["artist"] as? String
+        currentShowInfo = userInfo?["showInfo"] as? String
 
         var tooltipLines: [String] = []
 
         // Mirror track info card - show info regardless of playing state
-        if let track = trackName, !track.isEmpty {
+        if let track = currentTrackName, !track.isEmpty {
             tooltipLines.append(track)
         }
-        if let artist = artist, !artist.isEmpty {
+        if let artist = currentArtist, !artist.isEmpty {
             tooltipLines.append(artist)
         }
-        if let show = showInfo, !show.isEmpty {
+        if let show = currentShowInfo, !show.isEmpty {
             tooltipLines.append(show)
         }
 
         let newTooltip = tooltipLines.isEmpty ? "ZappaStream" : tooltipLines.joined(separator: "\n")
         print("📻 Menubar tooltip update: \(newTooltip)")
         statusItem?.button?.toolTip = newTooltip
+    }
+
+    @objc private func handlePlaybackStateChanged(_ notification: Notification) {
+        if let playing = notification.userInfo?["isPlaying"] as? Bool {
+            isPlaying = playing
+            print("📻 Menubar playback state: \(isPlaying ? "playing" : "paused")")
+        }
+    }
+
+    @objc private func handleStreamSelectionChanged(_ notification: Notification) {
+        if let format = notification.userInfo?["format"] as? String {
+            selectedStreamFormat = format
+            print("📻 Menubar stream selection: \(format)")
+        }
+    }
+
+    @objc private func togglePlayPause() {
+        NotificationCenter.default.post(name: .togglePlayback, object: nil)
+    }
+
+    @objc private func selectStreamFormat(_ sender: NSMenuItem) {
+        guard let format = sender.representedObject as? String else { return }
+        NotificationCenter.default.post(
+            name: .selectStream,
+            object: nil,
+            userInfo: ["format": format]
+        )
     }
 
     @objc private func menubarIconClicked(_ sender: NSStatusBarButton) {

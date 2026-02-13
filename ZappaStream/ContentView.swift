@@ -85,6 +85,12 @@ struct ContentView: View {
             panelOpen = isSidebarVisible
             setupPlayer()
             configureWindowConstraints()
+            setupMenubarObservers()
+
+            // Send initial state to menubar
+            if let stream = selectedStream {
+                NotificationCenter.default.post(name: .streamSelectionChanged, object: nil, userInfo: ["format": stream.format])
+            }
 
             // Auto-play if stream was playing when app was last quit
             // Read directly from UserDefaults to ensure we get the persisted value
@@ -381,6 +387,7 @@ struct ContentView: View {
                     .onChange(of: selectedStream) { _, newValue in
                         if let stream = newValue {
                             lastStreamFormat = stream.format
+                            NotificationCenter.default.post(name: .streamSelectionChanged, object: nil, userInfo: ["format": stream.format])
                             if isPlaying {
                                 playStream()
                             }
@@ -798,6 +805,35 @@ struct ContentView: View {
         return "Frank Zappa"
     }
 
+    // MARK: - Menubar Menu Observers
+
+    private func setupMenubarObservers() {
+        // Listen for play/pause toggle from menubar
+        NotificationCenter.default.addObserver(
+            forName: .togglePlayback,
+            object: nil,
+            queue: .main
+        ) { [self] _ in
+            if isPlaying {
+                stopStream()
+            } else {
+                playStream()
+            }
+        }
+
+        // Listen for stream selection from menubar
+        NotificationCenter.default.addObserver(
+            forName: .selectStream,
+            object: nil,
+            queue: .main
+        ) { [self] notification in
+            if let format = notification.userInfo?["format"] as? String,
+               let stream = streams.first(where: { $0.format == format }) {
+                selectedStream = stream
+            }
+        }
+    }
+
     // MARK: - Player Setup
 
     func setupPlayer() {
@@ -1044,6 +1080,7 @@ struct ContentView: View {
         mediaPlayer?.media = media
         mediaPlayer?.play()
         isPlaying = true
+        NotificationCenter.default.post(name: .playbackStateChanged, object: nil, userInfo: ["isPlaying": true])
         updateNowPlayingInfo()
 
         // Show delay warning for non-MP3 streams, then hide after 5 seconds
@@ -1067,6 +1104,7 @@ struct ContentView: View {
     func stopStream() {
         mediaPlayer?.pause()
         isPlaying = false
+        NotificationCenter.default.post(name: .playbackStateChanged, object: nil, userInfo: ["isPlaying": false])
         updateNowPlayingInfo()
 
         streamReader?.stopStreaming()
