@@ -59,8 +59,9 @@ To slightly mould certain shows into a more favourable sound if necassary
 
 **Mismatched 'Now Playing' track to setlist:**
 - This is largely unavoidable as often there are more audio files for sections of the show (.e.g., Preamble) than are listed in the setlist
-- Which means that often the track number is different from the setlist number
-- Also the filenames may differ sometimes from how the tracks are named in the FZShows setlist database which means no 'currently playing' track indicator
+- ... which means that often the track number is different from the setlist number
+- Also, the filenames may differ sometimes from how the tracks are named in the FZShows setlist database which means no 'currently playing' track indicator
+- And sometimes the html is inconsistent, leading to misinterpratations of the formatting
 
 **Provide feedback on a currently playing show:**
 - Right click or long press on a show either when it's currently playing, or in the History or Favourites sidebar and choose 'Report Issue...' to email me with the details of the show from the livestream metadata and I will look into why the full setlist wasn't fetched correctly from the FZShows database
