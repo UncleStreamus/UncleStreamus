@@ -64,6 +64,8 @@ struct HistoryListView: View {
     var showDataManager: ShowDataManager
     @ObservedObject var filterState: FilterState
     @State private var showFilterBar: Bool = false
+    @State private var initialScrollOffset: CGFloat = 0
+    @State private var hasSetInitialOffset: Bool = false
 
     @Query(filter: #Predicate<SavedShow> { $0.listenedAt != nil },
            sort: \SavedShow.listenedAt, order: .reverse)
@@ -140,39 +142,46 @@ struct HistoryListView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
-                        ForEach(groupedHistory, id: \.0) { dateLabel, shows in
-                            Section {
-                                ForEach(shows) { show in
-                                    ShowEntryRow(savedShow: show, showDataManager: showDataManager)
-                                }
-                            } header: {
-                                Text(dateLabel)
-                                    .scaledFont(.subheadline, weight: .bold)
-                                    .foregroundColor(.primary)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.sectionHeaderBackground)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
+                    VStack(spacing: 0) {
+                        // Invisible anchor at the very top to detect pull-down
                         GeometryReader { geo in
                             Color.clear.preference(
                                 key: ScrollOffsetPreferenceKey.self,
-                                value: geo.frame(in: .named("historyScroll")).origin.y
+                                value: geo.frame(in: .global).minY
                             )
                         }
-                    )
+                        .frame(height: 0)
+
+                        LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
+                            ForEach(groupedHistory, id: \.0) { dateLabel, shows in
+                                Section {
+                                    ForEach(shows) { show in
+                                        ShowEntryRow(savedShow: show, showDataManager: showDataManager)
+                                    }
+                                } header: {
+                                    Text(dateLabel)
+                                        .scaledFont(.subheadline, weight: .bold)
+                                        .foregroundColor(.primary)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.sectionHeaderBackground)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                    }
                 }
-                .coordinateSpace(name: "historyScroll")
-                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
-                    // Show filter bar when user pulls down past the top (positive offset = overscroll down)
-                    // Once shown, keep it visible until list is empty or tab changes
-                    if offset > 10 && !showFilterBar {
+                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { minY in
+                    // Capture initial offset on first reading
+                    if !hasSetInitialOffset {
+                        initialScrollOffset = minY
+                        hasSetInitialOffset = true
+                        return
+                    }
+                    // When pulled down, minY increases beyond its resting position
+                    if !showFilterBar && minY > initialScrollOffset + 20 {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             showFilterBar = true
                         }
@@ -194,6 +203,8 @@ struct FavoritesListView: View {
     @ObservedObject var filterState: FilterState
     @State private var collapsedYears: Set<String> = []
     @State private var showFilterBar: Bool = false
+    @State private var initialScrollOffset: CGFloat = 0
+    @State private var hasSetInitialOffset: Bool = false
 
     @Query(filter: #Predicate<SavedShow> { $0.isFavorite == true },
            sort: \SavedShow.showDate, order: .reverse)
@@ -280,56 +291,63 @@ struct FavoritesListView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
-                        ForEach(groupedFavorites, id: \.0) { year, shows in
-                            Section {
-                                if !collapsedYears.contains(year) {
-                                    ForEach(shows) { show in
-                                        ShowEntryRow(savedShow: show, showDataManager: showDataManager)
-                                    }
-                                }
-                            } header: {
-                                HStack {
-                                    Text(year)
-                                        .scaledFont(.subheadline, weight: .bold)
-                                        .foregroundColor(.primary)
-                                    Spacer()
-                                    Image(systemName: collapsedYears.contains(year) ? "chevron.right" : "chevron.down")
-                                        .scaledFont(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.sectionHeaderBackground)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    #if os(macOS)
-                                    let shiftPressed = NSEvent.modifierFlags.contains(.shift)
-                                    #else
-                                    let shiftPressed = false
-                                    #endif
-                                    toggleYear(year, shiftPressed: shiftPressed)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
+                    VStack(spacing: 0) {
+                        // Invisible anchor at the very top to detect pull-down
                         GeometryReader { geo in
                             Color.clear.preference(
                                 key: ScrollOffsetPreferenceKey.self,
-                                value: geo.frame(in: .named("favoritesScroll")).origin.y
+                                value: geo.frame(in: .global).minY
                             )
                         }
-                    )
+                        .frame(height: 0)
+
+                        LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
+                            ForEach(groupedFavorites, id: \.0) { year, shows in
+                                Section {
+                                    if !collapsedYears.contains(year) {
+                                        ForEach(shows) { show in
+                                            ShowEntryRow(savedShow: show, showDataManager: showDataManager)
+                                        }
+                                    }
+                                } header: {
+                                    HStack {
+                                        Text(year)
+                                            .scaledFont(.subheadline, weight: .bold)
+                                            .foregroundColor(.primary)
+                                        Spacer()
+                                        Image(systemName: collapsedYears.contains(year) ? "chevron.right" : "chevron.down")
+                                            .scaledFont(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.sectionHeaderBackground)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        #if os(macOS)
+                                        let shiftPressed = NSEvent.modifierFlags.contains(.shift)
+                                        #else
+                                        let shiftPressed = false
+                                        #endif
+                                        toggleYear(year, shiftPressed: shiftPressed)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                    }
                 }
-                .coordinateSpace(name: "favoritesScroll")
-                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
-                    // Show filter bar when user pulls down past the top (positive offset = overscroll down)
-                    // Once shown, keep it visible until list is empty or tab changes
-                    if offset > 10 && !showFilterBar {
+                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { minY in
+                    // Capture initial offset on first reading
+                    if !hasSetInitialOffset {
+                        initialScrollOffset = minY
+                        hasSetInitialOffset = true
+                        return
+                    }
+                    // When pulled down, minY increases beyond its resting position
+                    if !showFilterBar && minY > initialScrollOffset + 20 {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             showFilterBar = true
                         }
