@@ -15,7 +15,7 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 
 ### Now Playing
 - **Live track info** — Current song, show date, venue, and location
-- **Full setlist** — Info pulled from [FZShows](https://www.zappateers.com/fzshows/index.html).  See every song in the show with the current track highlighted
+- **Full setlist** — Does it's best to pull the correct info from [FZShows](https://www.zappateers.com/fzshows/index.html). Hopefully, you see every song in the show with the currently playing track highlighted
 - **Smart duplicate handling** — Correctly identifies repeated songs (hopefully) (e.g., multiple "Improvisations")
 - **Acronym glossary** — Explains setlist abbreviations
 
@@ -43,6 +43,9 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 **Band Info:**
 - Pull more data from FZshows of the band member linup for that particular tour (and specific show, ideally).
 
+**Customisable section headers for the Favourites tab:**
+- Not just by year, but also period, tour, band member, location etc.
+
 **Audio FX:**
 To slightly mould certain shows into a more favourable sound if necassary
 
@@ -50,6 +53,20 @@ To slightly mould certain shows into a more favourable sound if necassary
 - Mono - Stereo - Stereo-Wider slider
 - 3-band EQ
 - Compressor
+
+
+### Current issues & Feedback options
+
+**Mismatched 'Now Playing' track to setlist:**
+- This is largely unavoidable as often there are more audio files for sections of the show (.e.g., Preamble) than are listed in the setlist
+- Which means that often the track number is different from the setlist number
+- Also the filenames may differ sometimes from how the tracks are named in the FZShows setlist database which means no 'currently playing' track indicator
+
+**Provide feedback on a currently playing show:**
+- Right click or long press on a show either when it's currently playing, or in the History or Favourites sidebar and choose 'Report Issue...' to email me with the details of the show from the livestream metadata and I will look into why the full setlist wasn't fetched correctly from the FZShows database
+<img width="482" height="663" alt="Screenshot 2026-02-13 at 13 56 33" src="https://github.com/user-attachments/assets/fad12c2a-16ed-459f-b12b-7f22cf4e3209" />
+<img width="461" height="652" alt="Screenshot 2026-02-13 at 13 56 54" src="https://github.com/user-attachments/assets/35bc7608-d446-4d9a-9ffc-c621239e6a1d" />
+
 
 ## Screenshots
 
@@ -65,8 +82,6 @@ To slightly mould certain shows into a more favourable sound if necassary
 <img width="565" height="1068" alt="Screenshot 2026-02-13 at 13 24 14" src="https://github.com/user-attachments/assets/399f4a80-6d44-48b3-bfbd-4686e95c9821" />
 <img width="565" height="1068" alt="Screenshot 2026-02-13 at 13 25 08" src="https://github.com/user-attachments/assets/d8cdd1d5-657d-4946-9fe5-48a75e50d7f8" />
 <img src="https://github.com/user-attachments/assets/557e9fd4-547f-410a-8cf1-4062c106a7c8" />
-
-
 
 
 
