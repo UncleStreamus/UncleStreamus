@@ -3,7 +3,7 @@ import SwiftData
 
 struct SidebarView: View {
     var showDataManager: ShowDataManager
-    @State private var selectedTab: SidebarTab = .history
+    @Binding var selectedTab: SidebarTab
     @StateObject private var historyFilter = FilterState()
     @StateObject private var favoritesFilter = FilterState()
 

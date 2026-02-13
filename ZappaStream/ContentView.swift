@@ -31,6 +31,7 @@ struct ContentView: View {
     @State private var consecutiveBadStates: Int = 0  // Track bad states for AAC recovery
     @State private var showDelayWarning: Bool = false  // Temporarily show delay warning for non-MP3 streams
     @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
+    @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
 
     let streams = [
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
@@ -66,7 +67,7 @@ struct ContentView: View {
                     panelWidth: sidebarWidth,
                     dividerWidth: dividerWidth
                 )
-                SidebarView(showDataManager: manager)
+                SidebarView(showDataManager: manager, selectedTab: $selectedSidebarTab)
                     .frame(width: sidebarWidth)
             }
         }

@@ -38,6 +38,7 @@ struct ContentView_iOS: View {
     @State private var consecutiveBadStates: Int = 0  // Track bad states for AAC recovery
     @State private var showDelayWarning: Bool = false  // Temporarily show delay warning for non-MP3 streams
     @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
+    @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     let streams = [
@@ -89,7 +90,7 @@ struct ContentView_iOS: View {
                     .navigationBarTitleDisplayMode(.large)
                     .navigationDestination(isPresented: $sidebarNavigationActive) {
                         if let manager = showDataManager {
-                            SidebarView(showDataManager: manager)
+                            SidebarView(showDataManager: manager, selectedTab: $selectedSidebarTab)
                                 .navigationTitle("")
                                 .navigationBarTitleDisplayMode(.inline)
                         }
@@ -116,7 +117,7 @@ struct ContentView_iOS: View {
                                 // iPhone: use navigation push
                                 NavigationLink {
                                     if let manager = showDataManager {
-                                        SidebarView(showDataManager: manager)
+                                        SidebarView(showDataManager: manager, selectedTab: $selectedSidebarTab)
                                             .navigationTitle("")
                                             .navigationBarTitleDisplayMode(.inline)
                                     }
@@ -153,7 +154,7 @@ struct ContentView_iOS: View {
                             )
                     )
 
-                SidebarView(showDataManager: manager)
+                SidebarView(showDataManager: manager, selectedTab: $selectedSidebarTab)
                     .frame(width: 320)
                     .transition(.move(edge: .trailing))
             }
