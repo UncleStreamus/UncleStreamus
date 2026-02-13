@@ -27,6 +27,15 @@ extension Color {
         Color(.systemGray6)
         #endif
     }
+
+    /// Background color for section headers (sticky headers in lists)
+    static var sectionHeaderBackground: Color {
+        #if os(macOS)
+        Color(nsColor: .windowBackgroundColor)
+        #else
+        Color(.secondarySystemBackground)
+        #endif
+    }
 }
 
 // MARK: - VLCKit Import

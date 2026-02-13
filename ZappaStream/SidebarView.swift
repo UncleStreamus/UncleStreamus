@@ -142,7 +142,7 @@ struct HistoryListView: View {
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.systemBackground)
+                                    .background(Color.sectionHeaderBackground)
                             }
                         }
                     }
@@ -269,7 +269,7 @@ struct FavoritesListView: View {
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.systemBackground)
+                                .background(Color.sectionHeaderBackground)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     #if os(macOS)
