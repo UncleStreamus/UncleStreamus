@@ -170,10 +170,11 @@ struct HistoryListView: View {
                 }
                 .coordinateSpace(name: "historyScroll")
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
-                    let shouldShow = offset > 10
-                    if shouldShow != showFilterBar {
+                    // Show filter bar when user pulls down past the top (negative offset = overscroll)
+                    // Once shown, keep it visible until list is empty or tab changes
+                    if offset < -10 && !showFilterBar {
                         withAnimation(.easeInOut(duration: 0.2)) {
-                            showFilterBar = shouldShow
+                            showFilterBar = true
                         }
                     }
                 }
@@ -326,10 +327,11 @@ struct FavoritesListView: View {
                 }
                 .coordinateSpace(name: "favoritesScroll")
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
-                    let shouldShow = offset > 10
-                    if shouldShow != showFilterBar {
+                    // Show filter bar when user pulls down past the top (negative offset = overscroll)
+                    // Once shown, keep it visible until list is empty or tab changes
+                    if offset < -10 && !showFilterBar {
                         withAnimation(.easeInOut(duration: 0.2)) {
-                            showFilterBar = shouldShow
+                            showFilterBar = true
                         }
                     }
                 }
