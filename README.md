@@ -110,6 +110,10 @@ Hopefully available in the App Store if there's enough interest.
 - **Setlist data**: [Zappateers](https://www.zappateers.com)
 - **Audio playback**: [VLCKit](https://code.videolan.org/videolan/VLCKit)
 
+## Contributing
+
+This is a personal project. Feature suggestions are welcome via [Issues](../../issues). Pull requests may not be reviewed promptly.
+
 ## License
 
-*License TBD*
+This project is licensed under the [MIT License](LICENSE).
