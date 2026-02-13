@@ -989,11 +989,11 @@ struct ContentView: View {
         if consecutiveBadStates >= 2 {
             print("🔄 Stream restart triggered (state: \(state), format: \(format), consecutive: \(consecutiveBadStates))")
             consecutiveBadStates = 0
-            playStream()
+            playStream(showWarning: false)
         }
     }
 
-    func playStream() {
+    func playStream(showWarning: Bool = true) {
         mediaPlayer?.stop()
         streamReader?.stopStreaming()
 
@@ -1025,6 +1025,13 @@ struct ContentView: View {
                 "avcodec-hurry-up": "0",
                 "avcodec-error-resilience": "4" // Maximum error resilience
             ])
+        } else if stream.format == "OGG" {
+            // OGG/Vorbis streams have extra dropouts at track changes - increase buffering
+            media.addOptions([
+                "network-caching": "5000",      // 5 second network buffer
+                "live-caching": "5000",
+                "file-caching": "3000"
+            ])
         } else if stream.format == "FLAC" {
             // Add buffer for FLAC to reduce skipping
             media.addOptions(["network-caching": "3000"])
@@ -1035,14 +1042,15 @@ struct ContentView: View {
         updateNowPlayingInfo()
 
         // Show delay warning for non-MP3 streams, then hide after 5 seconds
-        if stream.format != "MP3" {
+        // Only show on user-initiated plays, not automatic recovery/restarts
+        if showWarning && stream.format != "MP3" {
             showDelayWarning = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
                 withAnimation {
                     self.showDelayWarning = false
                 }
             }
-        } else {
+        } else if stream.format == "MP3" {
             showDelayWarning = false
         }
 
