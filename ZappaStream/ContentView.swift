@@ -924,7 +924,11 @@ struct ContentView: View {
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
         nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = true
 
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+        let infoCenter = MPNowPlayingInfoCenter.default()
+        infoCenter.nowPlayingInfo = nowPlayingInfo
+
+        // On macOS, we must set the playback state to register as the Now Playing app
+        infoCenter.playbackState = isPlaying ? .playing : .paused
 
         // Update menubar tooltip
         updateMenubarTooltip()
