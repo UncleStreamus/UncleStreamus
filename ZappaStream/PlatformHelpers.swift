@@ -33,7 +33,7 @@ extension Color {
         #if os(macOS)
         Color(nsColor: .windowBackgroundColor)
         #else
-        Color(.secondarySystemBackground)
+        Color(.tertiarySystemBackground)
         #endif
     }
 }
