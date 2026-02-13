@@ -242,11 +242,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // Play/Pause button
         let playPauseTitle = isPlaying ? "Pause" : "Play"
-        let playPauseItem = NSMenuItem(title: playPauseTitle, action: #selector(togglePlayPause), keyEquivalent: " ")
-        playPauseItem.keyEquivalentModifierMask = []
+        let playPauseItem = NSMenuItem(title: playPauseTitle, action: #selector(togglePlayPause), keyEquivalent: "")
         menu.addItem(playPauseItem)
-
-        menu.addItem(NSMenuItem.separator())
 
         // Stream picker submenu
         let streamItem = NSMenuItem(title: "Stream", action: nil, keyEquivalent: "")
@@ -261,6 +258,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         streamItem.submenu = streamSubmenu
         menu.addItem(streamItem)
+
+        menu.addItem(NSMenuItem.separator())
 
         // Text Size submenu
         let textSizeItem = NSMenuItem(title: "Text Size", action: nil, keyEquivalent: "")
