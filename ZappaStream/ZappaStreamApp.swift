@@ -163,7 +163,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var currentArtist: String?
     private var currentShowInfo: String?
     private var isPlaying: Bool = false
-    private var selectedStreamFormat: String = "MP3"
+    private var selectedStreamFormat: String {
+        get {
+            let format = UserDefaults.standard.string(forKey: "lastStreamFormat") ?? "MP3"
+            return format
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "lastStreamFormat")
+        }
+    }
 
     // Available streams (must match ContentView)
     private let streamFormats = ["MP3", "AAC", "OGG", "FLAC"]
@@ -355,8 +363,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func handleStreamSelectionChanged(_ notification: Notification) {
+        // Stream format is read directly from UserDefaults via the computed property
+        // This notification is mainly for logging/debugging
         if let format = notification.userInfo?["format"] as? String {
-            selectedStreamFormat = format
             print("📻 Menubar stream selection: \(format)")
         }
     }
