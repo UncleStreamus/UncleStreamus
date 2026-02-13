@@ -9,13 +9,14 @@ import SwiftUI
 import SwiftData
 
 struct SettingsView: View {
-    @State private var selectedTab: SettingsTab = .sync
+    @State private var selectedTab: SettingsTab = .playback
 
     enum SettingsTab {
-        case sync, savedData, credits
+        case playback, sync, savedData, credits
 
         var height: CGFloat {
             switch self {
+            case .playback: return 200
             case .sync: return 200
             case .savedData: return 320
             case .credits: return 280
@@ -26,6 +27,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             Picker("", selection: $selectedTab) {
+                Text("Playback").tag(SettingsTab.playback)
                 Text("Sync").tag(SettingsTab.sync)
                 Text("Saved Data").tag(SettingsTab.savedData)
                 Text("Credits").tag(SettingsTab.credits)
@@ -36,6 +38,8 @@ struct SettingsView: View {
             Divider()
 
             switch selectedTab {
+            case .playback:
+                PlaybackSettingsView()
             case .sync:
                 SyncSettingsView()
             case .savedData:
@@ -90,6 +94,28 @@ struct SettingsSectionBox<Content: View>: View {
         .background(Color.controlBackground)
         .cornerRadius(8)
         .padding(.horizontal, 20)
+    }
+}
+
+// MARK: - Playback Settings
+
+struct PlaybackSettingsView: View {
+    @AppStorage("autoResumeOnLaunch") private var autoResumeOnLaunch: Bool = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SettingsSectionHeader(title: "Launch", systemImage: "play.circle")
+
+            SettingsSectionBox {
+                Toggle("Resume playback on launch", isOn: $autoResumeOnLaunch)
+
+                Text("Automatically continue playing when the app launches, if it was playing when you last quit.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+        }
     }
 }
 

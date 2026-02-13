@@ -209,9 +209,10 @@ struct ContentView_iOS: View {
             }
             setupPlayer()
 
-            // Auto-play if was playing when app quit
-            let shouldAutoPlay = UserDefaults.standard.bool(forKey: "wasPlayingOnQuit")
-            if shouldAutoPlay {
+            // Auto-play if was playing when app quit (and auto-resume is enabled)
+            let wasPlaying = UserDefaults.standard.bool(forKey: "wasPlayingOnQuit")
+            let autoResumeEnabled = UserDefaults.standard.object(forKey: "autoResumeOnLaunch") as? Bool ?? true
+            if wasPlaying && autoResumeEnabled {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.playStream()
                 }

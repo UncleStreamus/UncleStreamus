@@ -92,11 +92,12 @@ struct ContentView: View {
                 NotificationCenter.default.post(name: .streamSelectionChanged, object: nil, userInfo: ["format": stream.format])
             }
 
-            // Auto-play if stream was playing when app was last quit
+            // Auto-play if stream was playing when app was last quit (and auto-resume is enabled)
             // Read directly from UserDefaults to ensure we get the persisted value
-            let shouldAutoPlay = UserDefaults.standard.bool(forKey: "wasPlayingOnQuit")
-            print("🚀 Launch - should auto-play: \(shouldAutoPlay)")
-            if shouldAutoPlay {
+            let wasPlaying = UserDefaults.standard.bool(forKey: "wasPlayingOnQuit")
+            let autoResumeEnabled = UserDefaults.standard.object(forKey: "autoResumeOnLaunch") as? Bool ?? true
+            print("🚀 Launch - was playing: \(wasPlaying), auto-resume enabled: \(autoResumeEnabled)")
+            if wasPlaying && autoResumeEnabled {
                 // Small delay to ensure player is fully initialized
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     print("▶️ Auto-playing stream...")
