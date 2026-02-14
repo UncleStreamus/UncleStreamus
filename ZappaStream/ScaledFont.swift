@@ -13,21 +13,11 @@ extension EnvironmentValues {
     }
 }
 
-// MARK: - Scaled Font View Extension
+// MARK: - Font Size Mapping
 
-extension View {
-    /// Applies a scaled system font based on the fontScale environment value
-    func scaledFont(_ style: Font.TextStyle, weight: Font.Weight = .regular) -> some View {
-        self.modifier(ScaledFontModifier(style: style, weight: weight))
-    }
-}
-
-private struct ScaledFontModifier: ViewModifier {
-    @Environment(\.fontScale) private var fontScale
-    let style: Font.TextStyle
-    let weight: Font.Weight
-
-    private var baseSize: CGFloat {
+/// Shared base font sizes for text styles (used by ScaledFontModifier and MarqueeText)
+enum FontSizeMap {
+    static func baseSize(for style: Font.TextStyle) -> CGFloat {
         switch style {
         case .largeTitle: return 26
         case .title: return 22
@@ -43,6 +33,21 @@ private struct ScaledFontModifier: ViewModifier {
         @unknown default: return 13
         }
     }
+}
+
+// MARK: - Scaled Font View Extension
+
+extension View {
+    /// Applies a scaled system font based on the fontScale environment value
+    func scaledFont(_ style: Font.TextStyle, weight: Font.Weight = .regular) -> some View {
+        self.modifier(ScaledFontModifier(style: style, weight: weight))
+    }
+}
+
+private struct ScaledFontModifier: ViewModifier {
+    @Environment(\.fontScale) private var fontScale
+    let style: Font.TextStyle
+    let weight: Font.Weight
 
     func body(content: Content) -> some View {
         #if os(iOS)
@@ -50,7 +55,7 @@ private struct ScaledFontModifier: ViewModifier {
         content.font(.system(style, weight: weight))
         #else
         // Keep custom scaled sizes for macOS
-        content.font(.system(size: baseSize * fontScale, weight: weight))
+        content.font(.system(size: FontSizeMap.baseSize(for: style) * fontScale, weight: weight))
         #endif
     }
 }

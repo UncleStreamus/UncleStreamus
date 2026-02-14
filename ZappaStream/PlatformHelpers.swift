@@ -7,6 +7,12 @@
 
 import SwiftUI
 
+// MARK: - Constants
+
+enum AppConstants {
+    static let supportEmail = "zappastreamapp@gmail.com"
+}
+
 // MARK: - System Colors
 
 extension Color {
@@ -38,32 +44,60 @@ extension Color {
     }
 }
 
-// MARK: - VLCKit Import
+// MARK: - Bug Report Data (shared)
 
-#if os(macOS)
-import VLCKit
-#else
-import MobileVLCKit
-#endif
+/// Common bug report data used by both platforms
+struct BugReportData {
+    let showDate: String
+    let venue: String
+    let url: String
+    let rawMetadata: String?
+    let trackName: String?
+    let source: String?
+    let streamFormat: String?
 
-// MARK: - App Lifecycle Notifications
+    var subject: String {
+        "ZappaStream Bug Report - \(showDate) \(venue)"
+    }
 
-extension Notification.Name {
-    /// Notification posted when the app is about to terminate
-    static var appWillTerminate: Notification.Name {
+    var body: String {
+        let platform: String
         #if os(macOS)
-        NSApplication.willTerminateNotification
+        platform = "macOS"
         #else
-        UIApplication.willTerminateNotification
+        platform = "iOS"
         #endif
+
+        return """
+        Show Information:
+        Date: \(showDate)
+        Venue: \(venue)
+        URL: \(url)
+
+        Stream Metadata:
+        Raw: \(rawMetadata ?? "N/A")
+        Track: \(trackName ?? "N/A")
+        Source: \(source ?? "N/A")
+        Stream Format: \(streamFormat ?? "N/A")
+
+        Issue Description:
+        [Please describe the issue here]
+
+        ---
+        Platform: \(platform)
+        """
     }
 }
 
-// MARK: - Safari View (iOS only)
+// MARK: - Safari View & Mail Composer (iOS only)
 
 #if os(iOS)
 import SafariServices
 import MessageUI
+
+extension BugReportData: Identifiable {
+    var id: String { "\(showDate)-\(venue)" }
+}
 
 struct IdentifiableURL: Identifiable {
     let url: URL
@@ -80,44 +114,6 @@ struct SafariView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }
 
-// MARK: - Mail Composer (iOS)
-
-struct BugReportData: Identifiable {
-    let id = UUID()
-    let showDate: String
-    let venue: String
-    let url: String
-    let rawMetadata: String?
-    let trackName: String?
-    let source: String?
-    let streamFormat: String?
-
-    var subject: String {
-        "ZappaStream Bug Report - \(showDate) \(venue)"
-    }
-
-    var body: String {
-        """
-        Show Information:
-        Date: \(showDate)
-        Venue: \(venue)
-        URL: \(url)
-
-        Stream Metadata:
-        Raw: \(rawMetadata ?? "N/A")
-        Track: \(trackName ?? "N/A")
-        Source: \(source ?? "N/A")
-        Stream Format: \(streamFormat ?? "N/A")
-
-        Issue Description:
-        [Please describe the issue here]
-
-        ---
-        Platform: iOS
-        """
-    }
-}
-
 struct MailComposerView: UIViewControllerRepresentable {
     let data: BugReportData
     @Environment(\.dismiss) var dismiss
@@ -129,7 +125,7 @@ struct MailComposerView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> MFMailComposeViewController {
         let mail = MFMailComposeViewController()
         mail.mailComposeDelegate = context.coordinator
-        mail.setToRecipients(["zappastreamapp@gmail.com"])
+        mail.setToRecipients([AppConstants.supportEmail])
         mail.setSubject(data.subject)
         mail.setMessageBody(data.body, isHTML: false)
         return mail
@@ -160,45 +156,12 @@ struct MailComposerView: UIViewControllerRepresentable {
 #if os(macOS)
 import AppKit
 
-struct BugReportData {
-    let showDate: String
-    let venue: String
-    let url: String
-    let rawMetadata: String?
-    let trackName: String?
-    let source: String?
-    let streamFormat: String?
-
-    var subject: String {
-        "ZappaStream Bug Report - \(showDate) \(venue)"
-    }
-
-    var body: String {
-        """
-        Show Information:
-        Date: \(showDate)
-        Venue: \(venue)
-        URL: \(url)
-
-        Stream Metadata:
-        Raw: \(rawMetadata ?? "N/A")
-        Track: \(trackName ?? "N/A")
-        Source: \(source ?? "N/A")
-        Stream Format: \(streamFormat ?? "N/A")
-
-        Issue Description:
-        [Please describe the issue here]
-
-        ---
-        Platform: macOS
-        """
-    }
-
+extension BugReportData {
     func openMailClient() {
         let subjectEncoded = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let bodyEncoded = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
 
-        if let mailURL = URL(string: "mailto:zappastreamapp@gmail.com?subject=\(subjectEncoded)&body=\(bodyEncoded)") {
+        if let mailURL = URL(string: "mailto:\(AppConstants.supportEmail)?subject=\(subjectEncoded)&body=\(bodyEncoded)") {
             NSWorkspace.shared.open(mailURL)
         }
     }

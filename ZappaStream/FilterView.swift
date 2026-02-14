@@ -78,10 +78,10 @@ struct FilterDropdown: View {
     }
 }
 
-/// Grouped dropdown for tours, organized by period
-struct GroupedTourDropdown: View {
+/// Grouped dropdown organized by a category (tours by period, states/cities by country)
+struct GroupedDropdown: View {
     let title: String
-    let toursByPeriod: [(period: String, tours: [String])]
+    let groups: [(header: String, items: [String])]
     @Binding var selection: String?
 
     var body: some View {
@@ -90,105 +90,15 @@ struct GroupedTourDropdown: View {
                 selection = nil
             }
             Divider()
-            ForEach(toursByPeriod, id: \.period) { group in
-                Section(header: Text("— \(group.period) —").font(.headline)) {
-                    ForEach(group.tours, id: \.self) { tour in
+            ForEach(groups, id: \.header) { group in
+                Section(header: Text("— \(group.header) —").font(.headline)) {
+                    ForEach(group.items, id: \.self) { item in
                         Button(action: {
-                            selection = tour
+                            selection = item
                         }) {
                             HStack {
-                                Text(tour)
-                                if selection == tour {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Text(selection ?? title)
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-            }
-            .scaledFont(.caption)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(selection != nil ? Color.accentColor.opacity(0.2) : Color.gray.opacity(0.15))
-            .cornerRadius(6)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-/// Grouped dropdown for states, organized by country (USA/Canada)
-struct GroupedStateDropdown: View {
-    let title: String
-    let statesByCountry: [(country: String, states: [String])]
-    @Binding var selection: String?
-
-    var body: some View {
-        Menu {
-            Button("All") {
-                selection = nil
-            }
-            Divider()
-            ForEach(statesByCountry, id: \.country) { group in
-                Section(header: Text("— \(group.country) —").font(.headline)) {
-                    ForEach(group.states, id: \.self) { state in
-                        Button(action: {
-                            selection = state
-                        }) {
-                            HStack {
-                                Text(state)
-                                if selection == state {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Text(selection ?? title)
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-            }
-            .scaledFont(.caption)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(selection != nil ? Color.accentColor.opacity(0.2) : Color.gray.opacity(0.15))
-            .cornerRadius(6)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-/// Grouped dropdown for cities, organized by country (USA/Canada)
-struct GroupedCityDropdown: View {
-    let title: String
-    let citiesByCountry: [(country: String, cities: [String])]
-    @Binding var selection: String?
-
-    var body: some View {
-        Menu {
-            Button("All") {
-                selection = nil
-            }
-            Divider()
-            ForEach(citiesByCountry, id: \.country) { group in
-                Section(header: Text("— \(group.country) —").font(.headline)) {
-                    ForEach(group.cities, id: \.self) { city in
-                        Button(action: {
-                            selection = city
-                        }) {
-                            HStack {
-                                Text(city)
-                                if selection == city {
+                                Text(item)
+                                if selection == item {
                                     Image(systemName: "checkmark")
                                 }
                             }
@@ -222,7 +132,7 @@ struct FilterBar: View {
     private var periods: [String] {
         let uniquePeriods = Set(shows.compactMap { $0.period })
         // Use the order from tourPeriods array for correct chronological order
-        let periodOrder = tourPeriods.map { $0.name }
+        let periodOrder = GeoData.tourPeriods.map { $0.name }
         return periodOrder.filter { uniquePeriods.contains($0) }
     }
 
@@ -249,7 +159,7 @@ struct FilterBar: View {
 
         // Use the order from tourPeriods array (defined in TourPeriods.swift)
         // This ensures correct chronological order (e.g., 1973 Ponty before 1973-74 Roxy)
-        let periodOrder = tourPeriods.map { $0.name }
+        let periodOrder = GeoData.tourPeriods.map { $0.name }
 
         var result: [(period: String, tours: [String])] = []
 
@@ -260,7 +170,7 @@ struct FilterBar: View {
             }
         }
 
-        // Add any remaining periods not in tourPeriods (shouldn't happen, but just in case)
+        // Add any remaining periods not in GeoData.tourPeriods (shouldn't happen, but just in case)
         for period in periodTourMap.keys.sorted() {
             if let tours = periodTourMap[period], !tours.isEmpty {
                 result.append((period: period, tours: tours.sorted()))
@@ -434,7 +344,7 @@ struct FilterBar: View {
                     } else {
                         // When no period is selected, show grouped tour dropdown
                         if !toursByPeriod.isEmpty {
-                            GroupedTourDropdown(title: "Tour", toursByPeriod: toursByPeriod, selection: $filterState.selectedTour)
+                            GroupedDropdown(title: "Tour", groups: toursByPeriod.map { (header: $0.period, items: $0.tours) }, selection: $filterState.selectedTour)
                         }
                     }
                 }
@@ -458,7 +368,7 @@ struct FilterBar: View {
                     } else {
                         // When no country is selected, show grouped state dropdown
                         if !statesByCountry.isEmpty {
-                            GroupedStateDropdown(title: "State", statesByCountry: statesByCountry, selection: $filterState.selectedState)
+                            GroupedDropdown(title: "State", groups: statesByCountry.map { (header: $0.country, items: $0.states) }, selection: $filterState.selectedState)
                                 .onChange(of: filterState.selectedState) { _, _ in
                                     filterState.selectedCity = nil
                                 }
@@ -473,7 +383,7 @@ struct FilterBar: View {
                     } else {
                         // When no country is selected, show grouped city dropdown
                         if !citiesByCountry.isEmpty {
-                            GroupedCityDropdown(title: "City", citiesByCountry: citiesByCountry, selection: $filterState.selectedCity)
+                            GroupedDropdown(title: "City", groups: citiesByCountry.map { (header: $0.country, items: $0.cities) }, selection: $filterState.selectedCity)
                         }
                     }
                 }

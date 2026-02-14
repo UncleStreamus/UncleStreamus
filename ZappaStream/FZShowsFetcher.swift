@@ -152,7 +152,7 @@ class FZShowsFetcher {
         guard parts.count == 3,
               let year = Int(parts[0]),
               let month = Int(parts[1]),
-              let day = Int(parts[2]) else {
+              let _ = Int(parts[2]) else {
             completion(nil)
             return
         }
@@ -167,7 +167,9 @@ class FZShowsFetcher {
         if let exc = exception {
             searchDate = exc.searchDate
             sectionKeywords = exc.sectionKeywords
+            #if DEBUG
             print("📋 Using exception mapping: \(date) -> \(searchDate)")
+            #endif
         } else {
             searchDate = date
             sectionKeywords = nil
@@ -193,7 +195,9 @@ class FZShowsFetcher {
                 completion(show)
             } else {
                 // Fallback to rehearsals.html
+                #if DEBUG
                 print("🔄 Primary page had no match, trying rehearsals.html")
+                #endif
                 let rehearsalsURLString = "https://www.zappateers.com/fzshows/rehearsals.html"
                 self.fetchFromURL(urlString: rehearsalsURLString, filename: "rehearsals.html", searchDate: searchDate, originalDate: date,
                                   showTime: showTime, sectionKeywords: sectionKeywords, completion: completion)
@@ -211,12 +215,16 @@ class FZShowsFetcher {
             return
         }
 
+        #if DEBUG
         print("📖 Fetching show info from: \(urlString)")
+        #endif
 
         URLSession.shared.dataTask(with: url) { data, response, error in
             guard let data = data,
                   let html = String(data: data, encoding: .utf8) else {
+                #if DEBUG
                 print("❌ Failed to fetch or decode HTML")
+                #endif
                 completion(nil)
                 return
             }
@@ -234,7 +242,9 @@ class FZShowsFetcher {
         // Search for "<h4>DATE" or "<h4 class=...>DATE" patterns
         let h4Pattern = "<h4[^>]*>\(NSRegularExpression.escapedPattern(for: searchDate))"
         guard let h4Match = html.range(of: h4Pattern, options: .regularExpression) else {
+            #if DEBUG
             print("❌ Date \(searchDate) not found in any <h4> tag")
+            #endif
             return nil
         }
 
@@ -251,19 +261,25 @@ class FZShowsFetcher {
 
         // Find </h4> AFTER the <h4> we found
         guard let h4End = html.range(of: "</h4>", range: fullH4Start..<html.endIndex) else {
+            #if DEBUG
             print("❌ Could not find </h4> tag after <h4>")
+            #endif
             return nil
         }
 
         let fullH4 = String(html[fullH4Start..<h4End.upperBound])
+        #if DEBUG
         print("🏟️ FULL h4: '\(fullH4)'")
+        #endif
 
         // Extract venue after dash
         if let dashIndex = fullH4.firstIndex(of: "-") {
             let afterDash = fullH4[fullH4.index(after: dashIndex)..<fullH4.endIndex]
             venue = String(afterDash).replacingOccurrences(of: "</h4>", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+            #if DEBUG
             print("🏟️ Venue: '\(venue)'")
+            #endif
         }
 
         // Find end of THIS show's entire section (next h4 date OR end of file)
@@ -277,7 +293,9 @@ class FZShowsFetcher {
         }
 
         let showSection = String(html[h4End.upperBound..<showSectionEnd])
+        #if DEBUG
         print("📄 Show section length: \(showSection.count) chars")
+        #endif
 
         // Determine which subsection to use based on showTime or sectionKeywords
         let targetSection: String
@@ -306,18 +324,24 @@ class FZShowsFetcher {
                 targetSectionStart = html.index(h4End.upperBound, offsetBy: showSection.distance(from: showSection.startIndex, to: h5Range.lowerBound))
                 targetSection = String(html[targetSectionStart..<showSectionEnd])
                 detectedShowType = showTime
+                #if DEBUG
                 print("🎭 Found \(targetKeyword) show section")
+                #endif
             } else {
                 // No Early/Late found, maybe single show - use whole section
                 targetSectionStart = h4End.upperBound
                 targetSection = showSection
+                #if DEBUG
                 print("🎭 No \(targetKeyword) section found, using full show section")
+                #endif
             }
         } else {
             // No showTime specified - check if there are Early/Late sections
             if showSection.range(of: "<h5>Early", options: .caseInsensitive) != nil {
                 detectedShowType = .early
+                #if DEBUG
                 print("🎭 Detected Early show (defaulting to first)")
+                #endif
             }
             targetSectionStart = h4End.upperBound
             targetSection = showSection
@@ -356,7 +380,9 @@ class FZShowsFetcher {
         if !allShowInfos.isEmpty {
             // Join multiple sources with bullet separator
             showInfo = allShowInfos.joined(separator: " • ")
+            #if DEBUG
             print("📊 Show info (\(allShowInfos.count) source(s)): '\(showInfo)'")
+            #endif
         }
 
         // Find notes in this section (before the setlist)
@@ -368,7 +394,9 @@ class FZShowsFetcher {
                 .replacingOccurrences(of: #"<a href="([^"]+)">([^<]+)</a>"#, with: "[$2]($1)", options: .regularExpression)
                 .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+            #if DEBUG
             print("📝 Note: '\(note ?? "")'")
+            #endif
         }
 
         // Find setlist in this section
@@ -450,17 +478,19 @@ class FZShowsFetcher {
         }
 
         // Extract period name from filename
-        let period = periodName(forFilename: filename)
+        let period = GeoData.periodName(forFilename: filename)
 
         // Extract tour name from HTML (h3 tag preceding this show)
         let tour = extractTourName(html: html, beforeIndex: h4Match.lowerBound)
 
         // Parse location from venue
-        let location = parseLocation(from: venue)
+        let location = GeoData.parseLocation(from: venue)
 
+        #if DEBUG
         print("✅ SUCCESS: \(venue) | \(setlist.count) songs | \(finalShowInfo)")
         print("   📍 Location: \(location.city ?? "?"), \(location.state ?? "?"), \(location.country ?? "?")")
         print("   🗓️ Period: \(period ?? "?") | Tour: \(tour ?? "?")")
+        #endif
 
         return FZShow(
             date: originalDate,

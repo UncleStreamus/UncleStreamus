@@ -226,11 +226,13 @@ struct ShowEntryRow: View {
         isRefreshing = true
         manager.refreshShowInfo(savedShow: savedShow) { success in
             isRefreshing = false
+            #if DEBUG
             if success {
                 print("✅ Show info refreshed successfully")
             } else {
                 print("❌ Failed to refresh show info")
             }
+            #endif
         }
     }
 

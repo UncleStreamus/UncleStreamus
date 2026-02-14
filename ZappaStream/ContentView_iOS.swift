@@ -413,7 +413,7 @@ struct ContentView_iOS: View {
                                 .foregroundColor(.primary)
 
                             if let note = show.note {
-                                Text(try! AttributedString(markdown: note))
+                                Text((try? AttributedString(markdown: note)) ?? AttributedString(note))
                                     .scaledFont(.caption)
                                     .foregroundColor(Color.red.opacity(0.8))
                             }
@@ -753,7 +753,9 @@ struct ContentView_iOS: View {
             try audioSession.setPreferredIOBufferDuration(0.005)
             try audioSession.setActive(true)
         } catch {
+            #if DEBUG
             print("Failed to configure audio session: \(error)")
+            #endif
         }
 
         mediaPlayer = VLCMediaPlayer()
@@ -834,15 +836,21 @@ struct ContentView_iOS: View {
                 let artist = artistName(from: parsed)
                 let artistLine = "\(artist) • \(show.date) • \(show.venue)"
                 nowPlayingInfo[MPMediaItemPropertyArtist] = artistLine
+                #if DEBUG
                 print("🎵 Now Playing: \(parsed.trackName ?? "?") | \(artistLine)")
+                #endif
             } else {
                 nowPlayingInfo[MPMediaItemPropertyArtist] = artistName(from: parsed)
+                #if DEBUG
                 print("🎵 Now Playing: No show info available yet")
+                #endif
             }
         } else {
             nowPlayingInfo[MPMediaItemPropertyTitle] = "ZappaStream"
             nowPlayingInfo[MPMediaItemPropertyArtist] = "FZShows Radio"
+            #if DEBUG
             print("🎵 Now Playing: Default (no parsed track)")
+            #endif
         }
 
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
@@ -881,14 +889,18 @@ struct ContentView_iOS: View {
 
         // First attempt: just nudge VLC to resume
         if consecutiveBadStates == 1 {
+            #if DEBUG
             print("⚠️ Bad state detected (state: \(state)), nudging player...")
+            #endif
             player.play()
             return
         }
 
         // Second attempt: full restart
         if consecutiveBadStates >= 2 {
+            #if DEBUG
             print("🔄 Stream restart triggered (state: \(state), format: \(format), consecutive: \(consecutiveBadStates))")
+            #endif
             consecutiveBadStates = 0
             playStream(showWarning: false)
         }

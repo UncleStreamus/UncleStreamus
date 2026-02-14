@@ -137,7 +137,9 @@ class ShowDataManager {
                 savedShow.tour = newShow.tour
 
                 try? self.modelContext.save()
+                #if DEBUG
                 print("✅ Refreshed show info for \(showDate)")
+                #endif
                 completion(true)
             }
         }

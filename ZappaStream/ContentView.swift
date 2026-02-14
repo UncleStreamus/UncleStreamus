@@ -96,11 +96,15 @@ struct ContentView: View {
             // Read directly from UserDefaults to ensure we get the persisted value
             let wasPlaying = UserDefaults.standard.bool(forKey: "wasPlayingOnQuit")
             let autoResumeEnabled = UserDefaults.standard.object(forKey: "autoResumeOnLaunch") as? Bool ?? true
+            #if DEBUG
             print("🚀 Launch - was playing: \(wasPlaying), auto-resume enabled: \(autoResumeEnabled)")
+            #endif
             if wasPlaying && autoResumeEnabled {
                 // Small delay to ensure player is fully initialized
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    #if DEBUG
                     print("▶️ Auto-playing stream...")
+                    #endif
                     self.playStream()
                 }
             }
@@ -108,7 +112,9 @@ struct ContentView: View {
         .onDisappear {
             // Save playing state before quitting
             UserDefaults.standard.set(isPlaying, forKey: "wasPlayingOnQuit")
+            #if DEBUG
             print("💾 onDisappear - saving playing state: \(isPlaying)")
+            #endif
             stopStream()
         }
     }
@@ -135,7 +141,9 @@ struct ContentView: View {
             // Install window delegate to enforce size constraints
             WindowSizeEnforcer.shared.install(on: window, maxWidth: maxWidth, maxHeight: maxWindowHeight)
 
+            #if DEBUG
             print("configureWindowConstraints: maxSize set to \(maxWidth) x \(maxWindowHeight)")
+            #endif
         }
     }
 
@@ -167,15 +175,19 @@ struct ContentView: View {
         let panelDelta = sidebarWidth + dividerWidth // +1 for divider
         let currentFrame = window.frame
 
+        #if DEBUG
         print("=== TOGGLE PANEL ===")
         print("Current window frame: \(currentFrame.width) x \(currentFrame.height)")
         print("Panel currently open: \(panelOpen)")
+        #endif
 
         if panelOpen {
             // === CLOSING PANEL ===
             // Calculate current main content width (window minus panel)
             let currentMainWidth = currentFrame.width - panelDelta
+            #if DEBUG
             print("CLOSING - current main width: \(currentMainWidth)")
+            #endif
 
             // Hide panel first
             panelOpen = false
@@ -194,11 +206,15 @@ struct ContentView: View {
                 height: currentFrame.height
             )
             window.setFrame(newFrame, display: true, animate: false)
+            #if DEBUG
             print("Window frame set to: \(window.frame.width)")
+            #endif
         } else {
             // === OPENING PANEL ===
             let desiredWidth = currentFrame.width + panelDelta
+            #if DEBUG
             print("OPENING - expanding to: \(desiredWidth)")
+            #endif
 
             // Update constraints to allow larger window (main content max + panel)
             window.minSize = NSSize(width: mainContentMinWidth + panelDelta, height: window.minSize.height)
@@ -213,13 +229,17 @@ struct ContentView: View {
                 height: currentFrame.height
             )
             window.setFrame(newFrame, display: true, animate: false)
+            #if DEBUG
             print("Window frame set to: \(window.frame.width)")
+            #endif
 
             // Show panel
             panelOpen = true
             isSidebarVisible = true
         }
+        #if DEBUG
         print("=== END TOGGLE ===\n")
+        #endif
     }
 
     // MARK: - Main Content
@@ -476,7 +496,7 @@ struct ContentView: View {
                                 .scaledFont(.headline, weight: .semibold)
 
                             if let note = show.note {
-                                Text(try! AttributedString(markdown: note))
+                                Text((try? AttributedString(markdown: note)) ?? AttributedString(note))
                                     .scaledFont(.caption)
                                     .foregroundColor(Color.red.opacity(0.8))
                             }
@@ -847,6 +867,7 @@ struct ContentView: View {
                 self.parsedTrack = ParsedTrackInfo.parse(metadata)
 
                 if let parsed = self.parsedTrack, let date = parsed.date {
+                    #if DEBUG
                     print("📊 Parsed meta")
                     print("   Date: \(date)")
                     print("   City: \(parsed.city ?? "?"), State: \(parsed.state ?? "?")")
@@ -855,6 +876,7 @@ struct ContentView: View {
                     print("   Source: \(parsed.source ?? "?") Gen: \(parsed.generation ?? "?")")
                     print("   Duration: \(parsed.trackDuration ?? "?")")
                     print("   ShowTime: \(parsed.showTime ?? "none")")
+                    #endif
 
                     let showTime = ShowTime(from: parsed.showTime)
                     self.fetchShowInfo(date: date, showTime: showTime)
@@ -882,7 +904,9 @@ struct ContentView: View {
             let currentlyPlaying = self.isPlaying
             UserDefaults.standard.set(currentlyPlaying, forKey: "wasPlayingOnQuit")
             UserDefaults.standard.synchronize()  // Force immediate write to disk
+            #if DEBUG
             print("💾 willTerminate - saving playing state: \(currentlyPlaying)")
+            #endif
         }
 
         // Timers should be here, NOT inside the callback
@@ -1022,14 +1046,18 @@ struct ContentView: View {
 
         // First attempt: just nudge VLC to resume
         if consecutiveBadStates == 1 {
+            #if DEBUG
             print("⚠️ Bad state detected (state: \(state)), nudging player...")
+            #endif
             player.play()
             return
         }
 
         // Second attempt: full restart
         if consecutiveBadStates >= 2 {
+            #if DEBUG
             print("🔄 Stream restart triggered (state: \(state), format: \(format), consecutive: \(consecutiveBadStates))")
+            #endif
             consecutiveBadStates = 0
             playStream(showWarning: false)
         }
@@ -1099,7 +1127,9 @@ struct ContentView: View {
 
         // Persist playing state immediately so it's saved even if app terminates unexpectedly
         UserDefaults.standard.set(true, forKey: "wasPlayingOnQuit")
+        #if DEBUG
         print("▶️ Playing - saved state: true")
+        #endif
     }
 
     func stopStream() {
@@ -1112,7 +1142,9 @@ struct ContentView: View {
 
         // Persist paused state immediately
         UserDefaults.standard.set(false, forKey: "wasPlayingOnQuit")
+        #if DEBUG
         print("⏸️ Stopped - saved state: false")
+        #endif
     }
 
 
@@ -1134,8 +1166,10 @@ struct ContentView: View {
                     self.parsedTrack = ParsedTrackInfo.parse(metadata)
 
                     if let parsed = self.parsedTrack {
+                        #if DEBUG
                         print("📊 Parsed metadata (from MP3 poll):")
                         print("   Track: #\(parsed.trackNumber ?? "?") - \(parsed.trackName ?? "?")")
+                        #endif
 
                         if let date = parsed.date {
                             let showTime = ShowTime(from: parsed.showTime)
@@ -1172,9 +1206,11 @@ struct ContentView: View {
                 self.isFetchingShowInfo = false
 
                 if let show = show {
+                    #if DEBUG
                     print("✅ Fetched show info for \(show.date)")
                     print("   Venue: \(show.venue)")
                     print("   Setlist: \(show.setlist.count) songs")
+                    #endif
 
                     // Auto-record to history
                     self.showDataManager?.recordListen(show: show)
