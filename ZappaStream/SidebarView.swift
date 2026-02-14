@@ -1,15 +1,6 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - Scroll Offset Tracking
-
-struct ScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 struct SidebarView: View {
     var showDataManager: ShowDataManager
     @Binding var selectedTab: SidebarTab
@@ -58,14 +49,70 @@ struct SidebarView: View {
     }
 }
 
-// MARK: - History List with sticky date headers
+// MARK: - History Time Period
+
+enum HistoryTimePeriod: String, CaseIterable {
+    case thisWeek = "This Week"  // Not displayed as a collapsible header
+    case lastWeek = "Last Week"
+    case twoWeeksAgo = "Two Weeks Ago"
+    case threeWeeksAgo = "Three Weeks Ago"
+    case lastMonth = "Last Month"
+    case older = "Older"
+
+    var isCollapsible: Bool {
+        self != .thisWeek
+    }
+
+    static func period(for date: Date, calendar: Calendar = .current) -> HistoryTimePeriod {
+        let now = Date()
+        let startOfToday = calendar.startOfDay(for: now)
+
+        // Get the start of this week (Sunday or Monday depending on locale)
+        let startOfThisWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? startOfToday
+
+        // Calculate week boundaries
+        let oneWeekAgo = calendar.date(byAdding: .weekOfYear, value: -1, to: startOfThisWeek)!
+        let twoWeeksAgo = calendar.date(byAdding: .weekOfYear, value: -2, to: startOfThisWeek)!
+        let threeWeeksAgo = calendar.date(byAdding: .weekOfYear, value: -3, to: startOfThisWeek)!
+        let fourWeeksAgo = calendar.date(byAdding: .weekOfYear, value: -4, to: startOfThisWeek)!
+
+        if date >= startOfThisWeek {
+            return .thisWeek
+        } else if date >= oneWeekAgo {
+            return .lastWeek
+        } else if date >= twoWeeksAgo {
+            return .twoWeeksAgo
+        } else if date >= threeWeeksAgo {
+            return .threeWeeksAgo
+        } else if date >= fourWeeksAgo {
+            return .lastMonth
+        } else {
+            return .older
+        }
+    }
+}
+
+// MARK: - History Section (for flattened list)
+
+struct HistorySection {
+    let id: String
+    let title: String
+    let shows: [SavedShow]
+    let isPeriodHeader: Bool
+    let period: HistoryTimePeriod?  // Set if this is a period header
+    let showCount: Int
+    let parentPeriod: HistoryTimePeriod?  // Set if this date section belongs to a collapsible period
+    let dateGroups: [(String, [SavedShow])]  // For period sections: the date groupings within
+}
+
+// MARK: - History List with collapsible time periods
 
 struct HistoryListView: View {
     var showDataManager: ShowDataManager
     @ObservedObject var filterState: FilterState
-    @State private var showFilterBar: Bool = false
-    @State private var initialScrollOffset: CGFloat = 0
-    @State private var hasSetInitialOffset: Bool = false
+    @State private var collapsedPeriods: Set<HistoryTimePeriod> = [
+        .lastWeek, .twoWeeksAgo, .threeWeeksAgo, .lastMonth, .older
+    ]
 
     @Query(filter: #Predicate<SavedShow> { $0.listenedAt != nil },
            sort: \SavedShow.listenedAt, order: .reverse)
@@ -75,43 +122,136 @@ struct HistoryListView: View {
         history.filtered(by: filterState)
     }
 
-    private var groupedHistory: [(String, [SavedShow])] {
+    // Group shows by time period, then by date within each period
+    private var groupedByPeriod: [(HistoryTimePeriod, [(String, [SavedShow])])] {
         let calendar = Calendar.current
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .medium
+        dateFormatter.timeStyle = .none
 
-        var groups: [String: [SavedShow]] = [:]
-        var groupOrder: [String] = []
+        // First, group by period
+        var periodGroups: [HistoryTimePeriod: [SavedShow]] = [:]
 
         for show in filteredHistory {
             guard let date = show.listenedAt else { continue }
+            let period = HistoryTimePeriod.period(for: date, calendar: calendar)
 
-            let label: String
-            if calendar.isDateInToday(date) {
-                label = "Today"
-            } else if calendar.isDateInYesterday(date) {
-                label = "Yesterday"
-            } else {
-                let formatter = DateFormatter()
-                formatter.dateStyle = .medium
-                formatter.timeStyle = .none
-                label = formatter.string(from: date)
+            if periodGroups[period] == nil {
+                periodGroups[period] = []
             }
-
-            if groups[label] == nil {
-                groups[label] = []
-                groupOrder.append(label)
-            }
-            groups[label]?.append(show)
+            periodGroups[period]?.append(show)
         }
 
-        return groupOrder.map { ($0, groups[$0]!) }
+        // Now, for each period, group by date
+        var result: [(HistoryTimePeriod, [(String, [SavedShow])])] = []
+
+        for period in HistoryTimePeriod.allCases {
+            guard let shows = periodGroups[period], !shows.isEmpty else { continue }
+
+            var dateGroups: [String: [SavedShow]] = [:]
+            var dateOrder: [String] = []
+
+            for show in shows {
+                guard let date = show.listenedAt else { continue }
+
+                let label: String
+                if calendar.isDateInToday(date) {
+                    label = "Today"
+                } else if calendar.isDateInYesterday(date) {
+                    label = "Yesterday"
+                } else {
+                    label = dateFormatter.string(from: date)
+                }
+
+                if dateGroups[label] == nil {
+                    dateGroups[label] = []
+                    dateOrder.append(label)
+                }
+                dateGroups[label]?.append(show)
+            }
+
+            let datesWithShows = dateOrder.map { ($0, dateGroups[$0]!) }
+            result.append((period, datesWithShows))
+        }
+
+        return result
+    }
+
+    private func togglePeriod(_ period: HistoryTimePeriod, shiftPressed: Bool) {
+        guard period.isCollapsible else { return }
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if shiftPressed {
+                // Shift-click: toggle all collapsible periods
+                let allCollapsiblePeriods = Set(groupedByPeriod.map { $0.0 }.filter { $0.isCollapsible })
+                if collapsedPeriods.contains(period) {
+                    // Expand all
+                    collapsedPeriods.removeAll()
+                } else {
+                    // Collapse all
+                    collapsedPeriods = allCollapsiblePeriods
+                }
+            } else {
+                // Normal click: toggle single period
+                if collapsedPeriods.contains(period) {
+                    collapsedPeriods.remove(period)
+                } else {
+                    collapsedPeriods.insert(period)
+                }
+            }
+        }
+    }
+
+    private func showCount(for period: HistoryTimePeriod) -> Int {
+        groupedByPeriod.first { $0.0 == period }?.1.reduce(0) { $0 + $1.1.count } ?? 0
+    }
+
+    // Build sections where period headers contain all their shows as content
+    // This allows period headers to be pinned while scrolling through their content
+    private func buildFlattenedSections(collapsedPeriods: Set<HistoryTimePeriod>) -> [HistorySection] {
+        var sections: [HistorySection] = []
+
+        for (period, dateGroups) in groupedByPeriod {
+            if period.isCollapsible {
+                // Collapsible period: one section with all shows as content
+                let allShows = dateGroups.flatMap { $0.1 }
+                let periodShowCount = allShows.count
+
+                sections.append(HistorySection(
+                    id: "period-\(period.rawValue)",
+                    title: period.rawValue,
+                    shows: collapsedPeriods.contains(period) ? [] : allShows,
+                    isPeriodHeader: true,
+                    period: period,
+                    showCount: periodShowCount,
+                    parentPeriod: nil,
+                    dateGroups: collapsedPeriods.contains(period) ? [] : dateGroups
+                ))
+            } else {
+                // This week: add date sections directly (these will have sticky date headers)
+                for (dateLabel, shows) in dateGroups {
+                    sections.append(HistorySection(
+                        id: "date-thisweek-\(dateLabel)",
+                        title: dateLabel,
+                        shows: shows,
+                        isPeriodHeader: false,
+                        period: nil,
+                        showCount: shows.count,
+                        parentPeriod: nil,
+                        dateGroups: []
+                    ))
+                }
+            }
+        }
+
+        return sections
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Filter bar - shown when scrolled
-            if !history.isEmpty && showFilterBar {
+            // Filter bar
+            if !history.isEmpty {
                 FilterBar(filterState: filterState, shows: history)
-                    .transition(.move(edge: .top).combined(with: .opacity))
                 Divider()
             }
 
@@ -142,24 +282,67 @@ struct HistoryListView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 ScrollView {
-                    VStack(spacing: 0) {
-                        // Invisible anchor at the very top to detect pull-down
-                        GeometryReader { geo in
-                            Color.clear.preference(
-                                key: ScrollOffsetPreferenceKey.self,
-                                value: geo.frame(in: .global).minY
-                            )
-                        }
-                        .frame(height: 0)
+                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        ForEach(buildFlattenedSections(collapsedPeriods: collapsedPeriods), id: \.id) { section in
+                            Section {
+                                if section.isPeriodHeader {
+                                    // Period section content: date groups with their shows
+                                    ForEach(section.dateGroups, id: \.0) { dateLabel, shows in
+                                        // Date header (non-sticky, within period)
+                                        Text(dateLabel)
+                                            .scaledFont(.subheadline, weight: .bold)
+                                            .foregroundColor(.primary)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .background(Color.sectionHeaderBackground)
 
-                        LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
-                            ForEach(groupedHistory, id: \.0) { dateLabel, shows in
-                                Section {
-                                    ForEach(shows) { show in
+                                        // Shows for this date
+                                        ForEach(shows) { show in
+                                            ShowEntryRow(savedShow: show, showDataManager: showDataManager)
+                                        }
+                                    }
+                                } else {
+                                    // This week date section: shows directly
+                                    ForEach(section.shows) { show in
                                         ShowEntryRow(savedShow: show, showDataManager: showDataManager)
                                     }
-                                } header: {
-                                    Text(dateLabel)
+                                }
+                            } header: {
+                                if section.isPeriodHeader {
+                                    // Period header (collapsible, sticky)
+                                    HStack {
+                                        Text(section.title.uppercased())
+                                            .scaledFont(.caption, weight: .heavy)
+                                            .foregroundColor(.secondary)
+                                            .tracking(0.5)
+
+                                        Text("(\(section.showCount))")
+                                            .scaledFont(.caption)
+                                            .foregroundColor(.secondary.opacity(0.7))
+
+                                        Spacer()
+
+                                        Image(systemName: collapsedPeriods.contains(section.period!) ? "chevron.right" : "chevron.down")
+                                            .scaledFont(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 10)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.controlBackground)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        #if os(macOS)
+                                        let shiftPressed = NSEvent.modifierFlags.contains(.shift)
+                                        #else
+                                        let shiftPressed = false
+                                        #endif
+                                        togglePeriod(section.period!, shiftPressed: shiftPressed)
+                                    }
+                                } else {
+                                    // This week date header (sticky)
+                                    Text(section.title)
                                         .scaledFont(.subheadline, weight: .bold)
                                         .foregroundColor(.primary)
                                         .padding(.horizontal, 10)
@@ -169,30 +352,15 @@ struct HistoryListView: View {
                                 }
                             }
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
                     }
-                }
-                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { minY in
-                    // Capture initial offset on first reading
-                    if !hasSetInitialOffset {
-                        initialScrollOffset = minY
-                        hasSetInitialOffset = true
-                        return
-                    }
-                    // When pulled down, minY increases beyond its resting position
-                    if !showFilterBar && minY > initialScrollOffset + 20 {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            showFilterBar = true
-                        }
-                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
                 }
                 #if os(iOS)
                 .scrollDismissesKeyboard(.interactively)
                 #endif
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: showFilterBar)
     }
 }
 
@@ -202,9 +370,6 @@ struct FavoritesListView: View {
     var showDataManager: ShowDataManager
     @ObservedObject var filterState: FilterState
     @State private var collapsedYears: Set<String> = []
-    @State private var showFilterBar: Bool = false
-    @State private var initialScrollOffset: CGFloat = 0
-    @State private var hasSetInitialOffset: Bool = false
 
     @Query(filter: #Predicate<SavedShow> { $0.isFavorite == true },
            sort: \SavedShow.showDate, order: .reverse)
@@ -257,10 +422,9 @@ struct FavoritesListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Filter bar - shown when scrolled
-            if !favorites.isEmpty && showFilterBar {
+            // Filter bar
+            if !favorites.isEmpty {
                 FilterBar(filterState: filterState, shows: favorites)
-                    .transition(.move(edge: .top).combined(with: .opacity))
                 Divider()
             }
 
@@ -291,73 +455,47 @@ struct FavoritesListView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 ScrollView {
-                    VStack(spacing: 0) {
-                        // Invisible anchor at the very top to detect pull-down
-                        GeometryReader { geo in
-                            Color.clear.preference(
-                                key: ScrollOffsetPreferenceKey.self,
-                                value: geo.frame(in: .global).minY
-                            )
-                        }
-                        .frame(height: 0)
-
-                        LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
-                            ForEach(groupedFavorites, id: \.0) { year, shows in
-                                Section {
-                                    if !collapsedYears.contains(year) {
-                                        ForEach(shows) { show in
-                                            ShowEntryRow(savedShow: show, showDataManager: showDataManager)
-                                        }
+                    LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
+                        ForEach(groupedFavorites, id: \.0) { year, shows in
+                            Section {
+                                if !collapsedYears.contains(year) {
+                                    ForEach(shows) { show in
+                                        ShowEntryRow(savedShow: show, showDataManager: showDataManager)
                                     }
-                                } header: {
-                                    HStack {
-                                        Text(year)
-                                            .scaledFont(.subheadline, weight: .bold)
-                                            .foregroundColor(.primary)
-                                        Spacer()
-                                        Image(systemName: collapsedYears.contains(year) ? "chevron.right" : "chevron.down")
-                                            .scaledFont(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.sectionHeaderBackground)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        #if os(macOS)
-                                        let shiftPressed = NSEvent.modifierFlags.contains(.shift)
-                                        #else
-                                        let shiftPressed = false
-                                        #endif
-                                        toggleYear(year, shiftPressed: shiftPressed)
-                                    }
+                                }
+                            } header: {
+                                HStack {
+                                    Text(year)
+                                        .scaledFont(.subheadline, weight: .bold)
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Image(systemName: collapsedYears.contains(year) ? "chevron.right" : "chevron.down")
+                                        .scaledFont(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.sectionHeaderBackground)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    #if os(macOS)
+                                    let shiftPressed = NSEvent.modifierFlags.contains(.shift)
+                                    #else
+                                    let shiftPressed = false
+                                    #endif
+                                    toggleYear(year, shiftPressed: shiftPressed)
                                 }
                             }
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
                     }
-                }
-                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { minY in
-                    // Capture initial offset on first reading
-                    if !hasSetInitialOffset {
-                        initialScrollOffset = minY
-                        hasSetInitialOffset = true
-                        return
-                    }
-                    // When pulled down, minY increases beyond its resting position
-                    if !showFilterBar && minY > initialScrollOffset + 20 {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            showFilterBar = true
-                        }
-                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
                 }
                 #if os(iOS)
                 .scrollDismissesKeyboard(.interactively)
                 #endif
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: showFilterBar)
     }
 }
