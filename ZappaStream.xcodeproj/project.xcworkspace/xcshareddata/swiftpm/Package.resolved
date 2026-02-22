@@ -1,0 +1,15 @@
+{
+  "originHash" : "25085a7e64bf673fb90dc783104166240be0b00a372e8a17f8a0e9da396cb726",
+  "pins" : [
+    {
+      "identity" : "cbass",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Treata11/CBass.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "74cb58f5c900bc1579173fb3b2d94e7c4463a238"
+      }
+    }
+  ],
+  "version" : 3
+}

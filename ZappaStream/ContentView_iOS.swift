@@ -9,7 +9,6 @@
 import SwiftUI
 import SwiftData
 import AVFoundation
-import MobileVLCKit
 import MediaPlayer
 
 struct ContentView_iOS: View {
@@ -22,8 +21,7 @@ struct ContentView_iOS: View {
     @State private var selectedStream: Stream?
     @State private var currentTrack: String = "No track info"
     @State private var parsedTrack: ParsedTrackInfo?
-    @State private var mediaPlayer: VLCMediaPlayer?
-    @State private var streamReader: IcecastStreamReader?
+    @State private var bassPlayer = BASSRadioPlayer()
     @State private var currentShow: FZShow?
     @AppStorage("showInfoExpanded") private var showInfoExpanded: Bool = false
     @State private var isFetchingShowInfo: Bool = false
@@ -35,7 +33,6 @@ struct ContentView_iOS: View {
     @State private var showSettings: Bool = false
     @State private var showSidebar: Bool = false
     @State private var bugReportData: BugReportData?
-    @State private var consecutiveBadStates: Int = 0  // Track bad states for AAC recovery
     @State private var showDelayWarning: Bool = false  // Temporarily show delay warning for non-MP3 streams
     @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
     @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
@@ -43,8 +40,8 @@ struct ContentView_iOS: View {
 
     let streams = [
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
-        Stream(name: "AAC (192 kbit/s)", url: "https://shoutcast.norbert.de/zappa.aac", format: "AAC"),
-        Stream(name: "OGG (256 kbit/s)", url: "https://shoutcast.norbert.de/zappa.ogg", format: "OGG"),
+        Stream(name: "OGG (90 kbit/s)", url: "https://shoutcast.norbert.de/zappa.ogg", format: "OGG"),
+        Stream(name: "AAC (256 kbit/s)", url: "https://shoutcast.norbert.de/zappa.aac", format: "AAC"),
         Stream(name: "FLAC (750 kbit/s)", url: "https://shoutcast.norbert.de/zappa.flac", format: "FLAC")
     ]
 
@@ -745,23 +742,7 @@ struct ContentView_iOS: View {
     // MARK: - Player Setup
 
     func setupPlayer() {
-        // Configure audio session for high-quality playback
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .default, options: [])
-            try audioSession.setPreferredSampleRate(48000)
-            try audioSession.setPreferredIOBufferDuration(0.005)
-            try audioSession.setActive(true)
-        } catch {
-            #if DEBUG
-            print("Failed to configure audio session: \(error)")
-            #endif
-        }
-
-        mediaPlayer = VLCMediaPlayer()
-        streamReader = IcecastStreamReader()
-
-        streamReader?.onMetadataUpdate = { metadata in
+        bassPlayer.onMetadataUpdate = { metadata in
             DispatchQueue.main.async {
                 self.currentTrack = metadata
                 self.parsedTrack = ParsedTrackInfo.parse(metadata)
@@ -771,7 +752,6 @@ struct ContentView_iOS: View {
                     self.fetchShowInfo(date: date, showTime: showTime)
                 }
 
-                // Update current setlist position for duplicate track name handling
                 if let position = self.findCurrentTrackPosition() {
                     self.currentSetlistPosition = position
                 }
@@ -781,14 +761,6 @@ struct ContentView_iOS: View {
         }
 
         setupRemoteCommandCenter()
-
-        Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
-            self.pollMP3Metadata()
-        }
-
-        Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
-            self.checkStreamState()
-        }
     }
 
     // MARK: - Remote Command Center
@@ -859,102 +831,13 @@ struct ContentView_iOS: View {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
 
-    private func checkStreamState() {
-        guard let player = mediaPlayer,
-              isPlaying,
-              let format = selectedStream?.format,
-              format != "MP3" else {
-            consecutiveBadStates = 0
-            return
-        }
-
-        // VLC Player States:
-        // 0 = NothingSpecial, 1 = Opening, 2 = Buffering, 3 = Playing
-        // 4 = Paused, 5 = Stopped, 6 = Ended, 7 = Error
-        let state = player.state.rawValue
-
-        // If playing normally, reset counter
-        if state == 3 {
-            consecutiveBadStates = 0
-            return
-        }
-
-        // Opening or Buffering states are fine, just wait
-        if state == 1 || state == 2 {
-            return
-        }
-
-        // Bad state detected (0, 5, 6, 7) - increment counter
-        consecutiveBadStates += 1
-
-        // First attempt: just nudge VLC to resume
-        if consecutiveBadStates == 1 {
-            #if DEBUG
-            print("⚠️ Bad state detected (state: \(state)), nudging player...")
-            #endif
-            player.play()
-            return
-        }
-
-        // Second attempt: full restart
-        if consecutiveBadStates >= 2 {
-            #if DEBUG
-            print("🔄 Stream restart triggered (state: \(state), format: \(format), consecutive: \(consecutiveBadStates))")
-            #endif
-            consecutiveBadStates = 0
-            playStream(showWarning: false)
-        }
-    }
-
     func playStream(showWarning: Bool = true) {
-        mediaPlayer?.stop()
-        streamReader?.stopStreaming()
+        guard let stream = selectedStream else { return }
 
-        guard let stream = selectedStream, let url = URL(string: stream.url) else { return }
-
-        if stream.format == "MP3" {
-            streamReader?.startStreaming(url: url)
-        } else {
-            streamReader?.stopStreaming()
-        }
-
-        let media = VLCMedia(url: url)
-        if stream.format == "AAC" {
-            // AAC streams need options to handle track boundary discontinuities
-            // The server sends AAC with discontinuities at track changes that cause decode errors
-            media.addOptions([
-                "network-caching": "10000",     // 10 second buffer
-                "live-caching": "10000",
-                "file-caching": "10000",
-                "clock-jitter": "0",
-                "clock-synchro": "0",           // Disable clock sync to avoid drops
-                "demux": "avformat",
-                "avformat-options": "{analyzeduration:20000000,probesize:20000000,err_detect:ignore_err,fflags:+discardcorrupt+ignidx}",
-                "codec": "avcodec",
-                "avcodec-skiploopfilter": "4",
-                "avcodec-skip-frame": "0",
-                "avcodec-skip-idct": "0",
-                "avcodec-fast": "1",
-                "avcodec-hurry-up": "0",
-                "avcodec-error-resilience": "4" // Maximum error resilience
-            ])
-        } else if stream.format == "OGG" {
-            // OGG/Vorbis streams have extra dropouts at track changes - increase buffering
-            media.addOptions([
-                "network-caching": "5000",      // 5 second network buffer
-                "live-caching": "5000",
-                "file-caching": "3000"
-            ])
-        } else if stream.format == "FLAC" {
-            media.addOptions(["network-caching": "3000"])
-        }
-        mediaPlayer?.media = media
-        mediaPlayer?.play()
+        bassPlayer.play(format: stream.format, url: stream.url)
         isPlaying = true
         updateNowPlayingInfo()
 
-        // Show delay warning for non-MP3 streams, then hide after 5 seconds
-        // Only show on user-initiated plays, not automatic recovery/restarts
         if showWarning && stream.format != "MP3" {
             showDelayWarning = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
@@ -970,49 +853,11 @@ struct ContentView_iOS: View {
     }
 
     func stopStream() {
-        mediaPlayer?.pause()
+        bassPlayer.stop()
         isPlaying = false
         updateNowPlayingInfo()
 
-        streamReader?.stopStreaming()
-
         UserDefaults.standard.set(false, forKey: "wasPlayingOnQuit")
-    }
-
-    func pollMP3Metadata() {
-        guard let selectedStream = selectedStream,
-              (selectedStream.format == "OGG" || selectedStream.format == "FLAC" || selectedStream.format == "AAC"),
-              isPlaying else { return }
-
-        let tempReader = IcecastStreamReader()
-        tempReader.onMetadataUpdate = { metadata in
-            if !metadata.isEmpty {
-                DispatchQueue.main.async {
-                    self.currentTrack = metadata
-                    self.parsedTrack = ParsedTrackInfo.parse(metadata)
-
-                    if let parsed = self.parsedTrack, let date = parsed.date {
-                        let showTime = ShowTime(from: parsed.showTime)
-                        self.fetchShowInfo(date: date, showTime: showTime)
-                    }
-
-                    // Update current setlist position for duplicate track name handling
-                    if let position = self.findCurrentTrackPosition() {
-                        self.currentSetlistPosition = position
-                    }
-
-                    self.updateNowPlayingInfo()
-                }
-            }
-            tempReader.stopStreaming()
-        }
-
-        if let mp3URL = URL(string: "https://shoutcast.norbert.de/zappa.mp3") {
-            tempReader.startStreaming(url: mp3URL)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                tempReader.stopStreaming()
-            }
-        }
     }
 
     func fetchShowInfo(date: String, showTime: ShowTime = .none) {

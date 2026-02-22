@@ -8,9 +8,28 @@
 
 /* Begin PBXBuildFile section */
 		07D191737EF2D1D5E95B0ADB /* ScaledFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = B859389429B13E3327751EB4 /* ScaledFont.swift */; };
-		21BE041F9119BEFC92D75A73 /* Pods_ZappaStream.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 774EF79169BA133AE787E350 /* Pods_ZappaStream.framework */; };
 		360EE955A35C50D1A38B36CD /* TourPeriods.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */; };
 		9D924559343B4593F5DE1323 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */; };
+		BE024DBD2F4A655500B2C079 /* Bass in Frameworks */ = {isa = PBXBuildFile; productRef = BE024DBC2F4A655500B2C079 /* Bass */; };
+		BE024DBF2F4A655500B2C079 /* BassFLAC in Frameworks */ = {isa = PBXBuildFile; productRef = BE024DBE2F4A655500B2C079 /* BassFLAC */; };
+		BE024DC12F4A655500B2C079 /* BassFX in Frameworks */ = {isa = PBXBuildFile; productRef = BE024DC02F4A655500B2C079 /* BassFX */; };
+		BE024DC32F4A655500B2C079 /* BassHLS in Frameworks */ = {isa = PBXBuildFile; productRef = BE024DC22F4A655500B2C079 /* BassHLS */; };
+		BE024DC52F4A655500B2C079 /* BassMix in Frameworks */ = {isa = PBXBuildFile; productRef = BE024DC42F4A655500B2C079 /* BassMix */; };
+		BE024DC72F4A655500B2C079 /* Tags in Frameworks */ = {isa = PBXBuildFile; productRef = BE024DC62F4A655500B2C079 /* Tags */; };
+		BE024DD42F4A65D100B2C079 /* bass_fx.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BE024DC92F4A659300B2C079 /* bass_fx.xcframework */; };
+		BE024DD52F4A65D200B2C079 /* bass_fx.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BE024DC92F4A659300B2C079 /* bass_fx.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		BE024DD72F4A65D300B2C079 /* bass.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BE024DC82F4A659300B2C079 /* bass.xcframework */; };
+		BE024DD82F4A65D300B2C079 /* bass.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BE024DC82F4A659300B2C079 /* bass.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		BE024DD92F4A65D400B2C079 /* bassflac.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BE024DCA2F4A659300B2C079 /* bassflac.xcframework */; };
+		BE024DDA2F4A65D400B2C079 /* bassflac.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BE024DCA2F4A659300B2C079 /* bassflac.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		BE024DDB2F4A65D500B2C079 /* basshls.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BE024DCB2F4A659300B2C079 /* basshls.xcframework */; };
+		BE024DDC2F4A65D500B2C079 /* basshls.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BE024DCB2F4A659300B2C079 /* basshls.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		BE024DDD2F4A65D600B2C079 /* bassmix.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BE024DCC2F4A659300B2C079 /* bassmix.xcframework */; };
+		BE024DDE2F4A65D600B2C079 /* bassmix.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BE024DCC2F4A659300B2C079 /* bassmix.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		BE024DDF2F4A65D700B2C079 /* tags.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BE024DCD2F4A659300B2C079 /* tags.xcframework */; };
+		BE024DE02F4A65D700B2C079 /* tags.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BE024DCD2F4A659300B2C079 /* tags.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		BE024DE32F4A67D800B2C079 /* BASSRadioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */; };
+		BE024DE42F4A67F600B2C079 /* BASSRadioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */; };
 		BE1A341F2F30C6D600647B01 /* ZappaStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */; };
 		BE1A34212F30C6D600647B01 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A34202F30C6D600647B01 /* ContentView.swift */; };
 		BE1A34252F30C6D800647B01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE1A34242F30C6D800647B01 /* Assets.xcassets */; };
@@ -31,13 +50,11 @@
 		BE2FCA742F3CBBCA0038E706 /* ZappaStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */; };
 		BE2FCA752F3CBBCA0038E706 /* Acronym.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00002F34000100AA0001 /* Acronym.swift */; };
 		BE2FCA762F3CBBCA0038E706 /* FZShowsFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */; };
-		BE2FCA772F3CBBCA0038E706 /* IcecastStreamReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */; };
 		BE2FCA782F3CBBCA0038E706 /* ScaledFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = B859389429B13E3327751EB4 /* ScaledFont.swift */; };
 		BE2FCA792F3CBBCA0038E706 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */; };
 		BE2FCA7A2F3CBBCA0038E706 /* SongFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752DBEE239607630EF9BE524 /* SongFormatter.swift */; };
 		BE2FCA7B2F3CBBCA0038E706 /* SavedShow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00022F34000100AA0003 /* SavedShow.swift */; };
 		BE2FCA7C2F3CBBCA0038E706 /* MarqueeText.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */; };
-		BE88693F2F31043D003E52DE /* IcecastStreamReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */; };
 		BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */; };
 		BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */; };
 		BEAA00012F34000100AA0001 /* Acronym.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00002F34000100AA0001 /* Acronym.swift */; };
@@ -50,19 +67,40 @@
 		BEF8E53E2F3A873A000B6773 /* MarqueeText.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */; };
 		F62804A5EF88994291433F17 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
 		FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752DBEE239607630EF9BE524 /* SongFormatter.swift */; };
-		FD0D9ABCE142CA8742A9D2AF /* Pods_ZappaStream_iOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C370087ABAC7190EF08EA5AB /* Pods_ZappaStream_iOS.framework */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		BE024DD62F4A65D200B2C079 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				BE024DE02F4A65D700B2C079 /* tags.xcframework in Embed Frameworks */,
+				BE024DDE2F4A65D600B2C079 /* bassmix.xcframework in Embed Frameworks */,
+				BE024DDA2F4A65D400B2C079 /* bassflac.xcframework in Embed Frameworks */,
+				BE024DD82F4A65D300B2C079 /* bass.xcframework in Embed Frameworks */,
+				BE024DDC2F4A65D500B2C079 /* basshls.xcframework in Embed Frameworks */,
+				BE024DD52F4A65D200B2C079 /* bass_fx.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
-		114158B3DA31188C0E2D5237 /* Pods-ZappaStream.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZappaStream.release.xcconfig"; path = "Target Support Files/Pods-ZappaStream/Pods-ZappaStream.release.xcconfig"; sourceTree = "<group>"; };
-		4FFDBE7B5610D357DD8799E2 /* Pods-ZappaStream-iOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZappaStream-iOS.release.xcconfig"; path = "Target Support Files/Pods-ZappaStream-iOS/Pods-ZappaStream-iOS.release.xcconfig"; sourceTree = "<group>"; };
 		5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TourPeriods.swift; sourceTree = "<group>"; };
 		5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		752DBEE239607630EF9BE524 /* SongFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SongFormatter.swift; sourceTree = "<group>"; };
-		774EF79169BA133AE787E350 /* Pods_ZappaStream.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ZappaStream.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		82FFBCE2D30DA600491011C3 /* Pods-ZappaStream.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZappaStream.debug.xcconfig"; path = "Target Support Files/Pods-ZappaStream/Pods-ZappaStream.debug.xcconfig"; sourceTree = "<group>"; };
-		945CE34E0606432E5978D797 /* Pods-ZappaStream-iOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ZappaStream-iOS.debug.xcconfig"; path = "Target Support Files/Pods-ZappaStream-iOS/Pods-ZappaStream-iOS.debug.xcconfig"; sourceTree = "<group>"; };
 		B859389429B13E3327751EB4 /* ScaledFont.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScaledFont.swift; sourceTree = "<group>"; };
+		BE024DC82F4A659300B2C079 /* bass.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = bass.xcframework; path = Frameworks/iOS/bass.xcframework; sourceTree = SOURCE_ROOT; };
+		BE024DC92F4A659300B2C079 /* bass_fx.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = bass_fx.xcframework; path = Frameworks/iOS/bass_fx.xcframework; sourceTree = SOURCE_ROOT; };
+		BE024DCA2F4A659300B2C079 /* bassflac.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = bassflac.xcframework; path = Frameworks/iOS/bassflac.xcframework; sourceTree = SOURCE_ROOT; };
+		BE024DCB2F4A659300B2C079 /* basshls.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = basshls.xcframework; path = Frameworks/iOS/basshls.xcframework; sourceTree = SOURCE_ROOT; };
+		BE024DCC2F4A659300B2C079 /* bassmix.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = bassmix.xcframework; path = Frameworks/iOS/bassmix.xcframework; sourceTree = SOURCE_ROOT; };
+		BE024DCD2F4A659300B2C079 /* tags.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = tags.xcframework; path = Frameworks/iOS/tags.xcframework; sourceTree = SOURCE_ROOT; };
+		BE024DE12F4A67D800B2C079 /* BASSBridgingHeader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BASSBridgingHeader.h; sourceTree = "<group>"; };
+		BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASSRadioPlayer.swift; sourceTree = "<group>"; };
 		BE1A341B2F30C6D600647B01 /* ZappaStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZappaStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZappaStreamApp.swift; sourceTree = "<group>"; };
 		BE1A34202F30C6D600647B01 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -75,7 +113,6 @@
 		BE2FCA662F3CB93F0038E706 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PlatformHelpers.swift; sourceTree = "<group>"; };
 		BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentView_iOS.swift; sourceTree = "<group>"; };
-		BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IcecastStreamReader.swift; sourceTree = "<group>"; };
 		BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfo.swift; sourceTree = "<group>"; };
 		BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stream.swift; sourceTree = "<group>"; };
 		BEAA00002F34000100AA0001 /* Acronym.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Acronym.swift; sourceTree = "<group>"; };
@@ -86,7 +123,6 @@
 		BED5C49B2F30D50C009DB6FE /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsFetcher.swift; sourceTree = "<group>"; };
 		BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MarqueeText.swift; sourceTree = "<group>"; };
-		C370087ABAC7190EF08EA5AB /* Pods_ZappaStream_iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ZappaStream_iOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FilterView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -95,8 +131,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BE024DC12F4A655500B2C079 /* BassFX in Frameworks */,
 				BED5C49C2F30D50C009DB6FE /* Cocoa.framework in Frameworks */,
-				21BE041F9119BEFC92D75A73 /* Pods_ZappaStream.framework in Frameworks */,
+				BE024DC72F4A655500B2C079 /* Tags in Frameworks */,
+				BE024DC32F4A655500B2C079 /* BassHLS in Frameworks */,
+				BE024DBD2F4A655500B2C079 /* Bass in Frameworks */,
+				BE024DC52F4A655500B2C079 /* BassMix in Frameworks */,
+				BE024DBF2F4A655500B2C079 /* BassFLAC in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -104,30 +145,22 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FD0D9ABCE142CA8742A9D2AF /* Pods_ZappaStream_iOS.framework in Frameworks */,
+				BE024DDB2F4A65D500B2C079 /* basshls.xcframework in Frameworks */,
+				BE024DD72F4A65D300B2C079 /* bass.xcframework in Frameworks */,
+				BE024DD92F4A65D400B2C079 /* bassflac.xcframework in Frameworks */,
+				BE024DD42F4A65D100B2C079 /* bass_fx.xcframework in Frameworks */,
+				BE024DDD2F4A65D600B2C079 /* bassmix.xcframework in Frameworks */,
+				BE024DDF2F4A65D700B2C079 /* tags.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		A806FBCBFC537F38D854EC63 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				82FFBCE2D30DA600491011C3 /* Pods-ZappaStream.debug.xcconfig */,
-				114158B3DA31188C0E2D5237 /* Pods-ZappaStream.release.xcconfig */,
-				945CE34E0606432E5978D797 /* Pods-ZappaStream-iOS.debug.xcconfig */,
-				4FFDBE7B5610D357DD8799E2 /* Pods-ZappaStream-iOS.release.xcconfig */,
-			);
-			path = Pods;
-			sourceTree = "<group>";
-		};
 		B7EB114D716DB2355761DC19 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				BED5C49B2F30D50C009DB6FE /* Cocoa.framework */,
-				774EF79169BA133AE787E350 /* Pods_ZappaStream.framework */,
-				C370087ABAC7190EF08EA5AB /* Pods_ZappaStream_iOS.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -138,7 +171,6 @@
 				BE1A341D2F30C6D600647B01 /* ZappaStream */,
 				BE2FCA572F3CB6F60038E706 /* ZappaStream-iOS */,
 				BE1A341C2F30C6D600647B01 /* Products */,
-				A806FBCBFC537F38D854EC63 /* Pods */,
 				B7EB114D716DB2355761DC19 /* Frameworks */,
 			);
 			sourceTree = "<group>";
@@ -159,7 +191,6 @@
 				BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */,
 				BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */,
 				BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */,
-				BE88693E2F31043D003E52DE /* IcecastStreamReader.swift */,
 				BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */,
 				BE1A34202F30C6D600647B01 /* ContentView.swift */,
 				BEAA00002F34000100AA0001 /* Acronym.swift */,
@@ -177,6 +208,8 @@
 				DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */,
 				752DBEE239607630EF9BE524 /* SongFormatter.swift */,
 				5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */,
+				BE024DE12F4A67D800B2C079 /* BASSBridgingHeader.h */,
+				BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */,
 			);
 			path = ZappaStream;
 			sourceTree = "<group>";
@@ -195,6 +228,12 @@
 				BE2FCA662F3CB93F0038E706 /* Info.plist */,
 				BE2FCA5E2F3CB6F70038E706 /* Assets.xcassets */,
 				BE2FCA602F3CB6F70038E706 /* Preview Content */,
+				BE024DC82F4A659300B2C079 /* bass.xcframework */,
+				BE024DC92F4A659300B2C079 /* bass_fx.xcframework */,
+				BE024DCA2F4A659300B2C079 /* bassflac.xcframework */,
+				BE024DCB2F4A659300B2C079 /* basshls.xcframework */,
+				BE024DCC2F4A659300B2C079 /* bassmix.xcframework */,
+				BE024DCD2F4A659300B2C079 /* tags.xcframework */,
 			);
 			path = "ZappaStream-iOS";
 			sourceTree = "<group>";
@@ -214,11 +253,9 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = BE1A342C2F30C6D800647B01 /* Build configuration list for PBXNativeTarget "ZappaStream" */;
 			buildPhases = (
-				564F4E6083CF909C1EF1B04C /* [CP] Check Pods Manifest.lock */,
 				BE1A34172F30C6D600647B01 /* Sources */,
 				BE1A34182F30C6D600647B01 /* Frameworks */,
 				BE1A34192F30C6D600647B01 /* Resources */,
-				B47B06E245917E6357ACCCC9 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -233,11 +270,10 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = BE2FCA652F3CB6F70038E706 /* Build configuration list for PBXNativeTarget "ZappaStream-iOS" */;
 			buildPhases = (
-				FCBB1D14B34A1EC012E80FE6 /* [CP] Check Pods Manifest.lock */,
 				BE2FCA522F3CB6F60038E706 /* Sources */,
 				BE2FCA532F3CB6F60038E706 /* Frameworks */,
 				BE2FCA542F3CB6F60038E706 /* Resources */,
-				86DC11188AE454776CDD71A9 /* [CP] Embed Pods Frameworks */,
+				BE024DD62F4A65D200B2C079 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -255,7 +291,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1540;
+				LastSwiftUpdateCheck = 1620;
 				LastUpgradeCheck = 1540;
 				TargetAttributes = {
 					BE1A341A2F30C6D600647B01 = {
@@ -275,6 +311,9 @@
 				Base,
 			);
 			mainGroup = BE1A34122F30C6D600647B01;
+			packageReferences = (
+				BE024DBB2F4A655500B2C079 /* XCRemoteSwiftPackageReference "CBass" */,
+			);
 			productRefGroup = BE1A341C2F30C6D600647B01 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -307,80 +346,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		564F4E6083CF909C1EF1B04C /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-ZappaStream-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		86DC11188AE454776CDD71A9 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ZappaStream-iOS/Pods-ZappaStream-iOS-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		B47B06E245917E6357ACCCC9 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ZappaStream/Pods-ZappaStream-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		FCBB1D14B34A1EC012E80FE6 /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-ZappaStream-iOS-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -399,13 +364,13 @@
 				BEAA00092F34000100AA0009 /* ShowEntryRow.swift in Sources */,
 				BE1A341F2F30C6D600647B01 /* ZappaStreamApp.swift in Sources */,
 				BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */,
-				BE88693F2F31043D003E52DE /* IcecastStreamReader.swift in Sources */,
 				BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */,
 				07D191737EF2D1D5E95B0ADB /* ScaledFont.swift in Sources */,
 				360EE955A35C50D1A38B36CD /* TourPeriods.swift in Sources */,
 				BE2FCA682F3CBB2E0038E706 /* PlatformHelpers.swift in Sources */,
 				F62804A5EF88994291433F17 /* FilterView.swift in Sources */,
 				FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */,
+				BE024DE32F4A67D800B2C079 /* BASSRadioPlayer.swift in Sources */,
 				9D924559343B4593F5DE1323 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -425,11 +390,11 @@
 				BE2FCA742F3CBBCA0038E706 /* ZappaStreamApp.swift in Sources */,
 				BE2FCA752F3CBBCA0038E706 /* Acronym.swift in Sources */,
 				BE2FCA762F3CBBCA0038E706 /* FZShowsFetcher.swift in Sources */,
-				BE2FCA772F3CBBCA0038E706 /* IcecastStreamReader.swift in Sources */,
 				BE2FCA782F3CBBCA0038E706 /* ScaledFont.swift in Sources */,
 				BE2FCA792F3CBBCA0038E706 /* SettingsView.swift in Sources */,
 				BE2FCA7A2F3CBBCA0038E706 /* SongFormatter.swift in Sources */,
 				BE2FCA7B2F3CBBCA0038E706 /* SavedShow.swift in Sources */,
+				BE024DE42F4A67F600B2C079 /* BASSRadioPlayer.swift in Sources */,
 				BE2FCA7C2F3CBBCA0038E706 /* MarqueeText.swift in Sources */,
 				BE2FCA6B2F3CBB520038E706 /* ContentView_iOS.swift in Sources */,
 			);
@@ -554,15 +519,16 @@
 		};
 		BE1A342D2F30C6D800647B01 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 82FFBCE2D30DA600491011C3 /* Pods-ZappaStream.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = ZappaStream/ZappaStream.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
 				DEVELOPMENT_TEAM = UZA73C6M3L;
+				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -581,28 +547,29 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.datisit.ZappaStream;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
 		BE1A342E2F30C6D800647B01 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 114158B3DA31188C0E2D5237 /* Pods-ZappaStream.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = ZappaStream/ZappaStream.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
 				DEVELOPMENT_TEAM = UZA73C6M3L;
+				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -621,20 +588,19 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.datisit.ZappaStream;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
 		BE2FCA632F3CB6F70038E706 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 945CE34E0606432E5978D797 /* Pods-ZappaStream-iOS.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -645,6 +611,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks/iOS/include";
 				INFOPLIST_FILE = "ZappaStream-iOS/Info.plist";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -656,11 +623,12 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.9;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.datisit.ZappaStream-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = ZappaStream/BASSBridgingHeader.h;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -668,7 +636,6 @@
 		};
 		BE2FCA642F3CB6F70038E706 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 4FFDBE7B5610D357DD8799E2 /* Pods-ZappaStream-iOS.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -679,6 +646,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks/iOS/include";
 				INFOPLIST_FILE = "ZappaStream-iOS/Info.plist";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -690,11 +658,12 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.9;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.datisit.ZappaStream-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = ZappaStream/BASSBridgingHeader.h;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
@@ -732,6 +701,50 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		BE024DBB2F4A655500B2C079 /* XCRemoteSwiftPackageReference "CBass" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Treata11/CBass.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BE024DBC2F4A655500B2C079 /* Bass */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BE024DBB2F4A655500B2C079 /* XCRemoteSwiftPackageReference "CBass" */;
+			productName = Bass;
+		};
+		BE024DBE2F4A655500B2C079 /* BassFLAC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BE024DBB2F4A655500B2C079 /* XCRemoteSwiftPackageReference "CBass" */;
+			productName = BassFLAC;
+		};
+		BE024DC02F4A655500B2C079 /* BassFX */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BE024DBB2F4A655500B2C079 /* XCRemoteSwiftPackageReference "CBass" */;
+			productName = BassFX;
+		};
+		BE024DC22F4A655500B2C079 /* BassHLS */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BE024DBB2F4A655500B2C079 /* XCRemoteSwiftPackageReference "CBass" */;
+			productName = BassHLS;
+		};
+		BE024DC42F4A655500B2C079 /* BassMix */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BE024DBB2F4A655500B2C079 /* XCRemoteSwiftPackageReference "CBass" */;
+			productName = BassMix;
+		};
+		BE024DC62F4A655500B2C079 /* Tags */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BE024DBB2F4A655500B2C079 /* XCRemoteSwiftPackageReference "CBass" */;
+			productName = Tags;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = BE1A34132F30C6D600647B01 /* Project object */;
 }

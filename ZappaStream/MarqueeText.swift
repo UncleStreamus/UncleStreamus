@@ -14,8 +14,8 @@ struct MarqueeText: View {
     @State private var isAnimating = false
 
     // Scrolling parameters
-    private let scrollSpeed: Double = 30 // points per second
-    private let pauseDuration: Double = 2.0 // seconds to pause at start and end
+    private let scrollSpeed: Double = 25 // points per second
+    private let pauseDuration: Double = 5.0 // seconds to pause at start and end
 
     private var needsScrolling: Bool {
         textWidth > containerWidth && containerWidth > 0

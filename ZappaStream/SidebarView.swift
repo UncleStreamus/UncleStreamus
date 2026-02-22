@@ -52,11 +52,12 @@ struct SidebarView: View {
 // MARK: - History Time Period
 
 enum HistoryTimePeriod: String, CaseIterable {
-    case thisWeek = "This Week"  // Not displayed as a collapsible header
-    case lastWeek = "Last Week"
+    case thisWeek = "This Week"  // Last 7 days, not displayed as a collapsible header
+    case oneWeekAgo = "One Week Ago"
     case twoWeeksAgo = "Two Weeks Ago"
     case threeWeeksAgo = "Three Weeks Ago"
-    case lastMonth = "Last Month"
+    case fourWeeksAgo = "Four Weeks Ago"
+    case oneMonthAgo = "One Month Ago"
     case older = "Older"
 
     var isCollapsible: Bool {
@@ -67,26 +68,34 @@ enum HistoryTimePeriod: String, CaseIterable {
         let now = Date()
         let startOfToday = calendar.startOfDay(for: now)
 
-        // Get the start of this week (Sunday or Monday depending on locale)
-        let startOfThisWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? startOfToday
+        // Rolling windows relative to "today"
+        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: startOfToday)!
+        let fourteenDaysAgo = calendar.date(byAdding: .day, value: -14, to: startOfToday)!
+        let twentyOneDaysAgo = calendar.date(byAdding: .day, value: -21, to: startOfToday)!
+        let twentyEightDaysAgo = calendar.date(byAdding: .day, value: -28, to: startOfToday)!
+        let thirtyOneDaysAgo = calendar.date(byAdding: .day, value: -31, to: startOfToday)!
+        let sixtyTwoDaysAgo = calendar.date(byAdding: .day, value: -62, to: startOfToday)!
 
-        // Calculate week boundaries
-        let oneWeekAgo = calendar.date(byAdding: .weekOfYear, value: -1, to: startOfThisWeek)!
-        let twoWeeksAgo = calendar.date(byAdding: .weekOfYear, value: -2, to: startOfThisWeek)!
-        let threeWeeksAgo = calendar.date(byAdding: .weekOfYear, value: -3, to: startOfThisWeek)!
-        let fourWeeksAgo = calendar.date(byAdding: .weekOfYear, value: -4, to: startOfThisWeek)!
-
-        if date >= startOfThisWeek {
+        if date >= sevenDaysAgo {
+            // Last 7 days (including today)
             return .thisWeek
-        } else if date >= oneWeekAgo {
-            return .lastWeek
-        } else if date >= twoWeeksAgo {
+        } else if date >= fourteenDaysAgo {
+            // 7–14 days ago
+            return .oneWeekAgo
+        } else if date >= twentyOneDaysAgo {
+            // 14–21 days ago
             return .twoWeeksAgo
-        } else if date >= threeWeeksAgo {
+        } else if date >= twentyEightDaysAgo {
+            // 21–28 days ago
             return .threeWeeksAgo
-        } else if date >= fourWeeksAgo {
-            return .lastMonth
+        } else if date >= thirtyOneDaysAgo {
+            // 28–31 days ago
+            return .fourWeeksAgo
+        } else if date >= sixtyTwoDaysAgo {
+            // 31–62 days ago
+            return .oneMonthAgo
         } else {
+            // Older than 62 days
             return .older
         }
     }
@@ -111,7 +120,7 @@ struct HistoryListView: View {
     var showDataManager: ShowDataManager
     @ObservedObject var filterState: FilterState
     @State private var collapsedPeriods: Set<HistoryTimePeriod> = [
-        .lastWeek, .twoWeeksAgo, .threeWeeksAgo, .lastMonth, .older
+        .oneWeekAgo, .twoWeeksAgo, .threeWeeksAgo, .fourWeeksAgo, .oneMonthAgo, .older
     ]
 
     @Query(filter: #Predicate<SavedShow> { $0.listenedAt != nil },

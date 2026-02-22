@@ -446,7 +446,12 @@ class FZShowsFetcher {
                     bracketDepth += 1
                     currentSong.append(char)
                 } else if char == "]" {
-                    bracketDepth -= 1
+                    // Reset bracket depth to 0 on any "]" — FZShows uses nested
+                    // brackets for annotations (e.g. "[parts in ZA, [FZPTMOFZ]")
+                    // which are semantically one annotation block. Decrementing
+                    // depth would leave it at 1 after the inner close, swallowing
+                    // all subsequent songs into the same entry.
+                    bracketDepth = 0
                     currentSong.append(char)
                 } else if char == "," && parenDepth == 0 && bracketDepth == 0 {
                     let trimmed = currentSong.trimmingCharacters(in: .whitespacesAndNewlines)
