@@ -198,6 +198,7 @@ struct ContentView_iOS: View {
             }
         }
         .onAppear {
+            configureAudioSession()
             if showDataManager == nil {
                 showDataManager = ShowDataManager(modelContext: modelContext)
             }
@@ -739,6 +740,23 @@ struct ContentView_iOS: View {
         SongFormatter.format(song, acronyms: acronyms)
     }
 
+    // MARK: - Audio Session Setup
+
+    private func configureAudioSession() {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playback, mode: .default, options: [.duckOthers, .defaultToSpeaker])
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            #if DEBUG
+            print("✅ Audio session configured for playback")
+            #endif
+        } catch {
+            #if DEBUG
+            print("❌ Failed to configure audio session: \(error)")
+            #endif
+        }
+    }
+
     // MARK: - Player Setup
 
     func setupPlayer() {
@@ -827,6 +845,7 @@ struct ContentView_iOS: View {
 
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
         nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = true
+        nowPlayingInfo[MPMediaItemPropertyMediaType] = MPMediaType.music.rawValue
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }

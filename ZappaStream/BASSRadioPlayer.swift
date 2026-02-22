@@ -97,8 +97,8 @@ enum PlaybackState {
     override init() {
         super.init()
 
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 15000)
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 30)
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 25000)  // Increased from 15s for FLAC resilience on mobile
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 20)    // Reduced from 30% to keep startup time similar (~same byte threshold)
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 10000)
         BASS_SetConfig(DWORD(BASS_CONFIG_BUFFER), 5000)
         guard BASS_Init(-1, 44100, 0, nil, nil) != 0 else {
