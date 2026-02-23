@@ -314,9 +314,9 @@ struct ContentView_iOS: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
 
-                    // Delay warning when not using MP3 stream - shows briefly then hides
-                    if stream.format != "MP3" && showDelayWarning {
-                        Text("Info can be ~30s behind when not using MP3 stream")
+                    // Delay warning when using AAC stream - shows briefly then hides
+                    if stream.format == "AAC" && showDelayWarning {
+                        Text("Info can be up to 1min behind when using AAC...")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                             .italic()
