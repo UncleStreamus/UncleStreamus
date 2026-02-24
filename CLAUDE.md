@@ -11,11 +11,18 @@ ZappaStream is a native macOS and iOS app for streaming the 24/7 Zappateers radi
 
 ## Build & Run
 
+**Requirements:**
+- Xcode 15.0 or later
+- macOS 14.0 (Sonoma) or later (required to build macOS target; iOS target requires Xcode on macOS)
+- Deployment targets: macOS 14.0, iOS/iPadOS 17.5
+
 **Open the project:**
 
 ```bash
 open ZappaStream.xcodeproj
 ```
+
+Xcode will automatically resolve the CBass Swift Package dependency (macOS target only). This may take a few seconds on first open.
 
 **Build macOS target:**
 ```bash
@@ -29,42 +36,37 @@ xcodebuild -scheme ZappaStream-iOS -configuration Debug
 
 **Run on macOS (from Xcode):**
 - Select `ZappaStream` scheme, then Cmd+R
-- Menubar icon appears in top-right; click to open popover
+- Menubar icon appears in top-right corner; click to open popover
+- Resizable window: drag edges to adjust width (min 300pt, max 600pt)
 
 **Run on iOS (from Xcode):**
 - Select `ZappaStream-iOS` scheme, then Cmd+R
-- Choose simulator or connected device
+- Choose simulator (iPhone 15, iPad Pro recommended for testing landscape) or connected device
 
-**Manual iOS Setup (one-time):**
+**iOS Build Configuration (one-time after checkout):**
 
-After first checkout, iOS build requires manual Xcode steps (not scripted):
+The iOS target requires manual configuration in Xcode Build Settings. If you get BASS linker errors, verify these for the **ZappaStream-iOS target only**:
 
-1. **Bridging header:** Set in Build Settings under `SWIFT_OBJC_BRIDGING_HEADER` to `ZappaStream/BASSBridgingHeader.h`
-2. **Header search path:** Add `$(PROJECT_DIR)/Frameworks/iOS/include` to `HEADER_SEARCH_PATHS`
-3. **Embed BASS frameworks:** In Build Phases → Embed Frameworks, add the 6 BASS xcframeworks from `Frameworks/iOS/`:
-   - `bass.xcframework`
-   - `bass_fx.xcframework`
-   - `bassflac.xcframework`
-   - `basshls.xcframework`
-   - `bassmix.xcframework`
-   - `tags.xcframework`
+1. **Bridging header:**
+   - Build Settings → SWIFT_OBJC_BRIDGING_HEADER = `ZappaStream/BASSBridgingHeader.h`
+
+2. **Header search path:**
+   - Build Settings → HEADER_SEARCH_PATHS += `$(PROJECT_DIR)/Frameworks/iOS/include`
+
+3. **Embed BASS frameworks:**
+   - Build Phases → Embed Frameworks should contain the 6 BASS xcframeworks from `Frameworks/iOS/`:
+     - `bass.xcframework`
+     - `bass_fx.xcframework`
+     - `bassflac.xcframework`
+     - `basshls.xcframework`
+     - `bassmix.xcframework`
+     - `tags.xcframework`
+   - If missing, add them via the "+" button and select all 6 from `Frameworks/iOS/`
 
 **Dependencies:**
-- **BASS** — Cross-platform audio library (handles all 4 formats: MP3, AAC, OGG, FLAC)
-  - macOS: CBass Swift Package from `https://github.com/Treata11/CBass.git` (added via File → Add Package)
-  - iOS: Pre-built XCFrameworks in `Frameworks/iOS/` (manually embedded)
-
-**Platform requirements:**
-- macOS 14.0 (Sonoma)+
-- iOS/iPadOS 17+
-
-**Testing:**
-No automated test suite. All testing is done by building and running in Xcode. Common manual testing:
-- Stream connection and metadata parsing
-- Setlist fetching and display
-- History/favorites persistence
-- Filter and search functionality
-- macOS menubar behavior and window resizing
+- **BASS** — Cross-platform audio library (handles all 4 codecs: MP3, AAC, OGG, FLAC)
+  - macOS: CBass Swift Package (automatically resolved from `https://github.com/Treata11/CBass.git`)
+  - iOS: Pre-built XCFrameworks in `Frameworks/iOS/` (manually configured in build settings above)
 
 ## Architecture
 
@@ -106,6 +108,22 @@ BASS Audio Stream
 - `BASSRadioPlayer` polls metadata every 3 seconds via `Timer` (not a streaming callback, due to BASS architecture)
 - Metadata format varies: MP3 sends ICY metadata, OGG/FLAC use Vorbis comments, fallback to Icecast JSON
 - Single metadata callback (`onMetadataUpdate`) unifies all formats for downstream parsing
+
+**Audio Fade-In/Fade-Out:**
+- Fade-in: 0.5s duration on play start (non-FLAC streams and after FLAC pre-buffer completion)
+- Fade-out: 0.4s duration when user presses pause/stop button (via `stopWithFadeOut()`)
+- Implementation: `BASSRadioPlayer` uses BASS mixer volume attribute (`BASS_ATTRIB_VOL`) ramped via 60Hz timer
+- No fade applied on: track format changes, app deinit, internal stream restarts without user interaction
+- Public API: Call `stopWithFadeOut()` instead of `stop()` in UI when user initiates pause/stop
+
+**FLAC Streaming & Buffer Management:**
+- **Download buffering:** FLAC (~900 kbps compressed) requires aggressive pre-buffering due to 7× higher bitrate than MP3 (128 kbps). On stream start, BASS config is temporarily set to 60s download buffer + 75% pre-buffer threshold (~45s of data required before playback starts), then restored to normal (25s + 50%) after stream creation.
+- **Asynchronous decoding:** FLAC uses `BASS_MIXER_CHAN_BUFFER` flag to pre-decode on a background thread rather than synchronously in the CoreAudio render callback. This avoids stutters on iOS Simulator (where the audio thread lacks real-time scheduling) and real hardware under load. Other formats omit this flag and use `BASS_MIXER_CHAN_NORAMPIN` for micro-ramp smoothing on format switches.
+- **Output buffers:** Stream-specific `BASS_ATTRIB_BUFFER` set per format (MP3: 1.0s, OGG: 2.0s, AAC: 1.5s, FLAC: 5.0s capped by BASS). Mixer output buffer also format-specific (MP3/AAC: 1.0s, OGG: 1.5s, FLAC: 5.0s).
+- **Pre-buffer delay:** FLAC stream starts muted with volume = 0, then waits 4 seconds for the mixer's decode buffer to fill before fade-in starts. This ensures smooth, uninterrupted playback from the start; without it, initial audio dropout is likely.
+- **Metadata lag:** Vorbis comments (FLAC/OGG bitstream metadata) can lag by one 3-second poll cycle. For FLAC/AAC, always query the Icecast JSON endpoint in parallel to get the most current track info.
+- **Buffer flush caveat:** Calling `flushEffects()` (which updates EQ/compressor) on FLAC causes buffer underruns while the decoder reinitializes. FX changes on FLAC take effect naturally as the 5s buffer drains (~5s latency, acceptable for live radio); skipped for FLAC in code.
+- **Stream restart:** When stream reconnects, the same 60s download buffer + 75% pre-buffer + 4s mute delay applies to FLAC. No fade applied on auto-restart; fade-in only happens on user-initiated play or after pre-buffer.
 
 **HTML Scraping:**
 - No external HTML parser; uses `NSRegularExpression` + string slicing
@@ -186,6 +204,7 @@ BASS Audio Stream
 - Metadata callback (`onMetadataUpdate`) should fire every 3 seconds if stream is live
 - Debug metadata format: add `#if DEBUG` print statements in `ParsedTrackInfo.parse()`
 - Check BASS error codes (returned by BASS C functions) — logged in `BASSRadioPlayer`
+- For FLAC issues on iOS: Check BASS buffering state; FLAC pre-buffers audio before playback (shorter duration tolerance than MP3/AAC)
 
 ### Known Limitations & Workarounds
 
@@ -199,8 +218,71 @@ BASS Audio Stream
 ### Testing Strategy
 
 Since there's no test suite, focus on manual testing:
-- **Smoke test:** Connect to stream, verify metadata updates every 3 seconds, setlist appears
-- **Regression test:** After changes, verify show appears in History, can be favorited, filter works
-- **Format test:** Test all 4 stream formats (MP3, AAC, OGG, FLAC) if you modify `BASSRadioPlayer`
-- **Platform test:** Changes to shared code should be tested on both macOS and iOS
-- **Date test:** Changes to metadata/date parsing should be tested with shows from different eras
+
+**Smoke test:**
+- Connect to stream, verify playback starts
+- Metadata updates every 3 seconds (observable in `BASSRadioPlayer.currentMetadata`)
+- Now-playing track is highlighted in setlist
+- Setlist fetches from zappateers.com within a few seconds
+
+**Regression test (after code changes):**
+- Verify show appears in History after playback
+- Can favorite and unfavorite shows
+- Filter/search works correctly
+- No crashes or hangs on stream reconnect
+
+**Format test (if modifying audio playback):**
+- Test all 4 stream formats: MP3 (128k), AAC (192k), OGG (256k), FLAC (750k lossless)
+- Verify each format transitions to `.playing` state
+- Check metadata parsing doesn't differ between formats
+- Test on both macOS and iOS (different audio stacks)
+
+**Platform test (for shared code changes):**
+- Test on both macOS (menubar + main window) and iOS (full app)
+- Verify layout adapts correctly on iPad landscape vs portrait
+- Check that data persists correctly (History, Favorites)
+
+**Date/parsing test:**
+- Test with shows from different eras (pre-2000, 2000s, 2010s, recent)
+- Metadata formats vary by era; some have inconsistent formatting
+- If adding date parsing changes, test with edge cases like "1999-12-31" shows
+
+### Troubleshooting
+
+**iOS build fails with "BASSRadioPlayer" symbol not found**
+- Verify `SWIFT_OBJC_BRIDGING_HEADER` is set in Build Settings (should be `ZappaStream/BASSBridgingHeader.h`)
+- Verify `HEADER_SEARCH_PATHS` includes `$(PROJECT_DIR)/Frameworks/iOS/include`
+- Run Product → Clean Build Folder, then rebuild
+
+**Stream connects but metadata never updates**
+- Confirm `BASSRadioPlayer.playbackState` is `.playing` (not `.buffering`)
+- Add debug print to `ParsedTrackInfo.parse()` to see raw metadata string
+- Check that Zappateers stream is actually live (visit the stream URL in browser)
+- Verify network access is allowed in app entitlements (no sandbox restrictions on macOS)
+
+**Setlist doesn't appear or is incomplete**
+- Check `FZShowsFetcher.fetchShowInfo()` — it may not have found a matching show on zappateers.com
+- Verify the parsed date/time from metadata is correct (debug `ParsedTrackInfo.parse()`)
+- Check if date is in `FZShowsFetcher.dateExceptions` — may need exception for known bad dates
+- Try the zappateers.com URL manually in browser to see if HTML is malformed
+- If HTML parsing fails, regex in `FZShowsFetcher` may need updating
+
+**macOS menubar icon doesn't appear**
+- Verify `ZappaStreamApp.setupMenubar()` is called in `ZappaStreamApp.init()`
+- Check System Preferences → General → Login Items to confirm app has access to menubar
+- Try restarting the app; menubar registration can be finicky on first launch
+
+**FLAC playback fails on iOS**
+- FLAC decoder on iOS requires longer buffering — check `BASSRadioPlayer` pre-buffer duration
+- Verify all BASS frameworks are embedded in Build Phases (including `bassflac.xcframework`)
+- Check BASS error code returned from stream creation (logged in `BASSRadioPlayer`)
+
+**History or Favorites not persisting**
+- Verify SwiftData `ModelContainer` is created correctly in `ZappaStreamApp.init()`
+- Check file permissions — app may not have access to app's Documents directory on iOS
+- Try uninstalling and reinstalling the app (clears local storage)
+
+**Simulator runs but crashes when toggling format selection**
+- Verify `SettingsView` properly notifies `BASSRadioPlayer` of format changes
+- Ensure stream is stopped before changing format (see `SettingsView.onChangeFormat`)
+- Check that `BASSRadioPlayer` handles rapid format changes gracefully

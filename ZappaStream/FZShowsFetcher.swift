@@ -336,15 +336,25 @@ class FZShowsFetcher {
                 #endif
             }
         } else {
-            // No showTime specified - check if there are Early/Late sections
-            if showSection.range(of: "<h5>Early", options: .caseInsensitive) != nil {
+            // No showTime specified - check if there are Early/Late sections or Show/Soundcheck
+            if let showRange = showSection.range(of: "<h5>Show", options: .caseInsensitive) {
+                // Prefer the "Show" section over "Soundcheck"
+                targetSectionStart = html.index(h4End.upperBound, offsetBy: showSection.distance(from: showSection.startIndex, to: showRange.lowerBound))
+                targetSection = String(html[targetSectionStart..<showSectionEnd])
+                #if DEBUG
+                print("🎭 Found Show section (preferring over Soundcheck)")
+                #endif
+            } else if showSection.range(of: "<h5>Early", options: .caseInsensitive) != nil {
                 detectedShowType = .early
                 #if DEBUG
                 print("🎭 Detected Early show (defaulting to first)")
                 #endif
+                targetSectionStart = h4End.upperBound
+                targetSection = showSection
+            } else {
+                targetSectionStart = h4End.upperBound
+                targetSection = showSection
             }
-            targetSectionStart = h4End.upperBound
-            targetSection = showSection
         }
 
         // Now parse from targetSection

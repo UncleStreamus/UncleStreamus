@@ -22,7 +22,21 @@ struct ParsedTrackInfo {
     let year: String?
     let trackDuration: String?
     let rawTitle: String
-    
+
+    // MARK: - Track Name Normalization
+
+    /// Maps stream metadata track names to canonical FZShows setlist names
+    /// Handles cases where the stream metadata differs from zappateers.com
+    static let trackNameExceptions: [String: String] = [
+        "A Pound For a Brown": "Pound For a Brown",
+    ]
+
+    /// Normalizes a track name to match FZShows setlist format
+    static func normalizeTrackName(_ name: String?) -> String? {
+        guard let name = name else { return nil }
+        return trackNameExceptions[name] ?? name
+    }
+
     static func parse(_ title: String) -> ParsedTrackInfo {
         var date: String?
         var showTime: String?
@@ -37,9 +51,30 @@ struct ParsedTrackInfo {
         var trackName: String?
         var year: String?
         var trackDuration: String?
-        
+
         // Check if it's the full bracketed format or simple format
         let isFullFormat = title.hasPrefix("[")
+
+        // Try simple two-part format first: "01 Intro" or "01 - Intro" (from FLAC Vorbis comments)
+        if !isFullFormat && !title.contains(":") && !title.contains("[") {
+            let parts = title.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
+            if parts.count >= 1, let firstPart = parts.first, firstPart.allSatisfy({ $0.isNumber }) {
+                trackNumber = String(firstPart)
+                if parts.count >= 2 {
+                    let rest = parts.dropFirst().joined(separator: " ").trimmingCharacters(in: CharacterSet(charactersIn: "- "))
+                    if !rest.isEmpty {
+                        trackName = rest
+                        return ParsedTrackInfo(
+                            date: date, showTime: showTime, city: city, state: state,
+                            showDuration: showDuration, source: source, generation: generation,
+                            creator: creator, artist: artist, trackNumber: trackNumber,
+                            trackName: trackName, year: year, trackDuration: trackDuration,
+                            rawTitle: title
+                        )
+                    }
+                }
+            }
+        }
         
         if isFullFormat {
             // Original parsing code for full format
@@ -208,7 +243,7 @@ struct ParsedTrackInfo {
             creator: creator,
             artist: artist,
             trackNumber: trackNumber,
-            trackName: trackName,
+            trackName: normalizeTrackName(trackName),
             year: year,
             trackDuration: trackDuration,
             rawTitle: title

@@ -1026,7 +1026,7 @@ struct ContentView: View {
     }
 
     func stopStream() {
-        bassPlayer.stop()
+        bassPlayer.stopWithFadeOut()
         isPlaying = false
         NotificationCenter.default.post(name: .playbackStateChanged, object: nil, userInfo: ["isPlaying": false])
         updateNowPlayingInfo()

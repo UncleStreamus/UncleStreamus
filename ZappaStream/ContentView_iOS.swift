@@ -745,7 +745,11 @@ struct ContentView_iOS: View {
     private func configureAudioSession() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .default, options: [.duckOthers, .defaultToSpeaker])
+            try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetooth, .allowBluetoothA2DP])
+            // Request a larger hardware IO buffer to reduce scheduling pressure and micro-stutters.
+            // 0.5s means CoreAudio calls BASS 2×/sec instead of 10×/sec, giving the FLAC decoder
+            // far more time per callback. Fine for a radio app where output latency doesn't matter.
+            try audioSession.setPreferredIOBufferDuration(0.5)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
             #if DEBUG
             print("✅ Audio session configured for playback")
@@ -853,6 +857,7 @@ struct ContentView_iOS: View {
     func playStream(showWarning: Bool = true) {
         guard let stream = selectedStream else { return }
 
+        configureAudioSession()
         bassPlayer.play(format: stream.format, url: stream.url)
         isPlaying = true
         updateNowPlayingInfo()
@@ -872,7 +877,7 @@ struct ContentView_iOS: View {
     }
 
     func stopStream() {
-        bassPlayer.stop()
+        bassPlayer.stopWithFadeOut()
         isPlaying = false
         updateNowPlayingInfo()
 
