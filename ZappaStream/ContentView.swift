@@ -440,10 +440,23 @@ struct ContentView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(showFXPane ? Color.accentColor.opacity(0.18) : Color.gray.opacity(0.15))
+                        .background(
+                            showFXPane
+                                ? Color.accentColor.opacity(0.18)
+                                : bassPlayer.isFXBeingUsed
+                                    ? Color.accentColor.opacity(0.12)
+                                    : Color.gray.opacity(0.15)
+                        )
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .strokeBorder(showFXPane ? Color.accentColor.opacity(0.55) : Color.clear, lineWidth: 1)
+                                .strokeBorder(
+                                    showFXPane
+                                        ? Color.accentColor.opacity(0.55)
+                                        : bassPlayer.isFXBeingUsed
+                                            ? Color.accentColor.opacity(0.35)
+                                            : Color.clear,
+                                    lineWidth: 1
+                                )
                         )
                         .cornerRadius(8)
                     }
@@ -772,13 +785,15 @@ struct ContentView: View {
         guard let trackName = parsedTrack?.trackName,
               let setlist = currentShow?.setlist else { return nil }
 
-        let trackWords = firstWords(trackName)
+        let normalizedTrack = ParsedTrackInfo.normalizeTrackName(trackName) ?? trackName
+        let trackWords = firstWords(normalizedTrack)
         guard !trackWords.isEmpty else { return nil }
 
         // Find all positions where the song name matches
         var matchingPositions: [Int] = []
         for (index, song) in setlist.enumerated() {
-            let songWords = firstWords(song)
+            let normalizedSong = ParsedTrackInfo.normalizeTrackName(song) ?? song
+            let songWords = firstWords(normalizedSong)
             if songWords == trackWords {
                 matchingPositions.append(index + 1)  // 1-based position
             }

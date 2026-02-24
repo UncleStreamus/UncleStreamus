@@ -28,7 +28,8 @@ struct ParsedTrackInfo {
     /// Maps stream metadata track names to canonical FZShows setlist names
     /// Handles cases where the stream metadata differs from zappateers.com
     static let trackNameExceptions: [String: String] = [
-        "A Pound For a Brown": "Pound For a Brown",
+        "Pound For A Brown": "A Pound For a Brown",
+        "A Pound For a Brown": "A Pound For a Brown",
     ]
 
     /// Normalizes a track name to match FZShows setlist format
