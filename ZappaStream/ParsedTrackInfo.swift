@@ -73,6 +73,19 @@ struct ParsedTrackInfo {
                         )
                     }
                 }
+            } else if let firstPart = parts.first, Int(firstPart) == nil {
+                // Bare track name with no number prefix and no structured formatting
+                // (e.g. FLAC Vorbis comment "When The Lie's So Big").
+                // Use the whole title as the track name so the UI shows it immediately
+                // without waiting for the Icecast full-metadata callback.
+                trackName = title
+                return ParsedTrackInfo(
+                    date: nil, showTime: nil, city: nil, state: nil,
+                    showDuration: nil, source: nil, generation: nil,
+                    creator: nil, artist: nil, trackNumber: nil,
+                    trackName: normalizeTrackName(trackName), year: nil, trackDuration: nil,
+                    rawTitle: title
+                )
             }
         }
         
@@ -159,9 +172,12 @@ struct ParsedTrackInfo {
         } else {
             // Simple format: "1973 11 07 Boston MA - 01 Intro [0:03:30]"
             let parts = title.components(separatedBy: " ")
-            
-            // Date (first 3 parts)
-            if parts.count >= 3 {
+
+            // Date (first 3 parts) — only assign if first part looks like a 4-digit year,
+            // so that bare FLAC Vorbis track names like "How Could I Be Such A Fool"
+            // aren't misread as date-based metadata.
+            if parts.count >= 3,
+               let year = Int(parts[0]), year >= 1900 && year <= 2100 {
                 date = "\(parts[0]) \(parts[1]) \(parts[2])"
             }
             

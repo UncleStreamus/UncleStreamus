@@ -47,6 +47,7 @@ enum PlaybackState {
     private var activeFormat = ""
     private var lastFlacTitle: String?
     private var lastIcecastTitle: String?
+    private var lastPublishedTitle: String?
     private var oggStopConfirmed = false
 
     // MARK: - Timers
@@ -139,6 +140,8 @@ enum PlaybackState {
         freeStream()
         activeFormat = ""
         lastIcecastTitle = nil
+        lastPublishedTitle = nil
+        lastFlacTitle = nil
         DispatchQueue.main.async {
             self.currentQuality = ""
             self.isPlaying = false
@@ -871,6 +874,9 @@ enum PlaybackState {
 
     private func publishTitle(_ title: String) {
         print("🎵  \(title)")
+        // Only fire callback if title actually changed (dedup repeated polls)
+        guard title != lastPublishedTitle else { return }
+        lastPublishedTitle = title
         DispatchQueue.main.async {
             self.isPlaying = true
             self.onMetadataUpdate?(title)

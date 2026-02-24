@@ -766,8 +766,33 @@ struct ContentView_iOS: View {
     func setupPlayer() {
         bassPlayer.onMetadataUpdate = { metadata in
             DispatchQueue.main.async {
+                let newParsed = ParsedTrackInfo.parse(metadata)
+
+                // Block if truly nothing meaningful changed (same track name and same date).
+                let trackNameSame = (self.parsedTrack?.trackName == newParsed.trackName)
+                let dateSame = (self.parsedTrack?.date == newParsed.date)
+                guard !(trackNameSame && dateSame) else { return }
+
+                // For FLAC: Vorbis short title arrives first (trackName only, date=nil).
+                // Merge it with the existing parsedTrack's show metadata so date/location/artist
+                // stay visible in the UI — no flash from sections disappearing mid-show.
+                let merged: ParsedTrackInfo
+                if newParsed.date == nil, let old = self.parsedTrack {
+                    merged = ParsedTrackInfo(
+                        date: old.date, showTime: old.showTime,
+                        city: old.city, state: old.state,
+                        showDuration: old.showDuration, source: old.source,
+                        generation: old.generation, creator: old.creator,
+                        artist: old.artist, trackNumber: newParsed.trackNumber,
+                        trackName: newParsed.trackName, year: newParsed.year,
+                        trackDuration: newParsed.trackDuration, rawTitle: newParsed.rawTitle
+                    )
+                } else {
+                    merged = newParsed
+                }
+
                 self.currentTrack = metadata
-                self.parsedTrack = ParsedTrackInfo.parse(metadata)
+                self.parsedTrack = merged
 
                 if let parsed = self.parsedTrack, let date = parsed.date {
                     let showTime = ShowTime(from: parsed.showTime)
