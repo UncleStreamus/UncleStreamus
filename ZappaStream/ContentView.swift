@@ -29,6 +29,7 @@ struct ContentView: View {
     @State private var showDelayWarning: Bool = false  // Temporarily show delay warning for non-MP3 streams
     @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
     @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
+    @State private var showFXPane: Bool = false
 
     let streams = [
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
@@ -349,6 +350,19 @@ struct ContentView: View {
                 Spacer(minLength: 12)
             }
 
+            // === FX PANE: slides up from bottom above controls ===
+            if showFXPane {
+                VStack(spacing: 0) {
+                    Divider()
+                    AudioFXView(player: bassPlayer)
+                        .frame(maxHeight: 310)
+                }
+                .transition(.asymmetric(
+                    insertion: .move(edge: .bottom).combined(with: .opacity),
+                    removal: .move(edge: .bottom).combined(with: .opacity)
+                ))
+            }
+
             // === BOTTOM: Stream controls (pinned) ===
             VStack(spacing: 12) {
                 Divider()
@@ -411,6 +425,29 @@ struct ContentView: View {
                             }
                         }
                     }
+
+                    // FX button
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            showFXPane.toggle()
+                        }
+                    }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "slider.horizontal.3")
+                                .scaledFont(.caption)
+                            Text("FX")
+                                .scaledFont(.subheadline, weight: .medium)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(showFXPane ? Color.accentColor.opacity(0.18) : Color.gray.opacity(0.15))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(showFXPane ? Color.accentColor.opacity(0.55) : Color.clear, lineWidth: 1)
+                        )
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
 
                     // Play/Pause button
                     Button(action: {
@@ -874,9 +911,9 @@ struct ContentView: View {
                         city: old.city, state: old.state,
                         showDuration: old.showDuration, source: old.source,
                         generation: old.generation, creator: old.creator,
-                        artist: old.artist, trackNumber: newParsed.trackNumber,
+                        artist: old.artist, trackNumber: newParsed.trackNumber ?? old.trackNumber,
                         trackName: newParsed.trackName, year: newParsed.year,
-                        trackDuration: newParsed.trackDuration, rawTitle: newParsed.rawTitle
+                        trackDuration: newParsed.trackDuration ?? old.trackDuration, rawTitle: newParsed.rawTitle
                     )
                 } else {
                     merged = newParsed

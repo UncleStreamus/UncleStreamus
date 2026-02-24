@@ -783,9 +783,9 @@ struct ContentView_iOS: View {
                         city: old.city, state: old.state,
                         showDuration: old.showDuration, source: old.source,
                         generation: old.generation, creator: old.creator,
-                        artist: old.artist, trackNumber: newParsed.trackNumber,
+                        artist: old.artist, trackNumber: newParsed.trackNumber ?? old.trackNumber,
                         trackName: newParsed.trackName, year: newParsed.year,
-                        trackDuration: newParsed.trackDuration, rawTitle: newParsed.rawTitle
+                        trackDuration: newParsed.trackDuration ?? old.trackDuration, rawTitle: newParsed.rawTitle
                     )
                 } else {
                     merged = newParsed
