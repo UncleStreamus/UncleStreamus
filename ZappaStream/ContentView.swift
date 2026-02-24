@@ -30,6 +30,8 @@ struct ContentView: View {
     @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
     @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
     @State private var showFXPane: Bool = false
+    @State private var setlistWasOpenBeforeFX: Bool = false  // Track setlist state before FX panel opened
+    @State private var windowHeightBeforeFX: CGFloat = 0  // Track window height before FX opens
 
     let streams = [
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
@@ -114,6 +116,60 @@ struct ContentView: View {
             print("💾 onDisappear - saving playing state: \(isPlaying)")
             #endif
             stopStream()
+        }
+        .onChange(of: showFXPane) { oldValue, newValue in
+            if newValue && !oldValue {
+                // FX pane is opening: save current height and expand to max
+                setlistWasOpenBeforeFX = showInfoExpanded
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    guard let window = NSApplication.shared.windows.first else { return }
+
+                    // Save current window height to restore later
+                    windowHeightBeforeFX = window.frame.height
+
+                    // Expand to max height to show all FX controls without scrolling
+                    let newFrame = NSRect(
+                        x: window.frame.origin.x,
+                        y: window.frame.origin.y - (maxWindowHeight - window.frame.height),
+                        width: window.frame.width,
+                        height: maxWindowHeight
+                    )
+                    window.setFrame(newFrame, display: true, animate: true)
+                }
+
+                // Hide the show info section with animation
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    showInfoExpanded = false
+                }
+            } else if !newValue && oldValue {
+                // FX pane is closing: restore show info section and previous window height
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    if setlistWasOpenBeforeFX {
+                        showInfoExpanded = true
+                    }
+                }
+
+                // Restore window height to what it was before FX opened
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    guard let window = NSApplication.shared.windows.first else { return }
+
+                    if windowHeightBeforeFX > 0 {
+                        let currentHeight = window.frame.height
+                        let heightDelta = currentHeight - windowHeightBeforeFX
+
+                        let newFrame = NSRect(
+                            x: window.frame.origin.x,
+                            y: window.frame.origin.y + heightDelta,
+                            width: window.frame.width,
+                            height: windowHeightBeforeFX
+                        )
+                        window.setFrame(newFrame, display: true, animate: true)
+                    }
+
+                    updateWindowMinHeight()
+                }
+            }
         }
     }
 
@@ -337,30 +393,30 @@ struct ContentView: View {
                 .padding(.bottom, 12)
                 .offset(y: contentBounceOffset)
 
-                // === MIDDLE: Show Info (fills available space when expanded) ===
-            if showInfoExpanded && currentShow != nil {
-                showInfoSection
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                    .frame(maxHeight: .infinity)
-            } else {
-                showInfoSection
-                    .padding(.horizontal)
-
-                Spacer(minLength: 12)
-            }
-
-            // === FX PANE: slides up from bottom above controls ===
+                // === MIDDLE: Show Info OR FX Pane (with fade transition) ===
             if showFXPane {
+                // FX Pane: extends from below track info to above controls
                 VStack(spacing: 0) {
                     Divider()
                     AudioFXView(player: bassPlayer)
-                        .frame(maxHeight: 310)
+                        .frame(maxHeight: .infinity)
                 }
-                .transition(.asymmetric(
-                    insertion: .move(edge: .bottom).combined(with: .opacity),
-                    removal: .move(edge: .bottom).combined(with: .opacity)
-                ))
+                .transition(.opacity)
+            } else {
+                // Show Info Section: dropdown and optional setlist
+                if showInfoExpanded && currentShow != nil {
+                    showInfoSection
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
+                        .frame(maxHeight: .infinity)
+                        .transition(.opacity)
+                } else {
+                    showInfoSection
+                        .padding(.horizontal)
+                        .transition(.opacity)
+
+                    Spacer(minLength: 12)
+                }
             }
 
             // === BOTTOM: Stream controls (pinned) ===
