@@ -384,7 +384,7 @@ struct ContentView: View {
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
-                        if let parsed = parsedTrack, let source = parsed.source, currentTrack != "No track info" && !currentTrack.isEmpty {
+                        if let source = displaySource, currentTrack != "No track info" && !currentTrack.isEmpty {
                             Text(source)
                                 .scaledFont(.caption)
                                 .padding(.horizontal, 8)
@@ -821,6 +821,16 @@ struct ContentView: View {
     }
 
     // MARK: - Favorites
+
+    /// Source type (AUD/SBD/FM) from metadata, falling back to showInfo HTML when metadata lacks it
+    private var displaySource: String? {
+        if let s = parsedTrack?.source { return s }
+        guard let info = currentShow?.showInfo else { return nil }
+        let upper = info.uppercased()
+        for src in ["SBD-AUD", "AUD-SBD", "SBD-FM", "FM-SBD", "AUD-FM", "FM-AUD"] where upper.contains(src) { return src }
+        for src in ["AUD", "SBD", "FM", "STAGE"] where upper.contains(src) { return src }
+        return nil
+    }
 
     private var isCurrentShowFavorite: Bool {
         // Reading favoriteVersion creates an @Observable dependency,
