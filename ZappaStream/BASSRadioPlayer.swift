@@ -76,6 +76,7 @@ enum PlaybackState {
 
     private var eqFX: HFX = 0
     private var compressorFX: HFX = 0
+    private var levelMeterDSP: HDSP = 0
     private var stereoDSP: HDSP = 0
     private var limiterDSP: HDSP = 0
     private var clickGuardDSP: HDSP = 0
@@ -93,12 +94,28 @@ enum PlaybackState {
     var compressorOn:     Bool  = false
     var compressorAmount: Float = 0.25
 
+    // MARK: - Adaptive Compressor (program-dependent threshold)
+    // A level-measurement DSP computes a slow-moving RMS average of the input signal.
+    // The compressor threshold is set relative to this average, so it compresses
+    // proportionally regardless of whether the track is quiet or loud.
+    private var measuredRMSdB: Float = -20.0       // Current program level (dBFS), slow-moving
+    private var rmsAccumulator: Float = 0.0        // Running sum-of-squares for current window
+    private var rmsSampleCount: Int = 0            // Samples accumulated so far
+    private let rmsWindowSamples: Int = 66150      // ~1.5s window @ 44.1 kHz (stereo frames)
+    private var lastAppliedThreshold: Float = 0.0  // Avoid redundant BASS_FXSetParameters calls
+
     var stereoWidth: Float = 0.75
     var stereoPan:   Float = 0.5
 
     var eqEnabled:          Bool = true
     var stereoWidthEnabled: Bool = true
     var masterBypassEnabled: Bool = false
+
+    // MARK: - Stereo DSP Parameter Smoothing
+    // Per-buffer exponential smoothing with linear interpolation within each buffer
+    // prevents pops/clicks from abrupt parameter jumps at buffer boundaries.
+    private var smoothedStereoCoeff: Float = 1.0   // Tracks stereoWidthCoeff
+    private var smoothedPanOffset:   Float = 0.0   // Tracks (stereoPan - 0.5) * 2.0
 
     // MARK: - Frequency-Dependent Center Spreading (400 Hz crossover)
     private var centerSpreadLPFState: Float = 0.0  // Low-pass filter state for mono center channel
@@ -223,17 +240,15 @@ enum PlaybackState {
         }
 
         mixerHandle = BASS_Mixer_StreamCreate(44100, 2, DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
-        // FLAC: add BASS_MIXER_CHAN_BUFFER so BASS's update thread pre-decodes into a background
-        // buffer asynchronously. Without this, FLAC is decoded synchronously inside the CoreAudio
-        // render callback — fine on real hardware (RT priority), but causes random stutters on the
-        // Simulator where the audio thread lacks real-time scheduling. VLC avoided this by having
-        // a dedicated decode thread feeding a ring buffer; BASS_MIXER_CHAN_BUFFER is equivalent.
-        // FLAC omits BASS_MIXER_CHAN_NORAMPIN (leaving ramp-in enabled at channel *start* only).
+        // BASS_MIXER_CHAN_BUFFER: BASS's update thread pre-decodes into a background buffer
+        // asynchronously. This keeps decoded audio ready so FX parameter changes take effect
+        // immediately when the mixer re-renders, rather than waiting for synchronous decode.
+        // BASS_MIXER_CHAN_NORAMPIN: disables initial volume ramp at channel start (non-FLAC only;
+        // FLAC uses fade-in after pre-buffer delay instead).
         // Note: BASS_MIXER_CHAN_NORAMPIN only affects channel *start*, not OGG/FLAC bitstream
         // boundaries, so there is no built-in BASS protection against track-change clicks.
-        let addFlags = format == "FLAC"
-            ? DWORD(BASS_MIXER_CHAN_BUFFER)
-            : DWORD(BASS_MIXER_CHAN_NORAMPIN)
+        var addFlags = DWORD(BASS_MIXER_CHAN_BUFFER)
+        if format != "FLAC" { addFlags |= DWORD(BASS_MIXER_CHAN_NORAMPIN) }
         BASS_Mixer_StreamAddChannel(mixerHandle, streamHandle, addFlags)
 
         activeFormat = format
@@ -289,8 +304,12 @@ enum PlaybackState {
         }
         eqFX = 0
         compressorFX = 0
+        levelMeterDSP = 0
         stereoDSP = 0
         limiterDSP = 0
+        rmsAccumulator = 0
+        rmsSampleCount = 0
+        lastAppliedThreshold = 0
         clickGuardDSP = 0
         cgFadeBuffersRemaining = 0
     }
@@ -321,9 +340,9 @@ enum PlaybackState {
         let dlBufSize  = BASS_StreamGetFilePosition(handle, DWORD(BASS_FILEPOS_END))
         let mixerBuffer: Float
         switch format {
-        case "FLAC": mixerBuffer = 5.0  // BASS caps ATTRIB_BUFFER at 5s; primary FLAC protection is the 60s download buffer
-        case "OGG":  mixerBuffer = 1.5
-        default:     mixerBuffer = 1.0   // MP3, AAC — was 0.1s which caused micro-stutters
+        case "FLAC": mixerBuffer = 2.5   // FLAC decode is CPU-heavy; needs more headroom than lighter codecs
+        case "OGG":  mixerBuffer = 0.5
+        default:     mixerBuffer = 0.5   // MP3, AAC — low enough for responsive FX, high enough to avoid audio-thread scheduling gaps
         }
         BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_BUFFER), mixerBuffer)
 
@@ -342,58 +361,126 @@ enum PlaybackState {
         applyEQBand(1, center: 1000,  gain: eqMidGain)
         applyEQBand(2, center: 10000, gain: eqHighGain)
 
-        if compressorOn {
-            compressorFX = BASS_ChannelSetFX(handle, DWORD(BASS_FX_BFX_COMPRESSOR2), 0)
+        // Level-meter DSP: measures RMS of the post-compression signal (feedback topology).
+        // BASS FX (EQ, compressor) run before DSP callbacks, so this sees the compressed output.
+        // Feedback measurement is intentional — like an LA-2A, the slow ~4.5s time constant
+        // (1.5s window × 0.3 EMA) keeps it stable and tracks overall program level changes.
+        levelMeterDSP = BASS_ChannelSetDSP(
+            handle,
+            { _, _, buffer, length, user in
+                guard let buffer = buffer, let user = user else { return }
+                let player = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
+                guard player.compressorOn, !player.masterBypassEnabled else { return }
+
+                let samples = buffer.assumingMemoryBound(to: Float.self)
+                let count   = Int(length) / MemoryLayout<Float>.size
+                let frames  = count / 2
+
+                // Accumulate sum-of-squares (mono sum of L+R)
+                var sumSq: Float = 0
+                for frame in 0..<frames {
+                    let L = samples[frame &* 2]
+                    let R = samples[frame &* 2 &+ 1]
+                    let mono = (L + R) * 0.5
+                    sumSq += mono * mono
+                }
+                player.rmsAccumulator += sumSq
+                player.rmsSampleCount += frames
+
+                // When we've accumulated a full window, compute RMS and update compressor
+                if player.rmsSampleCount >= player.rmsWindowSamples {
+                    let rms = sqrtf(player.rmsAccumulator / Float(player.rmsSampleCount))
+                    let dbFS = rms > 0 ? 20.0 * log10f(rms) : -80.0
+                    // Smooth the measurement to avoid jitter (EMA, ~3s effective time constant)
+                    let smoothAlpha: Float = 0.3
+                    player.measuredRMSdB = player.measuredRMSdB + smoothAlpha * (dbFS - player.measuredRMSdB)
+                    player.rmsAccumulator = 0
+                    player.rmsSampleCount = 0
+                    player.applyAdaptiveCompressor()
+                }
+            },
+            userData,
+            2
+        )
+
+        compressorFX = BASS_ChannelSetFX(handle, DWORD(BASS_FX_BFX_COMPRESSOR2), 0)
+        if compressorOn && !masterBypassEnabled {
             applyCompressorParams()
+        } else {
+            applyCompressorPassthrough()
         }
 
         stereoDSP = BASS_ChannelSetDSP(
             handle,
             { _, _, buffer, length, user in
                 guard let buffer = buffer, let user = user else { return }
-                let player     = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
+                let player = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
                 guard player.stereoWidthEnabled, !player.masterBypassEnabled else { return }
-                let coeff      = player.stereoWidthCoeff
-                let pOffset    = (player.stereoPan - 0.5) * 2.0
-                let applyWidth = coeff != 1.0
-                let applyPan   = pOffset != 0.0
+
+                let targetCoeff = player.stereoWidthCoeff
+                let targetPan   = (player.stereoPan - 0.5) * 2.0
+
+                let prevCoeff = player.smoothedStereoCoeff
+                let prevPan   = player.smoothedPanOffset
+
+                // Exponential smoothing: converge ~80% per buffer (~3–4 buffers to settle)
+                let alpha: Float = 0.3
+                var newCoeff = prevCoeff + alpha * (targetCoeff - prevCoeff)
+                var newPan   = prevPan   + alpha * (targetPan   - prevPan)
+                // Snap when close to avoid perpetual tiny corrections
+                if abs(newCoeff - targetCoeff) < 0.0001 { newCoeff = targetCoeff }
+                if abs(newPan   - targetPan)   < 0.0001 { newPan   = targetPan }
+                player.smoothedStereoCoeff = newCoeff
+                player.smoothedPanOffset   = newPan
+
+                // Skip if both smoothed endpoints are at neutral
+                let applyWidth = abs(prevCoeff - 1.0) > 0.001 || abs(newCoeff - 1.0) > 0.001
+                let applyPan   = abs(prevPan) > 0.001 || abs(newPan) > 0.001
                 guard applyWidth || applyPan else { return }
-                let samples    = buffer.assumingMemoryBound(to: Float.self)
-                let count      = Int(length) / MemoryLayout<Float>.size
-                let a: Float = pOffset < 0 ? -pOffset : 0.0
-                let b: Float = pOffset > 0 ?  pOffset : 0.0
-                let sinA: Float = sin(a * .pi / 2.0)
-                let cosA: Float = cos(a * .pi / 2.0)
-                let sinB: Float = sin(b * .pi / 2.0)
-                let cosB: Float = cos(b * .pi / 2.0)
-                var i = 0
-                while i + 1 < count {
-                    var L = samples[i], R = samples[i + 1]
+
+                let samples = buffer.assumingMemoryBound(to: Float.self)
+                let count   = Int(length) / MemoryLayout<Float>.size
+                let frames  = count / 2
+
+                // Pre-compute pan trig at buffer start and end for interpolation
+                let aS: Float = prevPan < 0 ? -prevPan : 0, bS: Float = prevPan > 0 ? prevPan : 0
+                let aE: Float = newPan  < 0 ? -newPan  : 0, bE: Float = newPan  > 0 ? newPan  : 0
+                let sinA_s = sin(aS * .pi / 2), cosA_s = cos(aS * .pi / 2)
+                let sinB_s = sin(bS * .pi / 2), cosB_s = cos(bS * .pi / 2)
+                let sinA_e = sin(aE * .pi / 2), cosA_e = cos(aE * .pi / 2)
+                let sinB_e = sin(bE * .pi / 2), cosB_e = cos(bE * .pi / 2)
+
+                let invFrames = 1.0 / Float(max(frames - 1, 1))
+                for frame in 0..<frames {
+                    let t     = Float(frame) * invFrames
+                    let coeff = prevCoeff + t * (newCoeff - prevCoeff)
+
+                    var L = samples[frame &* 2], R = samples[frame &* 2 &+ 1]
+
                     if applyWidth {
                         let M = (L + R) * 0.5
                         let S = (L - R) * 0.5
                         L = M + S * coeff
                         R = M - S * coeff
 
-                        // Frequency-Dependent Center Spreading (Approach 3):
-                        // Split mono content into low-freq (stays centered) and high-freq (spreads).
-                        // This makes pure mono signals sound stereo without affecting existing stereo content.
-                        let M_lowFreq = player.lowPassFilter400Hz(M)
-                        let M_highFreq = M - M_lowFreq  // High-pass complement
-
-                        // Spread high-frequency mono content as width increases beyond 0.75
+                        // Frequency-Dependent Center Spreading
+                        let M_lowFreq  = player.lowPassFilter400Hz(M)
+                        let M_highFreq = M - M_lowFreq
                         let spreadAmount = (coeff - 1.0) * 0.15
                         L += M_highFreq * spreadAmount
                         R -= M_highFreq * spreadAmount
                     }
                     if applyPan {
+                        let sinA = sinA_s + t * (sinA_e - sinA_s)
+                        let cosA = cosA_s + t * (cosA_e - cosA_s)
+                        let sinB = sinB_s + t * (sinB_e - sinB_s)
+                        let cosB = cosB_s + t * (cosB_e - cosB_s)
                         let L2 = L, R2 = R
                         L = L2 * cosB + R2 * sinA
                         R = L2 * sinB + R2 * cosA
                     }
-                    samples[i]     = L
-                    samples[i + 1] = R
-                    i += 2
+                    samples[frame &* 2]       = L
+                    samples[frame &* 2 &+ 1] = R
                 }
             },
             userData,
@@ -470,7 +557,7 @@ enum PlaybackState {
             userData,
             -2
         )
-        print("🎛️  Effects applied — eqFX=\(eqFX) compFX=\(compressorFX) stereoDSP=\(stereoDSP) limiterDSP=\(limiterDSP) clickGuardDSP=\(clickGuardDSP)")
+        print("🎛️  Effects applied — eqFX=\(eqFX) compFX=\(compressorFX) levelDSP=\(levelMeterDSP) stereoDSP=\(stereoDSP) limiterDSP=\(limiterDSP) clickGuardDSP=\(clickGuardDSP)")
     }
 
     private func applyEQBand(_ band: Int32, center: Float, gain: Float) {
@@ -487,13 +574,48 @@ enum PlaybackState {
 
     private func applyCompressorParams() {
         guard compressorFX != 0 else { return }
-        let t = compressorAmount
+        let t = compressorAmount * 0.75  // Scale so slider max = old 0.75 (tamer ceiling)
+
+        // Adaptive threshold: set relative to measured program level.
+        // headroom = how far above the average RMS the threshold sits.
+        // At gentle (t=0): threshold = measuredRMS + 6 dB (only peaks compressed)
+        // At heavy (t=1):  threshold = measuredRMS + 2.25 dB
+        let headroom: Float = 6.0 - 5.0 * t
+        let adaptiveThreshold = max(min(measuredRMSdB + headroom, -2.0), -40.0)
+
         var p = BASS_BFX_COMPRESSOR2()
-        p.fThreshold = -8  + (-15) * t
+        p.fThreshold = adaptiveThreshold
         p.fRatio     = 1.5  + 6.5   * t
         p.fAttack    = 25   - 22    * t
         p.fRelease   = 300  - 220   * t
-        p.fGain      = (-p.fThreshold) * (1.0 - 1.0 / p.fRatio) * (0.5 + 0.25 * t)
+        p.fGain      = (-adaptiveThreshold) * (1.0 - 1.0 / p.fRatio) * (0.5 + 0.25 * t)
+        p.lChannel   = -1
+        BASS_FXSetParameters(compressorFX, &p)
+        lastAppliedThreshold = adaptiveThreshold
+    }
+
+    /// Called from the level-meter DSP when a new RMS measurement is ready.
+    /// Only updates the compressor if the threshold would change meaningfully (>0.5 dB).
+    func applyAdaptiveCompressor() {
+        guard compressorFX != 0, compressorOn, !masterBypassEnabled else { return }
+        let t = compressorAmount * 0.75
+        let headroom: Float = 6.0 - 5.0 * t
+        let newThreshold = max(min(measuredRMSdB + headroom, -2.0), -40.0)
+        // Skip if threshold hasn't changed meaningfully
+        guard abs(newThreshold - lastAppliedThreshold) > 0.5 else { return }
+        applyCompressorParams()
+    }
+
+    /// Set compressor to transparent passthrough (threshold 0 dB, ratio 1:1, no makeup gain).
+    /// The FX stays in the chain — no add/remove discontinuity.
+    private func applyCompressorPassthrough() {
+        guard compressorFX != 0 else { return }
+        var p = BASS_BFX_COMPRESSOR2()
+        p.fThreshold = 0
+        p.fRatio     = 1.0
+        p.fAttack    = 20
+        p.fRelease   = 200
+        p.fGain      = 0
         p.lChannel   = -1
         BASS_FXSetParameters(compressorFX, &p)
     }
@@ -515,16 +637,10 @@ enum PlaybackState {
     }
 
     func updateCompressor() {
-        if compressorOn {
-            if compressorFX == 0, mixerHandle != 0 {
-                compressorFX = BASS_ChannelSetFX(mixerHandle, DWORD(BASS_FX_BFX_COMPRESSOR2), 0)
-            }
+        if compressorOn && !masterBypassEnabled {
             applyCompressorParams()
         } else {
-            if compressorFX != 0 {
-                BASS_ChannelRemoveFX(mixerHandle, compressorFX)
-                compressorFX = 0
-            }
+            applyCompressorPassthrough()
         }
         flushEffects()
         saveFXToDefaults()
@@ -532,6 +648,11 @@ enum PlaybackState {
 
     func updateCompressorAmount() {
         applyCompressorParams()
+        flushEffects()
+        saveFXToDefaults()
+    }
+
+    func updateStereo() {
         flushEffects()
         saveFXToDefaults()
     }
@@ -547,6 +668,10 @@ enum PlaybackState {
         stereoWidthEnabled  = true
         stereoWidth         = 0.75
         stereoPan           = 0.5
+        measuredRMSdB       = -20.0
+        rmsAccumulator      = 0
+        rmsSampleCount      = 0
+        lastAppliedThreshold = 0
         updateEQ()
         updateCompressor()
         // flushEffects() already called by updateEQ/updateCompressor above
@@ -585,28 +710,14 @@ enum PlaybackState {
 
     func updateMasterBypass() {
         updateEQ()
-        saveFXToDefaults()
-        if masterBypassEnabled {
-            if compressorFX != 0 {
-                BASS_ChannelRemoveFX(mixerHandle, compressorFX)
-                compressorFX = 0
-            }
-        } else {
-            if compressorOn, compressorFX == 0, mixerHandle != 0 {
-                compressorFX = BASS_ChannelSetFX(mixerHandle, DWORD(BASS_FX_BFX_COMPRESSOR2), 0)
-                applyCompressorParams()
-            }
-        }
-        flushEffects()
+        updateCompressor()
     }
 
-    /// Flushes and refills the mixer output buffer with current FX settings applied.
-    /// Call after any FX parameter change so the effect is audible immediately,
-    /// regardless of how large the output buffer is.
-    /// Skipped for FLAC: the flush causes buffer underruns while the decoder reinitializes.
-    /// FX changes take effect naturally as the buffer drains (~5s latency, acceptable for live radio).
+    /// Tops up the mixer output buffer with freshly-processed audio.
+    /// Call after any FX parameter change so the new settings fill the buffer sooner.
+    /// With reduced mixer buffers (0.5–1.0s), the remaining latency is at most the buffer size.
     func flushEffects() {
-        guard mixerHandle != 0, activeFormat != "FLAC" else { return }
+        guard mixerHandle != 0 else { return }
         BASS_ChannelUpdate(mixerHandle, 0)
     }
 
@@ -903,9 +1014,8 @@ enum PlaybackState {
 
         streamHandle = newHandle
         mixerHandle = BASS_Mixer_StreamCreate(44100, 2, DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
-        let restartAddFlags = current.format == "FLAC"
-            ? DWORD(BASS_MIXER_CHAN_BUFFER)
-            : DWORD(BASS_MIXER_CHAN_NORAMPIN)
+        var restartAddFlags = DWORD(BASS_MIXER_CHAN_BUFFER)
+        if current.format != "FLAC" { restartAddFlags |= DWORD(BASS_MIXER_CHAN_NORAMPIN) }
         BASS_Mixer_StreamAddChannel(mixerHandle, streamHandle, restartAddFlags)
         configureStreamAttributes(format: current.format, handle: streamHandle)
         setupSyncs(for: streamHandle)
