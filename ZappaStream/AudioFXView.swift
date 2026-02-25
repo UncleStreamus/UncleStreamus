@@ -314,24 +314,34 @@ struct StereoWidthSlider: View {
             }
             .frame(height: 22)
 
-            HStack(spacing: 0) {
-                Text("Mono")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-                HStack(spacing: 3) {
-                    Image(systemName: "diamond.fill")
-                        .font(.system(size: 7))
-                    Text("Original")
-                        .font(.caption2)
+            GeometryReader { labelGeo in
+                let trackLeft = thumbSize / 2
+                let trackW    = labelGeo.size.width - thumbSize
+                let markerX   = trackLeft + trackW * CGFloat(snapPoint)
+
+                ZStack(alignment: .leading) {
+                    HStack(spacing: 0) {
+                        Text("Mono")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("Wider")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack(spacing: 3) {
+                        Image(systemName: "diamond.fill")
+                            .font(.system(size: 7))
+                        Text("Original")
+                            .font(.caption2)
+                    }
+                    .foregroundColor(.accentColor)
+                    .fixedSize()
+                    .position(x: markerX, y: labelGeo.size.height / 2)
                 }
-                .foregroundColor(.accentColor)
-                .offset(x: 20)
-                Spacer()
-                Text("Wider")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
+            .frame(height: 16)
         }
     }
 }
