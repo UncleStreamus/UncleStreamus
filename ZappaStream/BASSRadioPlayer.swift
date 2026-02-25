@@ -93,10 +93,32 @@ enum PlaybackState {
     var stereoWidthEnabled: Bool = true
     var masterBypassEnabled: Bool = false
 
+    // MARK: - Frequency-Dependent Center Spreading (400 Hz crossover)
+    private var centerSpreadLPFState: Float = 0.0  // Low-pass filter state for mono center channel
+    private let centerSpreadCrossoverHz: Float = 400.0
+    // Precomputed filter coefficient for 400 Hz @ 44.1 kHz (1st-order butterworth)
+    // alpha = 2*pi*f / (2*pi*f + sr) ≈ 0.0556 for 400 Hz @ 44.1 kHz
+    private let centerSpreadLPFAlpha: Float = 0.0556
+
     var stereoWidthCoeff: Float {
         stereoWidth <= 0.75
             ? stereoWidth / 0.75
             : 1.0 + (stereoWidth - 0.75) / 0.25
+    }
+
+    /// Whether any FX unit is actively being used (not at default values).
+    /// Returns true if FX Bypass is off AND at least one unit is "being used":
+    /// - EQ: enabled AND at least one gain is not at 0 dB
+    /// - Compressor: on (always counts as used when enabled)
+    /// - Stereo: enabled AND at least one control is not at default (width ≠ 0.75 OR pan ≠ 0.5)
+    var isFXBeingUsed: Bool {
+        guard !masterBypassEnabled else { return false }
+
+        let eqIsUsed = eqEnabled && (eqLowGain != 0 || eqMidGain != 0 || eqHighGain != 0)
+        let compressorIsUsed = compressorOn
+        let stereoIsUsed = stereoWidthEnabled && (stereoWidth != 0.75 || stereoPan != 0.5)
+
+        return eqIsUsed || compressorIsUsed || stereoIsUsed
     }
 
     // MARK: - Init / Deinit
@@ -341,6 +363,17 @@ enum PlaybackState {
                         let S = (L - R) * 0.5
                         L = M + S * coeff
                         R = M - S * coeff
+
+                        // Frequency-Dependent Center Spreading (Approach 3):
+                        // Split mono content into low-freq (stays centered) and high-freq (spreads).
+                        // This makes pure mono signals sound stereo without affecting existing stereo content.
+                        let M_lowFreq = player.lowPassFilter400Hz(M)
+                        let M_highFreq = M - M_lowFreq  // High-pass complement
+
+                        // Spread high-frequency mono content as width increases beyond 0.75
+                        let spreadAmount = (coeff - 1.0) * 0.15
+                        L += M_highFreq * spreadAmount
+                        R -= M_highFreq * spreadAmount
                     }
                     if applyPan {
                         let L2 = L, R2 = R
@@ -844,6 +877,16 @@ enum PlaybackState {
             publishTitle(shortTitle)
             fetchIcecastMetadata()
         }
+    }
+
+    // MARK: - Audio DSP Helpers
+
+    /// Simple 1st-order low-pass filter for 400 Hz crossover (44.1 kHz sampling).
+    /// Maintains state internally; call once per sample.
+    private func lowPassFilter400Hz(_ input: Float) -> Float {
+        let output = centerSpreadLPFAlpha * input + (1.0 - centerSpreadLPFAlpha) * centerSpreadLPFState
+        centerSpreadLPFState = output
+        return output
     }
 
     // MARK: - Parsing Helpers

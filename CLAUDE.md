@@ -45,23 +45,33 @@ xcodebuild -scheme ZappaStream-iOS -configuration Debug
 
 **iOS Build Configuration (one-time after checkout):**
 
-The iOS target requires manual configuration in Xcode Build Settings. If you get BASS linker errors, verify these for the **ZappaStream-iOS target only**:
+⚠️ **Critical: These manual steps are required; automated tooling does not apply them. Build will fail without them.**
+
+The iOS target requires manual configuration in Xcode Build Settings. If you encounter "BASSRadioPlayer" symbol not found or BASS linker errors, verify these for the **ZappaStream-iOS target only**:
 
 1. **Bridging header:**
-   - Build Settings → SWIFT_OBJC_BRIDGING_HEADER = `ZappaStream/BASSBridgingHeader.h`
+   - Build Settings → `SWIFT_OBJC_BRIDGING_HEADER = ZappaStream/BASSBridgingHeader.h`
+   - **Why:** iOS requires global availability of BASS C symbols (via `BASSBridgingHeader.h`); this setting makes them visible to the Swift compiler
+   - **Verify:** Search "SWIFT_OBJC_BRIDGING_HEADER" in Build Settings; value should appear for ZappaStream-iOS target only, NOT macOS target
 
 2. **Header search path:**
-   - Build Settings → HEADER_SEARCH_PATHS += `$(PROJECT_DIR)/Frameworks/iOS/include`
+   - Build Settings → `HEADER_SEARCH_PATHS += $(PROJECT_DIR)/Frameworks/iOS/include`
+   - **Why:** Points compiler to BASS C header files (`bass.h`, `bass_fx.h`, etc.) needed by the bridging header
+   - **Verify:** Search "HEADER_SEARCH_PATHS" in Build Settings; should include `$(PROJECT_DIR)/Frameworks/iOS/include`
 
 3. **Embed BASS frameworks:**
-   - Build Phases → Embed Frameworks should contain the 6 BASS xcframeworks from `Frameworks/iOS/`:
-     - `bass.xcframework`
-     - `bass_fx.xcframework`
-     - `bassflac.xcframework`
-     - `basshls.xcframework`
-     - `bassmix.xcframework`
-     - `tags.xcframework`
-   - If missing, add them via the "+" button and select all 6 from `Frameworks/iOS/`
+   - Build Phases → Embed Frameworks should contain all **6 BASS xcframeworks** from `Frameworks/iOS/`:
+     - `bass.xcframework` — core playback engine
+     - `bass_fx.xcframework` — effects (EQ, compressor, reverb)
+     - `bassflac.xcframework` — FLAC decoder (critical for 750k lossy-free stream)
+     - `basshls.xcframework` — HLS streaming support
+     - `bassmix.xcframework` — mixer and DSP callbacks for effects
+     - `tags.xcframework` — metadata reading (ID3, Vorbis, etc.)
+   - **If missing:** Xcode Build Phases → Embed Frameworks → "+" button → Select all 6 from `Frameworks/iOS/`
+   - **Do NOT:** Add to "Link Binary With Libraries" — embedding handles linking automatically
+   - **Verify:** Build Phases → Embed Frameworks section should list all 6 frameworks
+
+**macOS target:** No manual setup required; CBass Swift Package resolves automatically via `Package.resolved`.
 
 **Dependencies:**
 - **BASS** — Cross-platform audio library (handles all 4 codecs: MP3, AAC, OGG, FLAC)
@@ -93,6 +103,69 @@ BASS Audio Stream
   → UI update (now playing highlight, setlist display, menubar tooltip)
 ```
 
+### Component Architecture Diagram
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ BASS Audio Library                                       │
+│ (macOS Swift Package / iOS XCFrameworks)                │
+└──────────────────┬───────────────────────────────────────┘
+                   │ (all 4 codecs: MP3/AAC/OGG/FLAC)
+          ┌────────▼──────────┐
+          │ BASSRadioPlayer   │ ← Playback state machine, metadata polling
+          │ (@Observable)     │   3-band EQ, compressor, stereo, limiter
+          └────────┬──────────┘
+                   │
+        ┌──────────┴──────────┐
+        │                     │
+    (metadata)          (state updates)
+        │                     │
+    ┌───▼──────────┐      ┌───▼─────────────┐
+    │ ParsedTrack  │      │ ContentView /   │
+    │ Info.parse() │      │ ContentView_iOS │
+    │ (4 formats)  │      │ + AudioFXView   │
+    └───┬──────────┘      └────────┬────────┘
+        │                          │
+    (show date/time)       (format selection)
+        │                          │
+    ┌───▼──────────────┐          │
+    │ FZShowsFetcher   │◄─────────┘
+    │ .fetchShowInfo() │ ← HTML scraping, setlist fetch
+    │ (tour mapping)   │
+    └───┬──────────────┘
+        │
+    (full show data)
+        │
+    ┌───▼──────────────┐
+    │ ShowDataManager  │ ← Persistence, history/favorites
+    │ .recordListen()  │
+    │ (@Observable)    │
+    └───┬──────────────┘
+        │
+    ┌───▼──────────┐
+    │ SavedShow     │ ← SwiftData @Model
+    │ (persisted)   │   showDate unique key
+    └───────────────┘
+
+UI Components (Shared):
+┌─────────────────────────────────────┐
+│ ShowEntryRow                        │ ← Setlist row with highlighting
+│ SidebarView (History/Favorites)     │ ← Collapsible time periods
+│ FilterView (Tag-based filtering)    │ ← Tour/year/location
+│ SettingsView                        │ ← Format, resume, text scale
+│ MarqueeText                         │ ← Animated scrolling titles
+└─────────────────────────────────────┘
+
+Platform-Specific:
+┌─────────────────────────────┬─────────────────────────────┐
+│ macOS (ContentView)         │ iOS (ContentView_iOS)       │
+│ • Menubar + main window     │ • Tab navigation            │
+│ • NSStatusBar icon          │ • Adaptive iPad landscape   │
+│ • NotificationCenter comms  │ • Lock screen controls      │
+│ • AudioFXView integration   │ • Pull-down filter reveal   │
+└─────────────────────────────┴─────────────────────────────┘
+```
+
 ### Key Patterns & Architecture Decisions
 
 **State Management:**
@@ -106,8 +179,43 @@ BASS Audio Stream
 
 **Streaming & Metadata:**
 - `BASSRadioPlayer` polls metadata every 3 seconds via `Timer` (not a streaming callback, due to BASS architecture)
-- Metadata format varies: MP3 sends ICY metadata, OGG/FLAC use Vorbis comments, fallback to Icecast JSON
-- Single metadata callback (`onMetadataUpdate`) unifies all formats for downstream parsing
+- **Four Metadata Formats Supported:**
+  1. **ICY (MP3):** `StreamTitle='[1973 11 07 Boston MA] Artist: (01) Track Name (1973) [3:30]';`
+  2. **Vorbis Comments (OGG/FLAC):** Bitstream tags like `TITLE=[1973 11 07 Boston MA] Artist: (01) Track...`
+  3. **Icecast JSON (AAC/FLAC fallback):** `{"title": "...", "artist": "..."}`
+  4. **Bare Track Name (ultimate fallback):** Simple string when parsing fails, used as-is
+- **Format-Specific Handling:**
+  - MP3: Exclusively ICY metadata
+  - OGG: Primarily Vorbis; Icecast JSON as secondary source
+  - AAC/FLAC: Always query Icecast JSON in parallel due to 1-poll-cycle lag in Vorbis comments
+- Single metadata callback (`onMetadataUpdate`) unifies all formats for downstream parsing via `ParsedTrackInfo.parse()`
+
+**Audio Effects DSP Pipeline:**
+- **3-Band EQ** (via BASS `BASS_FX_BFX_PEAKEQ`):
+  - Low band: 100 Hz center frequency
+  - Mid band: 1 kHz center frequency
+  - High band: 10 kHz center frequency
+  - Each band supports ±24 dB gain adjustment
+  - Applied first in DSP chain
+- **Compressor** (via BASS `BASS_FX_BFX_COMPRESSOR2`):
+  - Optional dynamic range compression for consistent level
+  - Threshold, ratio, and makeup gain configurable via `compressorOn` and `compressorAmount`
+  - Bypassed when `compressorOn = false`
+  - Applied after EQ
+- **Stereo Width/Pan** (custom DSP callback, priority 0):
+  - Mid-Side (M/S) processing: M = (L+R)/2, S = (L-R)/2
+  - Width coefficient mapped from slider: 0.75 (original) → 1.0 (maximum width beyond default)
+  - Pan uses sine/cosine angle blending for smooth stereo field positioning
+  - **NEW (Feb 2026):** Frequency-dependent center spreading — high-freq mono content spreads while bass stays centered (see "Recent Work" section)
+- **Soft Limiter** (custom DSP callback, priority -1):
+  - Soft knee threshold at 0.89 amplitude prevents digital clipping
+  - Knee width: 0.11 (gradual limiting for transparent sound, not audible compression)
+  - Applied last in DSP chain after all other effects
+  - Continuously active to protect audio output
+- **Effect Control:**
+  - `isFXBeingUsed` property: returns true if EQ ≠ 0 dB, compressor enabled, or stereo ≠ default
+  - Affects UI indication of active processing
+  - Master bypass (`masterBypassEnabled`) skips all DSP callbacks when true
 
 **Audio Fade-In/Fade-Out:**
 - Fade-in: 0.5s duration on play start (non-FLAC streams and after FLAC pre-buffer completion)
@@ -165,6 +273,61 @@ BASS Audio Stream
 - Adaptive layout for iPad landscape mode
 - List-based sidebar for history/favorites
 
+## File Organization Quick Reference
+
+| File | Purpose | Key Details |
+|------|---------|------------|
+| `BASSRadioPlayer.swift` | Audio playback engine, all 4 codecs, metadata polling, DSP effects | 928 lines; handles stream state machine, FLAC pre-buffering, fade-in/out, metadata callback |
+| `ParsedTrackInfo.swift` | Metadata parsing (4 formats), date/location/track extraction | 269 lines; regex-based extraction from ICY/Vorbis/Icecast/fallback formats |
+| `FZShowsFetcher.swift` | HTML scraping for zappateers.com setlists, exceptions handling | 642 lines; uses NSRegularExpression, tour period mapping, fallback to rehearsals.html |
+| `ShowDataManager.swift` | SwiftData persistence wrapper, history/favorites operations | 147 lines; @Observable singleton managing saves, queries, bulk operations |
+| `SavedShow.swift` | SwiftData @Model for persisted shows with JSON-encoded arrays | Unique key: `showDate` (format "YYYY MM DD"); setlist/acronyms stored as Data |
+| `ContentView.swift` | macOS main window UI, setlist display, now-playing info | 1,432 lines; sidebar with history/favorites, filter integration, progress display |
+| `ContentView_iOS.swift` | iOS/iPadOS app UI with tabs, lock screen integration | 932 lines; Now Playing, History, Favorites, Settings tabs; adaptive landscape layout |
+| `AudioFXView.swift` | macOS audio effects control panel (3-band EQ, compressor, stereo, limiter) | 550 lines; Canvas-based UI with vertical sliders; integrates with BASSRadioPlayer DSP |
+| `SidebarView.swift` | Shared history/favorites sidebar with collapsible time periods | 510 lines; groups shows by Day/Week/Month/Year; search/filter integration |
+| `FilterView.swift` | Tag-based filtering (tour, year, location hierarchies) | 495 lines; leverages GeoData for country/state/city selection |
+| `ShowEntryRow.swift` | Shared row component for setlist entries with highlighting | 245 lines; displays duration, notes, handles duplicates, tracks now-playing |
+| `TourPeriods.swift` | `GeoData` struct with tour periods and location data | Maps years to zappateers.com filenames; US states, Canadian provinces, countries |
+| `ZappaStreamApp.swift` | App entry point, SwiftData setup, menubar (macOS), app delegate | 466 lines; ModelContainer setup, NSStatusBar registration, NotificationCenter comms |
+| `MarqueeText.swift` | Animated scrolling text for long track titles | 134 lines; smooth continuous animation with configurable speed |
+| Shared utilities | `Acronym.swift`, `Stream.swift`, `PlatformHelpers.swift`, `SongFormatter.swift` | Platform helpers (email, SafariView, system colors); lightweight data models |
+| iOS-only | `BASSBridgingHeader.h` | Makes BASS C symbols globally available to Swift; set via SWIFT_OBJC_BRIDGING_HEADER |
+
+## Recent Work & In-Progress Features
+
+### **Frequency-Dependent Center Spreading (Stereo Widener Extension)**
+
+- **Status:** Code integrated into `BASSRadioPlayer.swift` (Feb 2026), UI integration ongoing
+- **Goal:** Extend stereo widener to spread mono/center-channel content into stereo space without affecting existing stereo signals
+- **Implementation Details:**
+  - Splits mono signal at **400 Hz crossover** using 1st-order IIR low-pass filter (α = 0.0556 @ 44.1 kHz)
+  - Low-freqs (< 400 Hz): stay centered (phase-stable, preserves bass clarity)
+  - High-freqs (≥ 400 Hz): spread progressively as width slider increases
+  - Spreading formula: `spreadAmount = (coeff - 1.0) * 0.15` (active only when width > 0.75)
+  - Result: pure mono streams gain noticeable stereo width; stereo content unaffected
+- **Files Modified:**
+  - `BASSRadioPlayer.swift`: Added `centerSpreadLPFState`, `centerSpreadLPFAlpha`, `lowPassFilter400Hz()`, DSP integration in stereoDSP callback
+- **Files in Development:**
+  - `AudioFXView.swift` (untracked): FX panel UI expansion for frequency-dependent controls
+- **Scope:** macOS-only (for now)
+- **Next Steps:** Complete UI integration, test on stereo + mono content, measure CPU impact, consider iOS expansion
+- **Reference Docs:**
+  - `/Users/Datisit/.claude/plans/cosmic-twirling-pie.md` — Full implementation plan with 4 approaches analyzed
+  - Project memory: `MEMORY.md` tracks decision history and deferred features
+
+### **Audio Effects UI Panel (AudioFXView.swift)**
+
+- **Status:** Implementation in progress; `AudioFXView.swift` exists but not yet fully integrated
+- **Features:**
+  - 3-band EQ with vertical sliders (100 Hz, 1 kHz, 10 kHz centers)
+  - Dynamic range compressor with threshold/ratio controls
+  - Stereo width/pan faders for spatial control
+  - Master bypass toggle to disable all FX instantly
+  - FX button in playbar triggers slide-up animation (proposed)
+- **Architecture:** Canvas-based rendering for precision control UI; real-time parameter updates to BASS mixer
+- **Integration:** Bidirectional binding with `BASSRadioPlayer` @Observable properties
+
 ## Development Notes
 
 ### Finding Key Code
@@ -205,6 +368,24 @@ BASS Audio Stream
 - Debug metadata format: add `#if DEBUG` print statements in `ParsedTrackInfo.parse()`
 - Check BASS error codes (returned by BASS C functions) — logged in `BASSRadioPlayer`
 - For FLAC issues on iOS: Check BASS buffering state; FLAC pre-buffers audio before playback (shorter duration tolerance than MP3/AAC)
+
+### Project Memory & Planning
+
+The project uses persistent memory files to track architectural decisions and ongoing work across Claude Code sessions:
+
+**Memory Files:**
+- `/Users/Datisit/.claude/projects/-Users-Datisit-Developer-ZappaStream/memory/MEMORY.md` — Active plans, completed work, deferred features (concise reference)
+- `/Users/Datisit/.claude/projects/-Users-Datisit-Developer-ZappaStream/memory/audio_fx_ui_plan.md` — Audio FX panel UI design and implementation notes
+- `/Users/Datisit/.claude/projects/-Users-Datisit-Developer-ZappaStream/memory/fx_code_analysis.md` — FX code analysis comparing BASSTest vs ZappaStream
+
+**Plan Files:**
+- `/Users/Datisit/.claude/plans/cosmic-twirling-pie.md` — Stereo Widener Extension full implementation plan (Approach 3: Frequency-Dependent Center Spreading)
+
+**How to Use:**
+- When starting new work, check memory files to understand prior decisions and architectural patterns
+- Update relevant memory file after significant changes to document decisions for future sessions
+- Link to memory files from code comments when implementing complex features
+- When deferring features, document them in MEMORY.md with rationale and next steps
 
 ### Known Limitations & Workarounds
 
