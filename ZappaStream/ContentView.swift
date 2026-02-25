@@ -21,6 +21,8 @@ struct ContentView: View {
     @AppStorage("textScale") private var textScale: Double = 1.1
     @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "MP3"
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
+    @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
+    @AppStorage("fxPersistOnRestart") private var fxPersistOnRestart: Bool = false
     @State private var panelOpen: Bool = false  // Local state for panel visibility
     @State private var acronymsExpanded: Bool = false  // Collapsible acronyms section
     @State private var contentBounceOffset: CGFloat = 0
@@ -1033,6 +1035,8 @@ struct ContentView: View {
             print("💾 willTerminate - saving playing state: \(currentlyPlaying)")
             #endif
         }
+
+        if fxPersistOnRestart { bassPlayer.restoreFXFromDefaults() }
     }
 
     // MARK: - Media Key Support
@@ -1180,6 +1184,7 @@ struct ContentView: View {
         // Only fetch if we don't already have this show (and same showTime)
         guard currentShow?.date != date else { return }
 
+        if !fxPersistAcrossShows { bassPlayer.resetAllFX() }
         isFetchingShowInfo = true
         FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime) { show in
             DispatchQueue.main.async {

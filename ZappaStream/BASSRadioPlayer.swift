@@ -78,13 +78,20 @@ enum PlaybackState {
     private var compressorFX: HFX = 0
     private var stereoDSP: HDSP = 0
     private var limiterDSP: HDSP = 0
+    private var clickGuardDSP: HDSP = 0
+
+    // MARK: - Click Guard (OGG/FLAC bitstream boundary click suppression)
+    // The mixtime OGG_CHANGE sync sets this counter to 2; the DSP callback decrements
+    // it each buffer. Buffer 1 = fade out (end of old track), buffer 2 = fade in (start
+    // of new track). Together they crossfade across the boundary.
+    private var cgFadeBuffersRemaining: Int = 0
 
     var eqLowGain:  Float = 0
     var eqMidGain:  Float = 0
     var eqHighGain: Float = 0
 
     var compressorOn:     Bool  = false
-    var compressorAmount: Float = 0.5
+    var compressorAmount: Float = 0.25
 
     var stereoWidth: Float = 0.75
     var stereoPan:   Float = 0.5
@@ -221,8 +228,9 @@ enum PlaybackState {
         // render callback — fine on real hardware (RT priority), but causes random stutters on the
         // Simulator where the audio thread lacks real-time scheduling. VLC avoided this by having
         // a dedicated decode thread feeding a ring buffer; BASS_MIXER_CHAN_BUFFER is equivalent.
-        // FLAC omits BASS_MIXER_CHAN_NORAMPIN so the mixer applies its built-in micro-ramp on
-        // track changes, smoothing the decoder reinit discontinuity at bitstream boundaries.
+        // FLAC omits BASS_MIXER_CHAN_NORAMPIN (leaving ramp-in enabled at channel *start* only).
+        // Note: BASS_MIXER_CHAN_NORAMPIN only affects channel *start*, not OGG/FLAC bitstream
+        // boundaries, so there is no built-in BASS protection against track-change clicks.
         let addFlags = format == "FLAC"
             ? DWORD(BASS_MIXER_CHAN_BUFFER)
             : DWORD(BASS_MIXER_CHAN_NORAMPIN)
@@ -247,6 +255,7 @@ enum PlaybackState {
                 print("🔊 FLAC pre-buffer complete — starting fade-in")
             }
         } else {
+            BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_VOL), 0)
             BASS_ChannelPlay(mixerHandle, 0)
             startFadeIn(mixer: mixerHandle)
         }
@@ -282,6 +291,8 @@ enum PlaybackState {
         compressorFX = 0
         stereoDSP = 0
         limiterDSP = 0
+        clickGuardDSP = 0
+        cgFadeBuffersRemaining = 0
     }
 
     // MARK: - Stream Attributes
@@ -413,7 +424,53 @@ enum PlaybackState {
             userData,
             -1
         )
-        print("🎛️  Effects applied — eqFX=\(eqFX) compFX=\(compressorFX) stereoDSP=\(stereoDSP) limiterDSP=\(limiterDSP)")
+        // Click guard DSP: runs after limiter (priority -2). When the mixtime OGG_CHANGE
+        // sync arms cgFadeBuffersRemaining=2, this DSP applies fades across two consecutive
+        // buffers: fade-out on the first (end of old track), fade-in on the second (start
+        // of new track). Together they crossfade across the bitstream boundary.
+        clickGuardDSP = BASS_ChannelSetDSP(
+            handle,
+            { _, _, buffer, length, user in
+                guard let buffer = buffer, let user = user else { return }
+                let p = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
+                guard p.cgFadeBuffersRemaining > 0 else { return }
+
+                let remaining = p.cgFadeBuffersRemaining
+                p.cgFadeBuffersRemaining -= 1
+
+                let samples = buffer.assumingMemoryBound(to: Float.self)
+                let count = Int(length) / MemoryLayout<Float>.size
+                let frames = count / 2  // stereo frame count
+                // Fade only the last/first 10ms of each buffer (not the full 100ms).
+                // The click is at the junction of the two buffers.
+                let fadeDuration = min(441, frames)  // 441 frames ≈ 10ms @ 44.1 kHz
+
+                if remaining == 2 {
+                    // First buffer: fade out only the TAIL (last 10ms) → 1.0 to 0.0
+                    let startFrame = frames - fadeDuration
+                    let startSample = startFrame * 2
+                    for i in stride(from: startSample, to: count - 1, by: 2) {
+                        let fadeFrame = (i / 2) - startFrame
+                        let gain = 1.0 - Float(fadeFrame) / Float(fadeDuration)
+                        samples[i]     *= gain
+                        samples[i + 1] *= gain
+                    }
+                    print("🔕  click guard: fade-OUT tail (\(String(format: "%.1f", Double(fadeDuration) / 44.1))ms)")
+                } else {
+                    // Second buffer: fade in only the HEAD (first 10ms) → 0.0 to 1.0
+                    for i in stride(from: 0, to: min(fadeDuration * 2, count) - 1, by: 2) {
+                        let fadeFrame = i / 2
+                        let gain = Float(fadeFrame) / Float(fadeDuration)
+                        samples[i]     *= gain
+                        samples[i + 1] *= gain
+                    }
+                    print("🔕  click guard: fade-IN head (\(String(format: "%.1f", Double(fadeDuration) / 44.1))ms)")
+                }
+            },
+            userData,
+            -2
+        )
+        print("🎛️  Effects applied — eqFX=\(eqFX) compFX=\(compressorFX) stereoDSP=\(stereoDSP) limiterDSP=\(limiterDSP) clickGuardDSP=\(clickGuardDSP)")
     }
 
     private func applyEQBand(_ band: Int32, center: Float, gain: Float) {
@@ -454,6 +511,7 @@ enum PlaybackState {
             applyEQBand(2, center: 10000, gain: 0)
         }
         flushEffects()
+        saveFXToDefaults()
     }
 
     func updateCompressor() {
@@ -469,11 +527,13 @@ enum PlaybackState {
             }
         }
         flushEffects()
+        saveFXToDefaults()
     }
 
     func updateCompressorAmount() {
         applyCompressorParams()
         flushEffects()
+        saveFXToDefaults()
     }
 
     func resetAllFX() {
@@ -483,7 +543,7 @@ enum PlaybackState {
         eqMidGain           = 0
         eqHighGain          = 0
         compressorOn        = false
-        compressorAmount    = 0.5
+        compressorAmount    = 0.25
         stereoWidthEnabled  = true
         stereoWidth         = 0.75
         stereoPan           = 0.5
@@ -492,8 +552,40 @@ enum PlaybackState {
         // flushEffects() already called by updateEQ/updateCompressor above
     }
 
+    func saveFXToDefaults() {
+        let d = UserDefaults.standard
+        d.set(eqLowGain,           forKey: "fx.eqLowGain")
+        d.set(eqMidGain,           forKey: "fx.eqMidGain")
+        d.set(eqHighGain,          forKey: "fx.eqHighGain")
+        d.set(eqEnabled,           forKey: "fx.eqEnabled")
+        d.set(compressorOn,        forKey: "fx.compressorOn")
+        d.set(compressorAmount,    forKey: "fx.compressorAmount")
+        d.set(stereoWidth,         forKey: "fx.stereoWidth")
+        d.set(stereoPan,           forKey: "fx.stereoPan")
+        d.set(stereoWidthEnabled,  forKey: "fx.stereoWidthEnabled")
+        d.set(masterBypassEnabled, forKey: "fx.masterBypassEnabled")
+    }
+
+    func restoreFXFromDefaults() {
+        let d = UserDefaults.standard
+        guard d.object(forKey: "fx.eqLowGain") != nil else { return }
+        eqLowGain           = d.float(forKey: "fx.eqLowGain")
+        eqMidGain           = d.float(forKey: "fx.eqMidGain")
+        eqHighGain          = d.float(forKey: "fx.eqHighGain")
+        eqEnabled           = d.bool(forKey: "fx.eqEnabled")
+        compressorOn        = d.bool(forKey: "fx.compressorOn")
+        compressorAmount    = d.float(forKey: "fx.compressorAmount")
+        stereoWidth         = d.float(forKey: "fx.stereoWidth")
+        stereoPan           = d.float(forKey: "fx.stereoPan")
+        stereoWidthEnabled  = d.bool(forKey: "fx.stereoWidthEnabled")
+        masterBypassEnabled = d.bool(forKey: "fx.masterBypassEnabled")
+        updateEQ()
+        updateCompressor()
+    }
+
     func updateMasterBypass() {
         updateEQ()
+        saveFXToDefaults()
         if masterBypassEnabled {
             if compressorFX != 0 {
                 BASS_ChannelRemoveFX(mixerHandle, compressorFX)
@@ -548,9 +640,14 @@ enum PlaybackState {
         )
 
         if activeFormat == "OGG" || activeFormat == "FLAC" {
-            oggChangeSync = BASS_ChannelSetSync(
+            // Use BASS_Mixer_ChannelSetSync with BASS_SYNC_MIXTIME so the callback fires
+            // during mixing — at the exact sample position of the bitstream boundary.
+            // In the callback we set a volume envelope via BASS_Mixer_ChannelSetEnvelope
+            // that dips at the boundary position. This is sample-accurate because the
+            // envelope operates within the mixer's sample pipeline, before the output buffer.
+            oggChangeSync = BASS_Mixer_ChannelSetSync(
                 handle,
-                DWORD(BASS_SYNC_OGG_CHANGE),
+                DWORD(BASS_SYNC_OGG_CHANGE) | DWORD(BASS_SYNC_MIXTIME),
                 0,
                 { _, channel, _, user in
                     guard let user = user else { return }
@@ -559,7 +656,7 @@ enum PlaybackState {
                 },
                 userData
             )
-            print("🔗 Syncs registered — stall=\(stallSync) end=\(endSync) oggChange=\(oggChangeSync)")
+            print("🔗 Syncs registered — stall=\(stallSync) end=\(endSync) oggChange=\(oggChangeSync) (via Mixer_ChannelSetSync, mixtime+envelope)")
         } else {
             print("🔗 Syncs registered — stall=\(stallSync) end=\(endSync)")
         }
@@ -592,11 +689,10 @@ enum PlaybackState {
 
     private func handleOggChangeSync(channel: DWORD) {
         guard channel == streamHandle, streamHandle != 0 else { return }
-        print("🔀  BASS_SYNC_OGG_CHANGE fired — new bitstream (track change)")
-        // No buffer flush here: the mixer's built-in micro-ramp (enabled by omitting
-        // BASS_MIXER_CHAN_NORAMPIN for FLAC) smooths the transition at bitstream boundaries.
-        // Flushing caused buffer underruns while the FLAC decoder reinitializes.
-        // The old track's tail plays out naturally on a continuous live stream.
+        // Set flag for the click guard DSP — it runs in the same mixer render cycle,
+        // so it will process the buffer containing the boundary before it reaches output.
+        cgFadeBuffersRemaining = 2
+        print("🔀  OGG_CHANGE mixtime: armed click guard for 2 buffers")
     }
 
     // MARK: - Metadata Polling

@@ -16,7 +16,7 @@ struct SettingsView: View {
 
         var height: CGFloat {
             switch self {
-            case .playback: return 200
+            case .playback: return 360
             case .sync: return 200
             case .savedData: return 320
             case .credits: return 280
@@ -101,6 +101,8 @@ struct SettingsSectionBox<Content: View>: View {
 
 struct PlaybackSettingsView: View {
     @AppStorage("autoResumeOnLaunch") private var autoResumeOnLaunch: Bool = true
+    @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
+    @AppStorage("fxPersistOnRestart") private var fxPersistOnRestart: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -113,6 +115,25 @@ struct PlaybackSettingsView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+
+            #if os(macOS)
+            SettingsSectionHeader(title: "FX", systemImage: "slider.horizontal.3")
+
+            SettingsSectionBox {
+                Toggle("FX settings persist across shows", isOn: $fxPersistAcrossShows)
+
+                Text("By default, all FX are reset when a new show starts. Enable this to keep your settings.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.bottom, 6)
+
+                Toggle("FX settings persist on app restart", isOn: $fxPersistOnRestart)
+
+                Text("Restore your last FX settings when the app launches.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            #endif
 
             Spacer()
         }
