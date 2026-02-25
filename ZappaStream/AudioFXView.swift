@@ -1,6 +1,29 @@
 #if os(macOS)
 import SwiftUI
 
+// MARK: - FX Info Icon
+
+struct FXInfoIcon: View {
+    let text: String
+    @State private var showPopover = false
+
+    var body: some View {
+        Image(systemName: "info.circle.fill")
+            .font(.system(size: 12))
+            .foregroundColor(.secondary)
+            .onTapGesture { showPopover.toggle() }
+            .popover(isPresented: $showPopover, arrowEdge: .bottom) {
+                Text(text)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(10)
+                    .frame(width: 240)
+            }
+    }
+}
+
 // MARK: - EQ Scale (Canvas-drawn tick marks + dB labels)
 
 struct EQScaleView: View {
@@ -466,6 +489,9 @@ struct AudioFXView: View {
                     Text("FX Bypass")
                         .font(.subheadline)
                         .fontWeight(.semibold)
+                    FXInfoIcon(
+                        text: "FX Settings auto-reset at start of each show. Configure this in the app Settings."
+                    )
                     Spacer()
                     Button("Reset All") {
                         withAnimation(.spring(response: 0.25)) { player.resetAllFX() }
@@ -477,12 +503,6 @@ struct AudioFXView: View {
                         .toggleStyle(.switch)
                         .onChange(of: player.masterBypassEnabled) { player.updateMasterBypass() }
                 }
-
-                Text("Settings auto-reset at start of each show")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .italic()
-                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 Divider()
 
@@ -526,7 +546,7 @@ struct AudioFXView: View {
                         }
                         HStack {
                             Text("Gentle").font(.caption).foregroundColor(.secondary)
-                            FXHorizontalSlider(value: $player.compressorAmount, resetValue: 0.5,
+                            FXHorizontalSlider(value: $player.compressorAmount, resetValue: 0.25,
                                               onUpdate: player.updateCompressorAmount)
                             Text("Heavy").font(.caption).foregroundColor(.secondary)
                         }
@@ -545,11 +565,11 @@ struct AudioFXView: View {
                             Toggle("", isOn: $player.stereoWidthEnabled)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
-                                .onChange(of: player.stereoWidthEnabled) { player.saveFXToDefaults() }
+                                .onChange(of: player.stereoWidthEnabled) { player.updateStereo() }
                         }
                         StereoWidthSlider(value: $player.stereoWidth)
                             .opacity(player.stereoWidthEnabled ? 1.0 : 0.4)
-                            .onChange(of: player.stereoWidth) { player.saveFXToDefaults() }
+                            .onChange(of: player.stereoWidth) { player.updateStereo() }
 
                         Text("Stereo Pan")
                             .font(.subheadline)
@@ -557,7 +577,7 @@ struct AudioFXView: View {
                             .padding(.top, 4)
                         StereoPanSlider(value: $player.stereoPan)
                             .opacity(player.stereoWidthEnabled ? 1.0 : 0.4)
-                            .onChange(of: player.stereoPan) { player.saveFXToDefaults() }
+                            .onChange(of: player.stereoPan) { player.updateStereo() }
                     }
                 }
                 .opacity(player.masterBypassEnabled ? 0.4 : 1.0)
