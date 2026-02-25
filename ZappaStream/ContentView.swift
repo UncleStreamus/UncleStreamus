@@ -32,7 +32,7 @@ struct ContentView: View {
     @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
     @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
     @State private var showFXPane: Bool = false
-    @State private var setlistWasOpenBeforeFX: Bool = false  // Track setlist state before FX panel opened
+    @AppStorage("setlistWasOpenBeforeFX") private var setlistWasOpenBeforeFX: Bool = false  // Track setlist state before FX panel opened; persisted so app relaunch can restore it
     @State private var windowHeightBeforeFX: CGFloat = 0  // Track window height before FX opens
 
     let streams = [
@@ -85,6 +85,14 @@ struct ContentView: View {
             }
             // Sync panel state with persisted sidebar state
             panelOpen = isSidebarVisible
+
+            // If the app was quit while the FX panel was open, the setlist was hidden
+            // to make room. Restore its open state now since FX panel always starts closed.
+            if setlistWasOpenBeforeFX {
+                showInfoExpanded = true
+                setlistWasOpenBeforeFX = false
+            }
+
             setupPlayer()
             configureWindowConstraints()
             setupMenubarObservers()
