@@ -210,8 +210,15 @@ Platform-Specific:
 - **Soft Limiter** (custom DSP callback, priority -1):
   - Soft knee threshold at 0.89 amplitude prevents digital clipping
   - Knee width: 0.11 (gradual limiting for transparent sound, not audible compression)
-  - Applied last in DSP chain after all other effects
+  - Applied after all other effects
   - Continuously active to protect audio output
+- **Click Guard (custom DSP callback, priority -2):**
+  - Suppresses clicks at OGG/FLAC bitstream boundaries during track changes
+  - Triggered by `BASS_SYNC_OGG_CHANGE` (mixtime sync) on bitstream boundary detection
+  - Applies 10ms fade-out to tail of last audio buffer before boundary, 10ms fade-in to head of first buffer after
+  - Seamless 20ms crossfade masks waveform discontinuity; inaudible as musical gap
+  - Applied last in DSP chain to ensure clean sample-level modification
+  - Format-specific: OGG and FLAC only (MP3 has no bitstream boundaries; AAC restarts stream)
 - **Effect Control:**
   - `isFXBeingUsed` property: returns true if EQ ≠ 0 dB, compressor enabled, or stereo ≠ default
   - Affects UI indication of active processing
@@ -327,6 +334,23 @@ Platform-Specific:
   - FX button in playbar triggers slide-up animation (proposed)
 - **Architecture:** Canvas-based rendering for precision control UI; real-time parameter updates to BASS mixer
 - **Integration:** Bidirectional binding with `BASSRadioPlayer` @Observable properties
+
+### **OGG/FLAC Bitstream Boundary Click Suppression (Feb 2026)**
+
+- **Status:** ✅ Implemented and tested
+- **Problem:** Live Icecast streams encode track transitions as chained OGG/FLAC logical bitstreams. At each boundary, the encoder's zero-padding (end of last frame) meets the decoder's reinitialization discontinuity → audible click/pop at every track change.
+- **Solution:** DSP-level crossfade triggered by bitstream boundary detection
+  - **Detection:** `BASS_SYNC_OGG_CHANGE` sync set via `BASS_Mixer_ChannelSetSync` with `BASS_SYNC_MIXTIME` flag fires when BASS decoder encounters bitstream boundary during mixing
+  - **Response:** `cgFadeBuffersRemaining` counter set to 2 on sync fire
+  - **DSP Processing:** Click guard DSP callback (priority -2, runs after limiter) applies:
+    - **Buffer 1 (end of old track):** Fade-out over last 10ms (1.0 → 0.0)
+    - **Buffer 2 (start of new track):** Fade-in over first 10ms (0.0 → 1.0)
+    - Result: seamless 20ms crossfade at the boundary, completely masking the click
+- **Files Modified:**
+  - `BASSRadioPlayer.swift` — `cgFadeBuffersRemaining` state, `handleOggChangeSync`, `clickGuardDSP` callback
+- **Scope:** OGG and FLAC formats (MP3 has no bitstream boundaries; AAC restarts stream)
+- **Testing:** Manual testing on live OGG stream confirmed click is eliminated, crossfade is inaudible as musical gap
+- **Performance:** DSP runs only on two buffers per track change, no continuous overhead
 
 ## Development Notes
 
