@@ -198,15 +198,17 @@ Platform-Specific:
   - Each band supports ±24 dB gain adjustment
   - Applied first in DSP chain
 - **Compressor** (via BASS `BASS_FX_BFX_COMPRESSOR2`):
-  - Optional dynamic range compression for consistent level
-  - Threshold, ratio, and makeup gain configurable via `compressorOn` and `compressorAmount`
-  - Bypassed when `compressorOn = false`
+  - **Adaptive program-dependent threshold:** A level-meter DSP measures RMS of the post-compression signal over ~1.5s windows with EMA smoothing (~4.5s effective time constant). The compressor threshold is set relative to this measured program level, so it compresses proportionally regardless of track loudness.
+  - Threshold headroom: At gentle (`compressorAmount`=0): RMS + 6 dB; at heavy (=1): RMS + 2.25 dB
+  - Threshold updates only when change exceeds 0.5 dB (avoids jitter)
+  - FX stays in chain always; when off or bypassed, set to passthrough (threshold 0 dB, ratio 1:1) instead of add/remove to avoid discontinuity
   - Applied after EQ
 - **Stereo Width/Pan** (custom DSP callback, priority 0):
   - Mid-Side (M/S) processing: M = (L+R)/2, S = (L-R)/2
   - Width coefficient mapped from slider: 0.75 (original) → 1.0 (maximum width beyond default)
   - Pan uses sine/cosine angle blending for smooth stereo field positioning
-  - **NEW (Feb 2026):** Frequency-dependent center spreading — high-freq mono content spreads while bass stays centered (see "Recent Work" section)
+  - **Parameter smoothing:** Per-buffer exponential smoothing (α=0.3) with linear interpolation within each buffer prevents pops/clicks from abrupt parameter jumps at buffer boundaries (~3–4 buffers to settle)
+  - Frequency-dependent center spreading — high-freq mono content spreads while bass stays centered (see "Recent Work" section)
 - **Soft Limiter** (custom DSP callback, priority -1):
   - Soft knee threshold at 0.89 amplitude prevents digital clipping
   - Knee width: 0.11 (gradual limiting for transparent sound, not audible compression)
@@ -233,11 +235,11 @@ Platform-Specific:
 
 **FLAC Streaming & Buffer Management:**
 - **Download buffering:** FLAC (~900 kbps compressed) requires aggressive pre-buffering due to 7× higher bitrate than MP3 (128 kbps). On stream start, BASS config is temporarily set to 60s download buffer + 75% pre-buffer threshold (~45s of data required before playback starts), then restored to normal (25s + 50%) after stream creation.
-- **Asynchronous decoding:** FLAC uses `BASS_MIXER_CHAN_BUFFER` flag to pre-decode on a background thread rather than synchronously in the CoreAudio render callback. This avoids stutters on iOS Simulator (where the audio thread lacks real-time scheduling) and real hardware under load. Other formats omit this flag and use `BASS_MIXER_CHAN_NORAMPIN` for micro-ramp smoothing on format switches.
-- **Output buffers:** Stream-specific `BASS_ATTRIB_BUFFER` set per format (MP3: 1.0s, OGG: 2.0s, AAC: 1.5s, FLAC: 5.0s capped by BASS). Mixer output buffer also format-specific (MP3/AAC: 1.0s, OGG: 1.5s, FLAC: 5.0s).
+- **Asynchronous decoding:** All formats use `BASS_MIXER_CHAN_BUFFER` flag to pre-decode on a background thread, keeping decoded audio ready so FX parameter changes take effect immediately when the mixer re-renders. Non-FLAC formats additionally use `BASS_MIXER_CHAN_NORAMPIN` to disable initial volume ramp at channel start (FLAC uses fade-in after pre-buffer delay instead).
+- **Output buffers:** Mixer output buffer set per format (FLAC: 2.5s for CPU-heavy decode headroom, OGG/MP3/AAC: 0.5s for responsive FX with minimal latency).
 - **Pre-buffer delay:** FLAC stream starts muted with volume = 0, then waits 4 seconds for the mixer's decode buffer to fill before fade-in starts. This ensures smooth, uninterrupted playback from the start; without it, initial audio dropout is likely.
 - **Metadata lag:** Vorbis comments (FLAC/OGG bitstream metadata) can lag by one 3-second poll cycle. For FLAC/AAC, always query the Icecast JSON endpoint in parallel to get the most current track info.
-- **Buffer flush caveat:** Calling `flushEffects()` (which updates EQ/compressor) on FLAC causes buffer underruns while the decoder reinitializes. FX changes on FLAC take effect naturally as the 5s buffer drains (~5s latency, acceptable for live radio); skipped for FLAC in code.
+- **Buffer flush:** `flushEffects()` calls `BASS_ChannelUpdate` to top up the mixer output buffer with freshly-processed audio after FX parameter changes. Works for all formats including FLAC (previously skipped for FLAC due to larger buffers). With reduced mixer buffers (0.5–2.5s), remaining latency is at most the buffer size.
 - **Stream restart:** When stream reconnects, the same 60s download buffer + 75% pre-buffer + 4s mute delay applies to FLAC. No fade applied on auto-restart; fade-in only happens on user-initiated play or after pre-buffer.
 
 **HTML Scraping:**
@@ -284,14 +286,14 @@ Platform-Specific:
 
 | File | Purpose | Key Details |
 |------|---------|------------|
-| `BASSRadioPlayer.swift` | Audio playback engine, all 4 codecs, metadata polling, DSP effects | 928 lines; handles stream state machine, FLAC pre-buffering, fade-in/out, metadata callback |
+| `BASSRadioPlayer.swift` | Audio playback engine, all 4 codecs, metadata polling, DSP effects | ~1,130 lines; handles stream state machine, FLAC pre-buffering, fade-in/out, adaptive compressor, stereo smoothing, metadata callback |
 | `ParsedTrackInfo.swift` | Metadata parsing (4 formats), date/location/track extraction | 269 lines; regex-based extraction from ICY/Vorbis/Icecast/fallback formats |
 | `FZShowsFetcher.swift` | HTML scraping for zappateers.com setlists, exceptions handling | 642 lines; uses NSRegularExpression, tour period mapping, fallback to rehearsals.html |
 | `ShowDataManager.swift` | SwiftData persistence wrapper, history/favorites operations | 147 lines; @Observable singleton managing saves, queries, bulk operations |
 | `SavedShow.swift` | SwiftData @Model for persisted shows with JSON-encoded arrays | Unique key: `showDate` (format "YYYY MM DD"); setlist/acronyms stored as Data |
-| `ContentView.swift` | macOS main window UI, setlist display, now-playing info | 1,432 lines; sidebar with history/favorites, filter integration, progress display |
+| `ContentView.swift` | macOS main window UI, setlist display, now-playing info | ~1,455 lines; sidebar with history/favorites, filter integration, progress display |
 | `ContentView_iOS.swift` | iOS/iPadOS app UI with tabs, lock screen integration | 932 lines; Now Playing, History, Favorites, Settings tabs; adaptive landscape layout |
-| `AudioFXView.swift` | macOS audio effects control panel (3-band EQ, compressor, stereo, limiter) | 550 lines; Canvas-based UI with vertical sliders; integrates with BASSRadioPlayer DSP |
+| `AudioFXView.swift` | macOS audio effects control panel (3-band EQ, compressor, stereo, limiter) | ~589 lines; Canvas-based UI with vertical sliders; integrates with BASSRadioPlayer DSP |
 | `SidebarView.swift` | Shared history/favorites sidebar with collapsible time periods | 510 lines; groups shows by Day/Week/Month/Year; search/filter integration |
 | `FilterView.swift` | Tag-based filtering (tour, year, location hierarchies) | 495 lines; leverages GeoData for country/state/city selection |
 | `ShowEntryRow.swift` | Shared row component for setlist entries with highlighting | 245 lines; displays duration, notes, handles duplicates, tracks now-playing |
