@@ -490,7 +490,7 @@ struct AudioFXView: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
                     FXInfoIcon(
-                        text: "FX Settings auto-reset at start of each show. Configure this in the app Settings."
+                        text: "FX Settings auto-reset at start of each show. Change this in the app Settings."
                     )
                     Spacer()
                     Button("Reset All") {

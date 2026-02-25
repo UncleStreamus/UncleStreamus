@@ -150,6 +150,15 @@ enum PlaybackState {
     override init() {
         super.init()
 
+        // Faster update thread (default 100ms → 5ms): the BASS update thread pre-decodes audio
+        // into the BASS_MIXER_CHAN_BUFFER async buffer. With 5ms cycles the buffer stays
+        // consistently topped up, minimising the chance of any momentary decode or scheduling
+        // hiccup propagating to the output — benefits all formats but critical for FLAC.
+        BASS_SetConfig(DWORD(BASS_CONFIG_UPDATEPERIOD), 5)
+        // Larger device output buffer (default ~40ms → 150ms): final defense before hardware.
+        // Trivial latency for a radio stream, but absorbs any upstream pipeline hiccup that
+        // makes it past the decode and mixer buffers.
+        BASS_SetConfig(DWORD(BASS_CONFIG_DEV_BUFFER), 150)
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 25000)  // 25s download buffer for mobile resilience
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)    // Wait for 50% of net buffer before starting (~reduces initial stutter)
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 10000)
@@ -322,7 +331,7 @@ enum PlaybackState {
         case "MP3":  bufferSeconds = 1.0
         case "OGG":  bufferSeconds = 2.0
         case "AAC":  bufferSeconds = 1.5
-        case "FLAC": bufferSeconds = 5.0
+        case "FLAC": bufferSeconds = 8.0
         default:     bufferSeconds = 1.0
         }
         BASS_ChannelSetAttribute(handle, DWORD(BASS_ATTRIB_BUFFER), bufferSeconds)
@@ -340,7 +349,7 @@ enum PlaybackState {
         let dlBufSize  = BASS_StreamGetFilePosition(handle, DWORD(BASS_FILEPOS_END))
         let mixerBuffer: Float
         switch format {
-        case "FLAC": mixerBuffer = 2.5   // FLAC decode is CPU-heavy; needs more headroom than lighter codecs
+        case "FLAC": mixerBuffer = 4.0   // FLAC decode is CPU-heavy; needs more headroom than lighter codecs
         case "OGG":  mixerBuffer = 0.5
         default:     mixerBuffer = 0.5   // MP3, AAC — low enough for responsive FX, high enough to avoid audio-thread scheduling gaps
         }
@@ -495,16 +504,17 @@ enum PlaybackState {
                 guard !player.masterBypassEnabled else { return }
                 let samples = buffer.assumingMemoryBound(to: Float.self)
                 let count   = Int(length) / MemoryLayout<Float>.size
-                let threshold: Float = 0.89
-                let knee: Float = 0.11
+                let threshold: Float = 0.85   // –1.4 dBFS — soft knee starts here
+                let knee: Float      = 0.05   // narrower curve, more decisive limiting
+                let ceiling: Float   = 0.891  // –1.0 dBFS hard brick-wall (leaves ~1 dB for ISP)
                 for i in 0..<count {
                     let x    = samples[i]
                     let absX = x < 0 ? -x : x
                     if absX > threshold {
-                        let sign: Float  = x > 0 ? 1.0 : -1.0
-                        let excess       = absX - threshold
-                        let limited      = threshold + knee * (1.0 - 1.0 / (1.0 + excess / knee))
-                        samples[i]       = sign * limited
+                        let sign: Float = x > 0 ? 1.0 : -1.0
+                        let excess      = absX - threshold
+                        let limited     = threshold + knee * (1.0 - 1.0 / (1.0 + excess / knee))
+                        samples[i]      = sign * min(limited, ceiling)  // hard clip safety net
                     }
                 }
             },
@@ -647,7 +657,9 @@ enum PlaybackState {
     }
 
     func updateCompressorAmount() {
-        applyCompressorParams()
+        if compressorOn && !masterBypassEnabled {
+            applyCompressorParams()
+        }
         flushEffects()
         saveFXToDefaults()
     }
@@ -958,6 +970,15 @@ enum PlaybackState {
             case 0:  self?.playbackState = .stopped
             default: self?.playbackState = .connecting
             }
+        }
+
+        // FLAC buffer health: log download buffer fill % every poll so we can correlate
+        // with audible stutters. If dlFill% drops low, the network can't keep up with
+        // FLAC's ~900 kbps; if it stays healthy, the problem is downstream (decode/mixer).
+        if activeFormat == "FLAC", status == BASS_ACTIVE_PLAYING {
+            let dlBufSize = BASS_StreamGetFilePosition(streamHandle, DWORD(BASS_FILEPOS_END))
+            let dlFill = dlBufSize > 0 ? Double(bufferedBytes) / Double(dlBufSize) * 100 : 0
+            print("📊 FLAC health: pos=\(String(format:"%.1f",secs))s dlBuf=\(String(format:"%.0f",dlFill))% (\(bufferedBytes)/\(dlBufSize))")
         }
 
         if activeFormat == "AAC",
