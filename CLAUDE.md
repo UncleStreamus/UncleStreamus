@@ -208,7 +208,7 @@ Platform-Specific:
   - Width coefficient mapped from slider: 0.75 (original) → 1.0 (maximum width beyond default)
   - Pan uses sine/cosine angle blending for smooth stereo field positioning
   - **Parameter smoothing:** Per-buffer exponential smoothing (α=0.3) with linear interpolation within each buffer prevents pops/clicks from abrupt parameter jumps at buffer boundaries (~3–4 buffers to settle)
-  - Frequency-dependent center spreading — high-freq mono content spreads while bass stays centered (see "Recent Work" section)
+  - Frequency-dependent center spreading — high-freq mono content spreads while bass stays centered (see memory files for implementation details)
 - **Soft Limiter** (custom DSP callback, priority -1):
   - Soft knee threshold at 0.89 amplitude prevents digital clipping
   - Knee width: 0.11 (gradual limiting for transparent sound, not audible compression)
@@ -220,7 +220,7 @@ Platform-Specific:
   - Applies 10ms fade-out to tail of last audio buffer before boundary, 10ms fade-in to head of first buffer after
   - Seamless 20ms crossfade masks waveform discontinuity; inaudible as musical gap
   - Applied last in DSP chain to ensure clean sample-level modification
-  - Format-specific: OGG and FLAC only (MP3 has no bitstream boundaries; AAC restarts stream)
+  - Format-specific: OGG and FLAC only (MP3 has no bitstream boundaries; AAC restarts the entire stream at each track change due to a server-side issue, so no click suppression is needed or possible)
 - **Effect Control:**
   - `isFXBeingUsed` property: returns true if EQ ≠ 0 dB, compressor enabled, or stereo ≠ default
   - Affects UI indication of active processing
@@ -284,75 +284,33 @@ Platform-Specific:
 
 ## File Organization Quick Reference
 
-| File | Purpose | Key Details |
-|------|---------|------------|
-| `BASSRadioPlayer.swift` | Audio playback engine, all 4 codecs, metadata polling, DSP effects | ~1,130 lines; handles stream state machine, FLAC pre-buffering, fade-in/out, adaptive compressor, stereo smoothing, metadata callback |
-| `ParsedTrackInfo.swift` | Metadata parsing (4 formats), date/location/track extraction | 269 lines; regex-based extraction from ICY/Vorbis/Icecast/fallback formats |
-| `FZShowsFetcher.swift` | HTML scraping for zappateers.com setlists, exceptions handling | 642 lines; uses NSRegularExpression, tour period mapping, fallback to rehearsals.html |
-| `ShowDataManager.swift` | SwiftData persistence wrapper, history/favorites operations | 147 lines; @Observable singleton managing saves, queries, bulk operations |
-| `SavedShow.swift` | SwiftData @Model for persisted shows with JSON-encoded arrays | Unique key: `showDate` (format "YYYY MM DD"); setlist/acronyms stored as Data |
-| `ContentView.swift` | macOS main window UI, setlist display, now-playing info | ~1,455 lines; sidebar with history/favorites, filter integration, progress display |
-| `ContentView_iOS.swift` | iOS/iPadOS app UI with tabs, lock screen integration | 932 lines; Now Playing, History, Favorites, Settings tabs; adaptive landscape layout |
-| `AudioFXView.swift` | macOS audio effects control panel (3-band EQ, compressor, stereo, limiter) | ~589 lines; Canvas-based UI with vertical sliders; integrates with BASSRadioPlayer DSP |
-| `SidebarView.swift` | Shared history/favorites sidebar with collapsible time periods | 510 lines; groups shows by Day/Week/Month/Year; search/filter integration |
-| `FilterView.swift` | Tag-based filtering (tour, year, location hierarchies) | 495 lines; leverages GeoData for country/state/city selection |
-| `ShowEntryRow.swift` | Shared row component for setlist entries with highlighting | 245 lines; displays duration, notes, handles duplicates, tracks now-playing |
-| `TourPeriods.swift` | `GeoData` struct with tour periods and location data | Maps years to zappateers.com filenames; US states, Canadian provinces, countries |
-| `ZappaStreamApp.swift` | App entry point, SwiftData setup, menubar (macOS), app delegate | 466 lines; ModelContainer setup, NSStatusBar registration, NotificationCenter comms |
-| `MarqueeText.swift` | Animated scrolling text for long track titles | 134 lines; smooth continuous animation with configurable speed |
-| Shared utilities | `Acronym.swift`, `Stream.swift`, `PlatformHelpers.swift`, `SongFormatter.swift` | Platform helpers (email, SafariView, system colors); lightweight data models |
-| iOS-only | `BASSBridgingHeader.h` | Makes BASS C symbols globally available to Swift; set via SWIFT_OBJC_BRIDGING_HEADER |
+| File | Purpose |
+|------|---------|
+| `BASSRadioPlayer.swift` | Audio playback engine, all 4 codecs, metadata polling, DSP effects — stream state machine, FLAC pre-buffering, fade-in/out, adaptive compressor, stereo smoothing, metadata callback |
+| `ParsedTrackInfo.swift` | Metadata parsing (4 formats), date/location/track extraction — regex-based extraction from ICY/Vorbis/Icecast/fallback formats |
+| `FZShowsFetcher.swift` | HTML scraping for zappateers.com setlists, exceptions handling — NSRegularExpression, tour period mapping, fallback to rehearsals.html |
+| `ShowDataManager.swift` | SwiftData persistence wrapper, history/favorites operations — @Observable singleton managing saves, queries, bulk operations |
+| `SavedShow.swift` | SwiftData @Model for persisted shows with JSON-encoded arrays — unique key: `showDate` (format "YYYY MM DD"); setlist/acronyms stored as Data |
+| `ContentView.swift` | macOS main window UI, setlist display, now-playing info — sidebar with history/favorites, filter integration, progress display |
+| `ContentView_iOS.swift` | iOS/iPadOS app UI with tabs, lock screen integration — Now Playing, History, Favorites, Settings tabs; adaptive landscape layout |
+| `AudioFXView.swift` | macOS audio effects control panel (3-band EQ, compressor, stereo, limiter) — Canvas-based UI with vertical sliders; integrates with BASSRadioPlayer DSP |
+| `SidebarView.swift` | Shared history/favorites sidebar with collapsible time periods — groups shows by Day/Week/Month/Year; search/filter integration |
+| `FilterView.swift` | Tag-based filtering (tour, year, location hierarchies) — leverages GeoData for country/state/city selection |
+| `ShowEntryRow.swift` | Shared row component for setlist entries with highlighting — displays duration, notes, handles duplicates, tracks now-playing |
+| `TourPeriods.swift` | `GeoData` struct with tour periods and location data — maps years to zappateers.com filenames; US states, Canadian provinces, countries |
+| `ZappaStreamApp.swift` | App entry point, SwiftData setup, menubar (macOS), app delegate — ModelContainer setup, NSStatusBar registration, NotificationCenter comms |
+| `MarqueeText.swift` | Animated scrolling text for long track titles |
+| Shared utilities | `Acronym.swift`, `Stream.swift`, `PlatformHelpers.swift`, `SongFormatter.swift` — platform helpers (email, SafariView, system colors); lightweight data models |
+| iOS-only | `BASSBridgingHeader.h` — makes BASS C symbols globally available to Swift; set via SWIFT_OBJC_BRIDGING_HEADER |
 
 ## Recent Work & In-Progress Features
 
-### **Frequency-Dependent Center Spreading (Stereo Widener Extension)**
+See project memory files for current status, decisions, and deferred work:
 
-- **Status:** Code integrated into `BASSRadioPlayer.swift` (Feb 2026), UI integration ongoing
-- **Goal:** Extend stereo widener to spread mono/center-channel content into stereo space without affecting existing stereo signals
-- **Implementation Details:**
-  - Splits mono signal at **400 Hz crossover** using 1st-order IIR low-pass filter (α = 0.0556 @ 44.1 kHz)
-  - Low-freqs (< 400 Hz): stay centered (phase-stable, preserves bass clarity)
-  - High-freqs (≥ 400 Hz): spread progressively as width slider increases
-  - Spreading formula: `spreadAmount = (coeff - 1.0) * 0.15` (active only when width > 0.75)
-  - Result: pure mono streams gain noticeable stereo width; stereo content unaffected
-- **Files Modified:**
-  - `BASSRadioPlayer.swift`: Added `centerSpreadLPFState`, `centerSpreadLPFAlpha`, `lowPassFilter400Hz()`, DSP integration in stereoDSP callback
-- **Files in Development:**
-  - `AudioFXView.swift` (untracked): FX panel UI expansion for frequency-dependent controls
-- **Scope:** macOS-only (for now)
-- **Next Steps:** Complete UI integration, test on stereo + mono content, measure CPU impact, consider iOS expansion
-- **Reference Docs:**
-  - `/Users/Datisit/.claude/plans/cosmic-twirling-pie.md` — Full implementation plan with 4 approaches analyzed
-  - Project memory: `MEMORY.md` tracks decision history and deferred features
-
-### **Audio Effects UI Panel (AudioFXView.swift)**
-
-- **Status:** Implementation in progress; `AudioFXView.swift` exists but not yet fully integrated
-- **Features:**
-  - 3-band EQ with vertical sliders (100 Hz, 1 kHz, 10 kHz centers)
-  - Dynamic range compressor with threshold/ratio controls
-  - Stereo width/pan faders for spatial control
-  - Master bypass toggle to disable all FX instantly
-  - FX button in playbar triggers slide-up animation (proposed)
-- **Architecture:** Canvas-based rendering for precision control UI; real-time parameter updates to BASS mixer
-- **Integration:** Bidirectional binding with `BASSRadioPlayer` @Observable properties
-
-### **OGG/FLAC Bitstream Boundary Click Suppression (Feb 2026)**
-
-- **Status:** ✅ Implemented and tested
-- **Problem:** Live Icecast streams encode track transitions as chained OGG/FLAC logical bitstreams. At each boundary, the encoder's zero-padding (end of last frame) meets the decoder's reinitialization discontinuity → audible click/pop at every track change.
-- **Solution:** DSP-level crossfade triggered by bitstream boundary detection
-  - **Detection:** `BASS_SYNC_OGG_CHANGE` sync set via `BASS_Mixer_ChannelSetSync` with `BASS_SYNC_MIXTIME` flag fires when BASS decoder encounters bitstream boundary during mixing
-  - **Response:** `cgFadeBuffersRemaining` counter set to 2 on sync fire
-  - **DSP Processing:** Click guard DSP callback (priority -2, runs after limiter) applies:
-    - **Buffer 1 (end of old track):** Fade-out over last 10ms (1.0 → 0.0)
-    - **Buffer 2 (start of new track):** Fade-in over first 10ms (0.0 → 1.0)
-    - Result: seamless 20ms crossfade at the boundary, completely masking the click
-- **Files Modified:**
-  - `BASSRadioPlayer.swift` — `cgFadeBuffersRemaining` state, `handleOggChangeSync`, `clickGuardDSP` callback
-- **Scope:** OGG and FLAC formats (MP3 has no bitstream boundaries; AAC restarts stream)
-- **Testing:** Manual testing on live OGG stream confirmed click is eliminated, crossfade is inaudible as musical gap
-- **Performance:** DSP runs only on two buffers per track change, no continuous overhead
+- `/Users/Datisit/.claude/projects/-Users-Datisit-Developer-ZappaStream/memory/MEMORY.md` — Active plans, completed work, deferred features
+- `/Users/Datisit/.claude/projects/-Users-Datisit-Developer-ZappaStream/memory/audio_fx_ui_plan.md` — Audio FX panel UI design and implementation notes
+- `/Users/Datisit/.claude/projects/-Users-Datisit-Developer-ZappaStream/memory/fx_code_analysis.md` — FX code analysis
+- `/Users/Datisit/.claude/plans/cosmic-twirling-pie.md` — Stereo Widener Extension full implementation plan
 
 ## Development Notes
 
