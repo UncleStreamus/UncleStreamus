@@ -1004,16 +1004,6 @@ struct ContentView: View {
                     let trackNumberChanged = newParsed.trackNumber != nil && newParsed.trackNumber != old.trackNumber
                     let preservedDuration = trackNumberChanged ? nil : (newParsed.trackDuration ?? old.trackDuration)
 
-                    #if DEBUG
-                    print("🔍 FLAC merge decision:")
-                    print("   newParsed.trackNumber: \(newParsed.trackNumber ?? "nil")")
-                    print("   old.trackNumber: \(old.trackNumber ?? "nil")")
-                    print("   trackNumberChanged: \(trackNumberChanged)")
-                    print("   newParsed.trackDuration: \(newParsed.trackDuration ?? "nil")")
-                    print("   old.trackDuration: \(old.trackDuration ?? "nil")")
-                    print("   preservedDuration: \(preservedDuration ?? "nil")")
-                    #endif
-
                     merged = ParsedTrackInfo(
                         date: old.date, showTime: old.showTime,
                         city: old.city, state: old.state,
