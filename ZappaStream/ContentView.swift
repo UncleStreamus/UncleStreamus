@@ -997,6 +997,11 @@ struct ContentView: View {
                 // stay visible in the UI — no flash from sections disappearing mid-show.
                 let merged: ParsedTrackInfo
                 if newParsed.date == nil, let old = self.parsedTrack {
+                    // Only preserve old.trackDuration if track number hasn't changed (same track, partial update).
+                    // If track number changed, clear duration so the new duration from Icecast JSON will be used.
+                    let trackNumberChanged = newParsed.trackNumber != nil && newParsed.trackNumber != old.trackNumber
+                    let preservedDuration = trackNumberChanged ? nil : (newParsed.trackDuration ?? old.trackDuration)
+
                     merged = ParsedTrackInfo(
                         date: old.date, showTime: old.showTime,
                         city: old.city, state: old.state,
@@ -1004,7 +1009,7 @@ struct ContentView: View {
                         generation: old.generation, creator: old.creator,
                         artist: old.artist, trackNumber: newParsed.trackNumber ?? old.trackNumber,
                         trackName: newParsed.trackName, year: newParsed.year,
-                        trackDuration: newParsed.trackDuration ?? old.trackDuration, rawTitle: newParsed.rawTitle
+                        trackDuration: preservedDuration, rawTitle: newParsed.rawTitle
                     )
                 } else {
                     merged = newParsed
