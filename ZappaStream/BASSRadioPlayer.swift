@@ -41,7 +41,6 @@ enum PlaybackState {
     private var stallSync: HSYNC = 0
     private var endSync: HSYNC = 0
     private var oggChangeSync: HSYNC = 0
-    private var metaChangeSync: HSYNC = 0
 
     // MARK: - Metadata State
 
@@ -84,16 +83,11 @@ enum PlaybackState {
     private var limiterDSP: HDSP = 0
     private var clickGuardDSP: HDSP = 0
 
-    // MARK: - Click Guard (track-change click suppression)
-    // OGG/FLAC: BASS_SYNC_OGG_CHANGE (MIXTIME) fires at bitstream boundary → cgFadeBuffersRemaining=2.
-    //   DSP applies full-buffer fade-out then full-buffer fade-in (~40ms total crossfade).
-    // MP3/AAC: BASS_SYNC_META (source-level, no MIXTIME) fires when decoder sees ICY metadata,
-    //   which is BEFORE the audio reaches the mixer output (decode buffer provides lead time).
-    //   Arms a detection window; DSP monitors for amplitude discontinuity and crossfades when found.
+    // MARK: - Click Guard (OGG/FLAC only)
+    // BASS_SYNC_OGG_CHANGE (MIXTIME) fires at bitstream boundary → cgFadeBuffersRemaining=2.
+    // DSP applies full-buffer fade-out then full-buffer fade-in (~40ms total crossfade).
+    // MP3/AAC: no bitstream boundaries; no click guard needed.
     private var cgFadeBuffersRemaining: Int = 0
-    private var cgMP3ArmedBuffers: Int = 0          // detection window countdown (MP3/AAC)
-    private var cgLastSampleL: Float = 0            // inter-buffer discontinuity tracking
-    private var cgLastSampleR: Float = 0
 
     var eqLowGain:  Float = 0
     var eqMidGain:  Float = 0
@@ -339,11 +333,7 @@ enum PlaybackState {
         rmsSampleCount = 0
         lastAppliedThreshold = 0
         clickGuardDSP = 0
-        metaChangeSync = 0
         cgFadeBuffersRemaining = 0
-        cgMP3ArmedBuffers = 0
-        cgLastSampleL = 0
-        cgLastSampleR = 0
         flacPendingFadeIn = false
     }
 
@@ -529,9 +519,7 @@ enum PlaybackState {
             -1
         )
         // Click guard DSP: runs after limiter (priority -2).
-        // OGG/FLAC: BASS_SYNC_OGG_CHANGE (MIXTIME) → cgFadeBuffersRemaining=2 → full-buffer crossfade.
-        // MP3/AAC: BASS_SYNC_META (source-level) arms detection window → DSP detects discontinuity
-        //   → crossfades from previous sample level into new buffer over 3ms.
+        // OGG/FLAC only: BASS_SYNC_OGG_CHANGE (MIXTIME) → cgFadeBuffersRemaining=2 → full-buffer crossfade.
         clickGuardDSP = BASS_ChannelSetDSP(
             handle,
             { _, _, buffer, length, user in
@@ -564,56 +552,6 @@ enum PlaybackState {
                     }
                 }
 
-                // --- MP3/AAC: intra-buffer discontinuity scan during armed window ---
-                // Scans every sample in the buffer for the sharpest derivative spike.
-                // A track splice creates an outlier jump that stands out from surrounding audio.
-                if p.cgMP3ArmedBuffers > 0 {
-                    p.cgMP3ArmedBuffers -= 1
-
-                    var prevL = p.cgLastSampleL
-                    var prevR = p.cgLastSampleR
-                    var maxDelta: Float = 0
-                    var maxDeltaFrame: Int = 0
-                    var sumDelta: Float = 0
-
-                    for f in 0..<frames {
-                        let i = f * 2
-                        let dL = abs(samples[i] - prevL)
-                        let dR = abs(samples[i + 1] - prevR)
-                        let d = (dL + dR) * 0.5
-                        sumDelta += d
-                        if d > maxDelta {
-                            maxDelta = d
-                            maxDeltaFrame = f
-                        }
-                        prevL = samples[i]
-                        prevR = samples[i + 1]
-                    }
-
-                    let avgDelta = frames > 0 ? sumDelta / Float(frames) : 0
-                    // Trigger: spike must exceed absolute floor AND be a clear outlier (4x average).
-                    // Only runs during armed window so false positives are very unlikely.
-                    if maxDelta > 0.02 && (avgDelta < 0.001 || maxDelta > avgDelta * 4.0) {
-                        // Apply V-shaped gain dip centered on the click: gain=0 at click, ramps to 1.0
-                        let fadeRadius = min(66, frames / 2)  // ~1.5ms each side @ 44.1 kHz
-                        let dStart = max(0, maxDeltaFrame - fadeRadius)
-                        let dEnd   = min(frames - 1, maxDeltaFrame + fadeRadius)
-                        for f in dStart...dEnd {
-                            let dist = abs(f - maxDeltaFrame)
-                            let gain = min(Float(dist) / Float(fadeRadius), 1.0)
-                            samples[f * 2]     *= gain
-                            samples[f * 2 + 1] *= gain
-                        }
-                        p.cgMP3ArmedBuffers = 0  // disarm after handling
-                        print("🔕  click guard: MP3 splice at frame \(maxDeltaFrame) (maxΔ=\(String(format: "%.4f", maxDelta)) avgΔ=\(String(format: "%.4f", avgDelta)), ±\(fadeRadius) frame dip)")
-                    }
-                }
-
-                // Always track last sample pair for next buffer's scan
-                if count >= 2 {
-                    p.cgLastSampleL = samples[count - 2]
-                    p.cgLastSampleR = samples[count - 1]
-                }
             },
             userData,
             -2
@@ -829,24 +767,8 @@ enum PlaybackState {
                 userData
             )
             print("🔗 Syncs registered — stall=\(stallSync) end=\(endSync) oggChange=\(oggChangeSync) (mixer, mixtime)")
-        } else if activeFormat == "MP3" || activeFormat == "AAC" {
-            // MP3/AAC: ICY metadata change signals a nearby track boundary. Source-level sync
-            // (no MIXTIME) fires when the decoder encounters metadata — BEFORE the corresponding
-            // audio reaches the mixer output (decode buffer provides timing lead). Arms a detection
-            // window; the click guard DSP detects the actual discontinuity within that window.
-            metaChangeSync = BASS_ChannelSetSync(
-                handle,
-                DWORD(BASS_SYNC_META),
-                0,
-                { _, channel, _, user in
-                    guard let user = user else { return }
-                    let player = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
-                    player.handleMetaChangeSync(channel: channel)
-                },
-                userData
-            )
-            print("🔗 Syncs registered — stall=\(stallSync) end=\(endSync) metaChange=\(metaChangeSync) (source-level)")
         } else {
+            // MP3/AAC: no bitstream boundaries; no click guard needed.
             print("🔗 Syncs registered — stall=\(stallSync) end=\(endSync)")
         }
     }
@@ -880,14 +802,6 @@ enum PlaybackState {
         guard channel == streamHandle, streamHandle != 0 else { return }
         cgFadeBuffersRemaining = 2
         print("🔀  OGG_CHANGE mixtime: armed click guard for 2 buffers")
-    }
-
-    private func handleMetaChangeSync(channel: DWORD) {
-        guard channel == streamHandle, streamHandle != 0 else { return }
-        // Arm detection window: ~60 buffers ≈ 1.2s covers the timing gap between
-        // when the decoder sees metadata and when the audio reaches the mixer output.
-        cgMP3ArmedBuffers = 60
-        print("🔀  META_CHANGE: armed MP3 discontinuity detection for 60 buffers")
     }
 
     // MARK: - Metadata Polling
