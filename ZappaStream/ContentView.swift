@@ -987,10 +987,12 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 let newParsed = ParsedTrackInfo.parse(metadata)
 
-                // Block if truly nothing meaningful changed (same track name and same date).
+                // Block if truly nothing meaningful changed (same track name, date, AND duration).
+                // Duration can update independently when Icecast JSON arrives after Vorbis short title.
                 let trackNameSame = (self.parsedTrack?.trackName == newParsed.trackName)
                 let dateSame = (self.parsedTrack?.date == newParsed.date)
-                guard !(trackNameSame && dateSame) else { return }
+                let durationSame = (self.parsedTrack?.trackDuration == newParsed.trackDuration)
+                guard !(trackNameSame && dateSame && durationSame) else { return }
 
                 // For FLAC: Vorbis short title arrives first (trackName only, date=nil).
                 // Merge it with the existing parsedTrack's show metadata so date/location/artist
@@ -1001,6 +1003,16 @@ struct ContentView: View {
                     // If track number changed, clear duration so the new duration from Icecast JSON will be used.
                     let trackNumberChanged = newParsed.trackNumber != nil && newParsed.trackNumber != old.trackNumber
                     let preservedDuration = trackNumberChanged ? nil : (newParsed.trackDuration ?? old.trackDuration)
+
+                    #if DEBUG
+                    print("🔍 FLAC merge decision:")
+                    print("   newParsed.trackNumber: \(newParsed.trackNumber ?? "nil")")
+                    print("   old.trackNumber: \(old.trackNumber ?? "nil")")
+                    print("   trackNumberChanged: \(trackNumberChanged)")
+                    print("   newParsed.trackDuration: \(newParsed.trackDuration ?? "nil")")
+                    print("   old.trackDuration: \(old.trackDuration ?? "nil")")
+                    print("   preservedDuration: \(preservedDuration ?? "nil")")
+                    #endif
 
                     merged = ParsedTrackInfo(
                         date: old.date, showTime: old.showTime,
