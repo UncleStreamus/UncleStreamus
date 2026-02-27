@@ -452,7 +452,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openSettings() {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        // Simulate the Cmd+, keyboard shortcut which is the standard way to open Settings
+        let keyEvent = NSEvent.keyEvent(
+            with: .keyDown,
+            location: NSPoint.zero,
+            modifierFlags: .command,
+            timestamp: NSDate().timeIntervalSince1970,
+            windowNumber: 0,
+            context: nil,
+            characters: ",",
+            charactersIgnoringModifiers: ",",
+            isARepeat: false,
+            keyCode: 0x2B  // Key code for comma
+        )
+
+        if let event = keyEvent {
+            NSApplication.shared.sendEvent(event)
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
