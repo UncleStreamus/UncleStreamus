@@ -39,7 +39,10 @@ struct ContentView: View {
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
         Stream(name: "OGG (90 kbit/s)", url: "https://shoutcast.norbert.de/zappa.ogg", format: "OGG"),
         Stream(name: "AAC (256 kbit/s)", url: "https://shoutcast.norbert.de/zappa.aac", format: "AAC"),
-        Stream(name: "FLAC (750 kbit/s)", url: "https://shoutcast.norbert.de/zappa.flac", format: "FLAC")
+        Stream(name: "FLAC (750 kbit/s)", url: "https://shoutcast.norbert.de/zappa.flac", format: "FLAC"),
+        // Experiment 1: OGG without mixer/DSP — no click guard, no effects.
+        // Confirms whether clicks are in the raw stream or introduced by the mixer pipeline.
+        Stream(name: "OGG ⚡ Direct (exp.)", url: "https://shoutcast.norbert.de/zappa.ogg", format: "OGG-Direct"),
     ]
 
     private let sidebarWidth: CGFloat = 280
@@ -71,6 +74,7 @@ struct ContentView: View {
                 )
                 SidebarView(showDataManager: manager, selectedTab: $selectedSidebarTab)
                     .frame(width: sidebarWidth)
+                    .environment(\.fontScale, min(textScale, 1.2))
             }
         }
         .frame(minHeight: showInfoExpanded ? expandedMinHeight : 380)
@@ -314,7 +318,7 @@ struct ContentView: View {
             HStack {
                     Spacer()
                     Text("ZappaStream")
-                        .scaledFont(.largeTitle, weight: .bold)
+                        .font(.system(size: 26 * 1.1, weight: .bold))
                     Spacer()
                     Button(action: toggleSidebar) {
                         Image(systemName: "sidebar.right")
@@ -546,7 +550,7 @@ struct ContentView: View {
                         .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
-                    .keyboardShortcut(.space, modifiers: [])
+                    // .keyboardShortcut(.space, modifiers: [])
                     .disabled(selectedStream == nil)
                 }
             }
@@ -1047,7 +1051,7 @@ struct ContentView: View {
         // Setup media key controls
         setupRemoteCommandCenter()
 
-        // Save playing state when app is about to terminate
+        // Save playing state and current show when app is about to terminate
         NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
             object: nil,
@@ -1055,13 +1059,22 @@ struct ContentView: View {
         ) { _ in
             let currentlyPlaying = self.isPlaying
             UserDefaults.standard.set(currentlyPlaying, forKey: "wasPlayingOnQuit")
+
+            // Save the current show's date for FX persistence logic on restart
+            if let showDate = self.currentShow?.date {
+                UserDefaults.standard.set(showDate, forKey: "lastShowDateOnQuit")
+            } else if let parsedDate = self.parsedTrack?.date {
+                UserDefaults.standard.set(parsedDate, forKey: "lastShowDateOnQuit")
+            }
+
             UserDefaults.standard.synchronize()
             #if DEBUG
             print("💾 willTerminate - saving playing state: \(currentlyPlaying)")
+            if let showDate = self.currentShow?.date {
+                print("💾 willTerminate - saving show date: \(showDate)")
+            }
             #endif
         }
-
-        if fxPersistOnRestart { bassPlayer.restoreFXFromDefaults() }
     }
 
     // MARK: - Media Key Support
@@ -1209,13 +1222,41 @@ struct ContentView: View {
         // Only fetch if we don't already have this show (and same showTime)
         guard currentShow?.date != date else { return }
 
-        if !fxPersistAcrossShows { bassPlayer.resetAllFX() }
+        // Determine whether to restore or reset FX based on show change and persistence settings
+        let lastShowDate = UserDefaults.standard.string(forKey: "lastShowDateOnQuit")
+        let showHasChanged = lastShowDate != nil && lastShowDate != date
+
+        if showHasChanged {
+            // Show changed: decide based on "across shows" setting
+            if !fxPersistAcrossShows {
+                bassPlayer.resetAllFX()
+            }
+        } else if lastShowDate == nil {
+            // First run or no prior show: decide based on "across shows" setting
+            if !fxPersistAcrossShows {
+                bassPlayer.resetAllFX()
+            }
+        } else {
+            // Same show as when app quit: restore FX if "persist on restart" is enabled
+            if fxPersistOnRestart {
+                bassPlayer.restoreFXFromDefaults()
+            } else {
+                bassPlayer.resetAllFX()
+            }
+        }
+
         isFetchingShowInfo = true
         FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime) { show in
             DispatchQueue.main.async {
                 self.currentShow = show
                 self.currentSetlistPosition = 0  // Reset position for new show
                 self.isFetchingShowInfo = false
+
+                // Always persist the current show date so it's available on next launch
+                // (even if the app is killed without a graceful willTerminate)
+                if let show = show {
+                    UserDefaults.standard.set(show.date, forKey: "lastShowDateOnQuit")
+                }
 
                 if let show = show {
                     #if DEBUG

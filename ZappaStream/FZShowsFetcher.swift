@@ -75,6 +75,18 @@ enum ShowTime {
 
 class FZShowsFetcher {
 
+    // MARK: - Constants
+
+    /// User-Agent header for HTTP requests to identify the app to servers
+    static let userAgentString: String = {
+        #if os(macOS)
+        let platform = "macOS"
+        #else
+        let platform = "iOS"
+        #endif
+        return "ZappaStream/1.0 (\(platform))"
+    }()
+
     // MARK: - Exceptions Dictionary
     // Maps (metadata_date, showTime) -> (search_date, section_keywords)
     // For shows where the HTML structure doesn't match standard patterns
@@ -219,7 +231,10 @@ class FZShowsFetcher {
         print("📖 Fetching show info from: \(urlString)")
         #endif
 
-        URLSession.shared.dataTask(with: url) { data, response, error in
+        var request = URLRequest(url: url)
+        request.setValue(userAgentString, forHTTPHeaderField: "User-Agent")
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
             guard let data = data,
                   let html = String(data: data, encoding: .utf8) else {
                 #if DEBUG

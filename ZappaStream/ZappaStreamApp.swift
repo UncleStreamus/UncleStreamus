@@ -16,8 +16,8 @@ import AppKit
 struct ZappaStreamApp: App {
     @AppStorage("textScale") private var textScale: Double = 1.1
 
-    // Text scale levels: Small, Default, Large
-    private let textScaleLevels: [Double] = [1.0, 1.1, 1.2]
+    // Text scale levels: Smaller, Default, Large, Largest
+    private let textScaleLevels: [Double] = [1.0, 1.1, 1.2, 1.3]
 
     #if os(macOS)
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -94,22 +94,26 @@ struct ZappaStreamApp: App {
             CommandGroup(after: .toolbar) {
                 Divider()
 
-                Button("Smaller Text") {
+                Button("Smaller") {
                     decreaseTextScale()
                 }
                 .keyboardShortcut("-", modifiers: .command)
                 .disabled(textScale <= textScaleLevels.first!)
 
-                Button("Default Text Size") {
+                Button("Default") {
                     textScale = 1.1
                 }
                 .keyboardShortcut("0", modifiers: .command)
 
-                Button("Larger Text") {
+                Button("Large") {
                     increaseTextScale()
                 }
                 .keyboardShortcut("=", modifiers: .command)
                 .disabled(textScale >= textScaleLevels.last!)
+
+                Button("Largest") {
+                    textScale = 1.3
+                }
             }
         }
 
@@ -156,7 +160,7 @@ extension Notification.Name {
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
-    private let textScaleLevels: [Double] = [1.0, 1.1, 1.2]
+    private let textScaleLevels: [Double] = [1.0, 1.1, 1.2, 1.3]
 
     // Current state for menu
     private var currentTrackName: String?
@@ -281,9 +285,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         defaultItem.keyEquivalentModifierMask = .command
         textSizeSubmenu.addItem(defaultItem)
 
-        let largerItem = NSMenuItem(title: "Larger", action: #selector(largerText), keyEquivalent: "=")
-        largerItem.keyEquivalentModifierMask = .command
-        textSizeSubmenu.addItem(largerItem)
+        let largeItem = NSMenuItem(title: "Large", action: #selector(largeText), keyEquivalent: "")
+        textSizeSubmenu.addItem(largeItem)
+
+        let largestItem = NSMenuItem(title: "Largest", action: #selector(largestText), keyEquivalent: "")
+        textSizeSubmenu.addItem(largestItem)
 
         textSizeItem.submenu = textSizeSubmenu
         menu.addItem(textSizeItem)
@@ -439,7 +445,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         UserDefaults.standard.set(1.1, forKey: "textScale")
     }
 
-    @objc private func largerText() {
+    @objc private func largeText() {
         let currentScale = UserDefaults.standard.double(forKey: "textScale")
         let scale = currentScale == 0 ? 1.1 : currentScale  // Default if not set
         if let currentIndex = textScaleLevels.firstIndex(of: scale), currentIndex < textScaleLevels.count - 1 {
@@ -449,6 +455,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 UserDefaults.standard.set(newScale, forKey: "textScale")
             }
         }
+    }
+
+    @objc private func largestText() {
+        UserDefaults.standard.set(1.3, forKey: "textScale")
     }
 
     @objc private func openSettings() {

@@ -22,6 +22,18 @@ enum PlaybackState {
 
 @Observable class BASSRadioPlayer: NSObject {
 
+    // MARK: - Constants
+
+    /// User-Agent header for HTTP requests to identify the app to servers
+    static let userAgentString: String = {
+        #if os(macOS)
+        let platform = "macOS"
+        #else
+        let platform = "iOS"
+        #endif
+        return "ZappaStream/1.0 (\(platform))"
+    }()
+
     // MARK: - Public Interface
 
     /// Raw metadata string callback — same format as the old IcecastStreamReader callback.
@@ -68,10 +80,14 @@ enum PlaybackState {
     // MARK: - Stream URLs
 
     let qualities: [(format: String, url: String)] = [
-        ("MP3",  "https://shoutcast.norbert.de/zappa.mp3"),
-        ("OGG",  "https://shoutcast.norbert.de/zappa.ogg"),
-        ("AAC",  "https://shoutcast.norbert.de/zappa.aac"),
-        ("FLAC", "https://shoutcast.norbert.de/zappa.flac"),
+        ("MP3",       "https://shoutcast.norbert.de/zappa.mp3"),
+        ("OGG",       "https://shoutcast.norbert.de/zappa.ogg"),
+        ("AAC",       "https://shoutcast.norbert.de/zappa.aac"),
+        ("FLAC",      "https://shoutcast.norbert.de/zappa.flac"),
+        // Experiment 1: OGG played directly without mixer/DSP pipeline.
+        // Purpose: determine whether clicks at bitstream boundaries are inherent in the
+        // OGG stream or introduced by the mixer/DSP chain.
+        ("OGG-Direct", "https://shoutcast.norbert.de/zappa.ogg"),
     ]
 
     // MARK: - Audio Effects
@@ -84,10 +100,15 @@ enum PlaybackState {
     private var clickGuardDSP: HDSP = 0
 
     // MARK: - Click Guard (OGG/FLAC only)
-    // BASS_SYNC_OGG_CHANGE (MIXTIME) fires at bitstream boundary → cgFadeBuffersRemaining=2.
-    // DSP applies full-buffer fade-out then full-buffer fade-in (~40ms total crossfade).
+    // BASS_SYNC_OGG_CHANGE (MIXTIME) fires at bitstream boundaries. OGG fires 2 events per
+    // track change (~0.4s apart); FLAC may fire 1 or 2. Timestamp-based debounce (1.5s window)
+    // handles both: first event arms the guard, second is ignored. The guard silences 1 buffer
+    // (~20ms) then fades in over 2 buffers (~40ms) for a ~60ms total gap.
     // MP3/AAC: no bitstream boundaries; no click guard needed.
-    private var cgFadeBuffersRemaining: Int = 0
+    private let cgFadeBufferCount      = 2    // fade-in buffers (~40ms)
+    private let cgSilenceBufferCount   = 1    // silent buffers (~20ms)
+    private var cgFadeBuffersRemaining: Int   = 0  // total guard buffers left (silence + fade-in)
+    private var cgLastGuardTime: Double       = 0  // ProcessInfo.processInfo.systemUptime of last armed guard
 
     var eqLowGain:  Float = 0
     var eqMidGain:  Float = 0
@@ -119,12 +140,22 @@ enum PlaybackState {
     private var smoothedStereoCoeff: Float = 1.0   // Tracks stereoWidthCoeff
     private var smoothedPanOffset:   Float = 0.0   // Tracks (stereoPan - 0.5) * 2.0
 
-    // MARK: - Frequency-Dependent Center Spreading (400 Hz crossover)
+    // MARK: - Frequency-Dependent Stereo Processing (400 Hz crossover)
     private var centerSpreadLPFState: Float = 0.0  // Low-pass filter state for mono center channel
+    private var sideChannelLPFState:  Float = 0.0  // Low-pass filter state for stereo side channel
     private let centerSpreadCrossoverHz: Float = 400.0
     // Precomputed filter coefficient for 400 Hz @ 44.1 kHz (1st-order butterworth)
     // alpha = 2*pi*f / (2*pi*f + sr) ≈ 0.0556 for 400 Hz @ 44.1 kHz
     private let centerSpreadLPFAlpha: Float = 0.0556
+
+    // MARK: - FX Blend (smooth on/off transitions)
+    // Ramp blend 0→1 (passthrough→active) over ~83ms when toggling compressor/EQ or master bypass.
+    // Prevents clicks/pops caused by abrupt compressor state jumps or filter coefficient changes.
+    private var compressorBlend: Float = 0.0     // 0 = passthrough, 1 = fully active
+    private var compressorBlendGoal: Float = 0.0 // desired target
+    private var eqBlend: Float = 1.0             // 0 = all bands at 0 dB, 1 = active gains
+    private var eqBlendGoal: Float = 1.0
+    private var fxRampTimer: Timer?
 
     var stereoWidthCoeff: Float {
         stereoWidth <= 0.75
@@ -248,6 +279,38 @@ enum PlaybackState {
 
         guard let cURL = entry.url.cString(using: .utf8) else { return }
 
+        // Experiment 1: OGG-Direct — play OGG without mixer or DSP pipeline.
+        // Bypasses all mixer buffering, effects, and click guard so we can hear whether
+        // clicks at bitstream boundaries are inherent in the stream or mixer-introduced.
+        if format == "OGG-Direct" {
+            let directFlags = DWORD(BASS_STREAM_STATUS) | DWORD(BASS_SAMPLE_FLOAT)  // no BASS_STREAM_DECODE
+            streamHandle = BASS_StreamCreateURL(cURL, 0, directFlags, nil, nil)
+            guard streamHandle != 0 else {
+                let err = BASS_ErrorGetCode()
+                print("❌  OGG-Direct stream creation failed (error \(err))")
+                DispatchQueue.main.async {
+                    self.playbackState = .error(err)
+                    self.isPlaying = false
+                }
+                return
+            }
+            // mixerHandle stays 0 — playbackHandle returns streamHandle
+            activeFormat = format
+            BASS_ChannelSetAttribute(streamHandle, DWORD(BASS_ATTRIB_NET_RESUME), 25)
+            setupSyncs(for: streamHandle)  // registers stall+end syncs; OGG_CHANGE skipped (format != "OGG")
+            print("   handle=\(streamHandle) mixer=0 (direct) — calling BASS_ChannelPlay…")
+            BASS_ChannelSetAttribute(streamHandle, DWORD(BASS_ATTRIB_VOL), 0)
+            BASS_ChannelPlay(streamHandle, 0)
+            startFadeIn(mixer: streamHandle)
+            DispatchQueue.main.async {
+                self.currentQuality = format
+                self.isPlaying = true
+                self.playbackState = .connecting
+            }
+            startMetadataPolling()
+            return
+        }
+
         // FLAC needs a larger download pre-buffer due to ~900kbps bitrate
         if format == "FLAC" {
             BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 30000)
@@ -304,6 +367,8 @@ enum PlaybackState {
     }
 
     private func freeStream() {
+        fxRampTimer?.invalidate()
+        fxRampTimer = nil
         cancelFade()
         stopMetadataPolling()
         oggStopConfirmed = false
@@ -334,6 +399,7 @@ enum PlaybackState {
         lastAppliedThreshold = 0
         clickGuardDSP = 0
         cgFadeBuffersRemaining = 0
+        cgLastGuardTime = 0
         flacPendingFadeIn = false
     }
 
@@ -348,11 +414,15 @@ enum PlaybackState {
         // FLAC gets a larger mixer buffer: 1.5s gives headroom for the ~470ms decoder
         // re-init stall at track changes without underrunning. Click guard requires the
         // mixer (for BASS_SYNC_MIXTIME accuracy). Other formats use 0.5s.
-        let mixerBuffer: Float = format == "FLAC" ? 1.5 : 0.5
-        BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_BUFFER), mixerBuffer)
-        var actualMixerBuf: Float = 0
-        BASS_ChannelGetAttribute(mixerHandle, DWORD(BASS_ATTRIB_BUFFER), &actualMixerBuf)
-        print("⚙️  configureStreamAttributes format=\(format) mixerBuf=\(actualMixerBuf)s")
+        if mixerHandle != 0 {
+            let mixerBuffer: Float = format == "FLAC" ? 1.5 : 0.5
+            BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_BUFFER), mixerBuffer)
+            var actualMixerBuf: Float = 0
+            BASS_ChannelGetAttribute(mixerHandle, DWORD(BASS_ATTRIB_BUFFER), &actualMixerBuf)
+            print("⚙️  configureStreamAttributes format=\(format) mixerBuf=\(actualMixerBuf)s")
+        } else {
+            print("⚙️  configureStreamAttributes format=\(format) — no mixer (direct mode)")
+        }
 
         applyEffects(to: ph)
     }
@@ -363,9 +433,10 @@ enum PlaybackState {
         let userData = Unmanaged.passUnretained(self).toOpaque()
 
         eqFX = BASS_ChannelSetFX(handle, DWORD(BASS_FX_BFX_PEAKEQ), 0)
-        applyEQBand(0, center: 100,   gain: eqLowGain)
-        applyEQBand(1, center: 1000,  gain: eqMidGain)
-        applyEQBand(2, center: 10000, gain: eqHighGain)
+        // Snap blend to goal on stream start — no ramp needed for a fresh stream.
+        eqBlend     = (eqEnabled && !masterBypassEnabled) ? 1.0 : 0.0
+        eqBlendGoal = eqBlend
+        applyEQAtCurrentBlend()
 
         // Level-meter DSP: measures RMS of the post-compression signal (feedback topology).
         // BASS FX (EQ, compressor) run before DSP callbacks, so this sees the compressed output.
@@ -410,21 +481,22 @@ enum PlaybackState {
         )
 
         compressorFX = BASS_ChannelSetFX(handle, DWORD(BASS_FX_BFX_COMPRESSOR2), 0)
-        if compressorOn && !masterBypassEnabled {
-            applyCompressorParams()
-        } else {
-            applyCompressorPassthrough()
-        }
+        // Snap blend to goal on stream start — no ramp needed for a fresh stream.
+        compressorBlend     = (compressorOn && !masterBypassEnabled) ? 1.0 : 0.0
+        compressorBlendGoal = compressorBlend
+        applyCompressorBlend(compressorBlend)
 
         stereoDSP = BASS_ChannelSetDSP(
             handle,
             { _, _, buffer, length, user in
                 guard let buffer = buffer, let user = user else { return }
                 let player = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
-                guard player.stereoWidthEnabled, !player.masterBypassEnabled else { return }
-
-                let targetCoeff = player.stereoWidthCoeff
-                let targetPan   = (player.stereoPan - 0.5) * 2.0
+                // When disabled or bypassed, ramp to neutral rather than cutting abruptly.
+                // The existing per-buffer smoothing fades coeff→1.0 and pan→0.0 over ~3–4 buffers.
+                // Once both reach neutral, the `guard applyWidth || applyPan` below skips work.
+                let active = player.stereoWidthEnabled && !player.masterBypassEnabled
+                let targetCoeff: Float = active ? player.stereoWidthCoeff : 1.0
+                let targetPan:   Float = active ? (player.stereoPan - 0.5) * 2.0 : 0.0
 
                 let prevCoeff = player.smoothedStereoCoeff
                 let prevPan   = player.smoothedPanOffset
@@ -466,10 +538,18 @@ enum PlaybackState {
                     if applyWidth {
                         let M = (L + R) * 0.5
                         let S = (L - R) * 0.5
-                        L = M + S * coeff
-                        R = M - S * coeff
 
-                        // Frequency-Dependent Center Spreading
+                        // Frequency-dependent narrowing: split side channel at 400 Hz.
+                        // Sub-400Hz uses coeff² when narrowing (coeff ≤ 1), so it collapses
+                        // toward mono faster than high-freq content as the slider moves left.
+                        // Both reach 0 (mono) when coeff=0 and 1 (unchanged) when coeff=1.
+                        let S_low  = player.lowPassFilterSide(S)
+                        let S_high = S - S_low
+                        let lowFreqCoeff: Float = coeff <= 1.0 ? coeff * coeff : coeff
+                        L = M + S_low * lowFreqCoeff + S_high * coeff
+                        R = M - S_low * lowFreqCoeff - S_high * coeff
+
+                        // Frequency-Dependent Center Spreading (coeff > 1: spread high-freq mono)
                         let M_lowFreq  = player.lowPassFilter400Hz(M)
                         let M_highFreq = M - M_lowFreq
                         let spreadAmount = (coeff - 1.0) * 0.15
@@ -519,44 +599,37 @@ enum PlaybackState {
             -1
         )
         // Click guard DSP: runs after limiter (priority -2).
-        // OGG/FLAC only: BASS_SYNC_OGG_CHANGE (MIXTIME) → cgFadeBuffersRemaining=2 → full-buffer crossfade.
+        // OGG/FLAC: silence + fade-in at bitstream boundaries to suppress clicks.
         clickGuardDSP = BASS_ChannelSetDSP(
             handle,
             { _, _, buffer, length, user in
                 guard let buffer = buffer, let user = user else { return }
                 let p = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
+                guard p.cgFadeBuffersRemaining > 0 else { return }
 
                 let samples = buffer.assumingMemoryBound(to: Float.self)
                 let count = Int(length) / MemoryLayout<Float>.size
                 let frames = count / 2
+                let remaining = p.cgFadeBuffersRemaining
+                p.cgFadeBuffersRemaining -= 1
+                let n = p.cgFadeBufferCount
 
-                // --- OGG/FLAC: sync-triggered full-buffer crossfade ---
-                if p.cgFadeBuffersRemaining > 0 {
-                    let remaining = p.cgFadeBuffersRemaining
-                    p.cgFadeBuffersRemaining -= 1
-
-                    if remaining == 2 {
-                        for i in stride(from: 0, to: count - 1, by: 2) {
-                            let gain = 1.0 - Float(i / 2) / Float(frames)
-                            samples[i]     *= gain
-                            samples[i + 1] *= gain
-                        }
-                        print("🔕  click guard: fade-OUT full buffer (\(String(format: "%.1f", Double(frames) / 44.1))ms)")
-                    } else {
-                        for i in stride(from: 0, to: count - 1, by: 2) {
-                            let gain = Float(i / 2) / Float(frames)
-                            samples[i]     *= gain
-                            samples[i + 1] *= gain
-                        }
-                        print("🔕  click guard: fade-IN full buffer (\(String(format: "%.1f", Double(frames) / 44.1))ms)")
+                if remaining > n {
+                    // Silence phase: zero out all samples.
+                    for i in 0 ..< count { samples[i] = 0 }
+                } else {
+                    // Fade-in phase: ramp gain 0→1 over n buffers.
+                    let posInFade = n - remaining  // 0-based
+                    for i in stride(from: 0, to: count - 1, by: 2) {
+                        let gain = min(1.0, (Float(posInFade) + Float(i / 2) / Float(frames)) / Float(n))
+                        samples[i]     *= gain
+                        samples[i + 1] *= gain
                     }
                 }
-
             },
             userData,
             -2
         )
-        print("🎛️  Effects applied — eqFX=\(eqFX) compFX=\(compressorFX) levelDSP=\(levelMeterDSP) stereoDSP=\(stereoDSP) limiterDSP=\(limiterDSP) clickGuardDSP=\(clickGuardDSP)")
     }
 
     private func applyEQBand(_ band: Int32, center: Float, gain: Float) {
@@ -597,6 +670,7 @@ enum PlaybackState {
     /// Only updates the compressor if the threshold would change meaningfully (>0.5 dB).
     func applyAdaptiveCompressor() {
         guard compressorFX != 0, compressorOn, !masterBypassEnabled else { return }
+        guard compressorBlend >= 0.99 else { return }  // Don't override an active blend ramp
         let t = compressorAmount * 0.75
         let headroom: Float = 6.0 - 5.0 * t
         let newThreshold = max(min(measuredRMSdB + headroom, -2.0), -40.0)
@@ -619,34 +693,122 @@ enum PlaybackState {
         BASS_FXSetParameters(compressorFX, &p)
     }
 
+    // MARK: - FX Blend Helpers
+
+    /// Interpolate compressor parameters between passthrough (blend=0) and fully active (blend=1).
+    private func applyCompressorBlend(_ blend: Float) {
+        guard compressorFX != 0 else { return }
+        let t = compressorAmount * 0.75
+        let headroom: Float = 6.0 - 5.0 * t
+        let adaptiveThreshold = max(min(measuredRMSdB + headroom, -2.0), -40.0)
+        let ratioOn: Float = 1.5 + 6.5 * t
+        let gainOn: Float  = (-adaptiveThreshold) * (1.0 - 1.0 / ratioOn) * (0.5 + 0.25 * t)
+
+        var p = BASS_BFX_COMPRESSOR2()
+        p.fThreshold = blend * adaptiveThreshold         // 0.0 → adaptiveThreshold (negative)
+        p.fRatio     = 1.0 + blend * (ratioOn - 1.0)    // 1.0 → ratioOn
+        p.fAttack    = 25 - 22 * t
+        p.fRelease   = 300 - 220 * t
+        p.fGain      = blend * gainOn                    // 0.0 → gainOn
+        p.lChannel   = -1
+        BASS_FXSetParameters(compressorFX, &p)
+        lastAppliedThreshold = p.fThreshold
+    }
+
+    /// Apply EQ band gains scaled by the current eqBlend (0=bypassed, 1=active).
+    private func applyEQAtCurrentBlend() {
+        guard eqFX != 0 else { return }
+        applyEQBand(0, center: 100,   gain: eqLowGain  * eqBlend)
+        applyEQBand(1, center: 1000,  gain: eqMidGain  * eqBlend)
+        applyEQBand(2, center: 10000, gain: eqHighGain * eqBlend)
+    }
+
+    /// Start the FX ramp timer if it isn't already running.
+    /// The timer fires at ~120 Hz and moves blends toward their goals in ~83ms.
+    private func startFXRampIfNeeded() {
+        guard fxRampTimer == nil else { return }
+        fxRampTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
+            self?.fxRampTick()
+        }
+    }
+
+    private func fxRampTick() {
+        let step: Float = 0.1  // 10 ticks × 8.3ms ≈ 83ms full transition
+        var stillRamping = false
+
+        if compressorBlend != compressorBlendGoal {
+            let diff = compressorBlendGoal - compressorBlend
+            if abs(diff) <= step {
+                compressorBlend = compressorBlendGoal
+            } else {
+                compressorBlend += diff > 0 ? step : -step
+            }
+            applyCompressorBlend(compressorBlend)
+            if compressorBlend != compressorBlendGoal { stillRamping = true }
+        }
+
+        if eqBlend != eqBlendGoal {
+            let diff = eqBlendGoal - eqBlend
+            if abs(diff) <= step {
+                eqBlend = eqBlendGoal
+            } else {
+                eqBlend += diff > 0 ? step : -step
+            }
+            applyEQAtCurrentBlend()
+            if eqBlend != eqBlendGoal { stillRamping = true }
+        }
+
+        flushEffects()
+        if !stillRamping {
+            fxRampTimer?.invalidate()
+            fxRampTimer = nil
+        }
+    }
+
     // MARK: - Public FX Update Methods
 
     func updateEQ() {
-        if eqEnabled && !masterBypassEnabled {
-            applyEQBand(0, center: 100,   gain: eqLowGain)
-            applyEQBand(1, center: 1000,  gain: eqMidGain)
-            applyEQBand(2, center: 10000, gain: eqHighGain)
+        let newGoal: Float = (eqEnabled && !masterBypassEnabled) ? 1.0 : 0.0
+        eqBlendGoal = newGoal
+        if mixerHandle == 0 && streamHandle == 0 {
+            // Not playing — snap immediately, no ramp
+            eqBlend = eqBlendGoal
+            applyEQAtCurrentBlend()
+        } else if eqBlend == eqBlendGoal {
+            // Already at target — apply directly (handles slider gain adjustments)
+            applyEQAtCurrentBlend()
+            flushEffects()
         } else {
-            applyEQBand(0, center: 100,   gain: 0)
-            applyEQBand(1, center: 1000,  gain: 0)
-            applyEQBand(2, center: 10000, gain: 0)
+            // State changed while playing — ramp smoothly
+            startFXRampIfNeeded()
         }
-        flushEffects()
         saveFXToDefaults()
     }
 
     func updateCompressor() {
-        if compressorOn && !masterBypassEnabled {
-            applyCompressorParams()
+        let newGoal: Float = (compressorOn && !masterBypassEnabled) ? 1.0 : 0.0
+        compressorBlendGoal = newGoal
+        if mixerHandle == 0 && streamHandle == 0 {
+            // Not playing — snap immediately, no ramp
+            compressorBlend = compressorBlendGoal
+            applyCompressorBlend(compressorBlend)
+        } else if compressorBlend == compressorBlendGoal {
+            // Already at target — apply directly (handles amount slider changes)
+            if compressorBlend >= 1.0 {
+                applyCompressorParams()
+            } else {
+                applyCompressorPassthrough()
+            }
+            flushEffects()
         } else {
-            applyCompressorPassthrough()
+            // State changed while playing — ramp smoothly
+            startFXRampIfNeeded()
         }
-        flushEffects()
         saveFXToDefaults()
     }
 
     func updateCompressorAmount() {
-        if compressorOn && !masterBypassEnabled {
+        if compressorOn && !masterBypassEnabled && compressorBlend >= 0.99 {
             applyCompressorParams()
         }
         flushEffects()
@@ -788,7 +950,7 @@ enum PlaybackState {
 
     private func handleEndSync(channel: DWORD) {
         guard channel == streamHandle, streamHandle != 0 else { return }
-        if activeFormat == "OGG" || activeFormat == "FLAC" {
+        if activeFormat == "OGG" || activeFormat == "OGG-Direct" || activeFormat == "FLAC" {
             print("🏁  BASS_SYNC_END fired for \(activeFormat) channel \(channel) — deferring to status poll")
             return
         }
@@ -800,8 +962,15 @@ enum PlaybackState {
 
     private func handleOggChangeSync(channel: DWORD) {
         guard channel == streamHandle, streamHandle != 0 else { return }
-        cgFadeBuffersRemaining = 2
-        print("🔀  OGG_CHANGE mixtime: armed click guard for 2 buffers")
+
+        // Debounce: OGG fires 2 events per track change (~0.4s apart). Ignore the second.
+        // FLAC may fire 1 or 2 — debounce handles both correctly.
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - cgLastGuardTime < 1.5 { return }
+        cgLastGuardTime = now
+
+        // Arm the guard: silence + fade-in starting immediately.
+        cgFadeBuffersRemaining = cgSilenceBufferCount + cgFadeBufferCount
     }
 
     // MARK: - Metadata Polling
@@ -940,8 +1109,8 @@ enum PlaybackState {
             }
         }
 
-        // 3. AAC / FLAC / OGG: fetch from Icecast JSON endpoint
-        if activeFormat == "AAC" || activeFormat == "FLAC" || activeFormat == "OGG" {
+        // 3. AAC / FLAC / OGG / OGG-Direct: fetch from Icecast JSON endpoint
+        if activeFormat == "AAC" || activeFormat == "FLAC" || activeFormat == "OGG" || activeFormat == "OGG-Direct" {
             fetchIcecastMetadata()
         }
     }
@@ -998,7 +1167,7 @@ enum PlaybackState {
         }
 
         if status == BASS_ACTIVE_STOPPED {
-            if activeFormat == "OGG" || activeFormat == "FLAC" {
+            if activeFormat == "OGG" || activeFormat == "OGG-Direct" || activeFormat == "FLAC" {
                 if !oggStopConfirmed {
                     oggStopConfirmed = true
                     print("⏸️  \(activeFormat) STOPPED detected — confirming in next poll…")
@@ -1019,6 +1188,27 @@ enum PlaybackState {
 
     private func restartStream() {
         print("🔄 Restarting \(activeFormat) stream...")
+
+        // OGG-Direct uses the direct (no-mixer) path — delegate back to switchQuality.
+        if activeFormat == "OGG-Direct" {
+            freeStream()
+            guard let entry = qualities.first(where: { $0.format == "OGG-Direct" }),
+                  let cURL = entry.url.cString(using: .utf8) else { return }
+            let directFlags = DWORD(BASS_STREAM_STATUS) | DWORD(BASS_SAMPLE_FLOAT)
+            streamHandle = BASS_StreamCreateURL(cURL, 0, directFlags, nil, nil)
+            guard streamHandle != 0 else { return }
+            activeFormat = "OGG-Direct"
+            BASS_ChannelSetAttribute(streamHandle, DWORD(BASS_ATTRIB_NET_RESUME), 25)
+            setupSyncs(for: streamHandle)
+            BASS_ChannelPlay(streamHandle, 0)
+            print("✅ OGG-Direct restarted handle=\(streamHandle)")
+            DispatchQueue.main.async {
+                self.playbackState = .playing
+                self.startMetadataPolling()
+            }
+            return
+        }
+
         freeStream()
 
         guard let current = qualities.first(where: { $0.format == activeFormat }),
@@ -1066,9 +1256,12 @@ enum PlaybackState {
     private func fetchIcecastMetadata() {
         guard let url = URL(string: "https://shoutcast.norbert.de/status-json.xsl") else { return }
 
-        URLSession.shared.dataTask(with: url) { [weak self] data, _, error in
+        var request = URLRequest(url: url)
+        request.setValue(Self.userAgentString, forHTTPHeaderField: "User-Agent")
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
             guard let self = self, let data = data, error == nil else { return }
-            guard self.activeFormat == "AAC" || self.activeFormat == "FLAC" || self.activeFormat == "OGG" else { return }
+            guard self.activeFormat == "AAC" || self.activeFormat == "FLAC" || self.activeFormat == "OGG" || self.activeFormat == "OGG-Direct" else { return }
 
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let icestats = json["icestats"] as? [String: Any] else { return }
@@ -1111,10 +1304,18 @@ enum PlaybackState {
     // MARK: - Audio DSP Helpers
 
     /// Simple 1st-order low-pass filter for 400 Hz crossover (44.1 kHz sampling).
-    /// Maintains state internally; call once per sample.
+    /// Maintains state internally; call once per sample. Used for mono center channel.
     private func lowPassFilter400Hz(_ input: Float) -> Float {
         let output = centerSpreadLPFAlpha * input + (1.0 - centerSpreadLPFAlpha) * centerSpreadLPFState
         centerSpreadLPFState = output
+        return output
+    }
+
+    /// Same 400 Hz low-pass filter for the stereo side channel (S = (L−R)/2).
+    /// Separate state from the center-spread filter to avoid cross-contamination.
+    private func lowPassFilterSide(_ input: Float) -> Float {
+        let output = centerSpreadLPFAlpha * input + (1.0 - centerSpreadLPFAlpha) * sideChannelLPFState
+        sideChannelLPFState = output
         return output
     }
 
