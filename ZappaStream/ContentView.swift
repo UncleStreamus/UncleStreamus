@@ -6,6 +6,7 @@ import MediaPlayer
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openSettings) private var openSettings
     @State private var showDataManager: ShowDataManager?
 
     @State private var isPlaying = false
@@ -232,6 +233,14 @@ struct ContentView: View {
         }
     }
 
+    private func toggleSettings() {
+        if let settingsWindow = NSApplication.shared.windows.first(where: { $0.title == "Settings" && $0.isVisible }) {
+            settingsWindow.close()
+        } else {
+            openSettings()
+        }
+    }
+
     /// Toggles the right panel by expanding/contracting window to the right
     /// Main content stays in place - panel appears/disappears to its right
     private func toggleSidebar() {
@@ -313,6 +322,12 @@ struct ContentView: View {
         VStack(spacing: 0) {
             // === TOP: Title (fixed, no bounce) ===
             HStack {
+                    Button(action: toggleSettings) {
+                        Image(systemName: "gear")
+                            .scaledFont(.title2)
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
                     Spacer()
                     Text("ZappaStream")
                         .font(.system(size: 26 * 1.1, weight: .bold))
@@ -491,6 +506,7 @@ struct ContentView: View {
                             Image(systemName: "chevron.up.chevron.down")
                                 .scaledFont(.caption2)
                         }
+                        .foregroundColor(.blue)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(Color.gray.opacity(0.15))

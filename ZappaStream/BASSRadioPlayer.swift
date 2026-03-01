@@ -582,9 +582,11 @@ enum PlaybackState {
                         R = M - S_low * lowFreqCoeff - S_high * coeff
 
                         // Frequency-Dependent Center Spreading (coeff > 1: spread high-freq mono)
+                        // Always update LPF state for continuity, but clamp spreadAmount ≥ 0
+                        // so narrowing (coeff < 1) never inverts the spread and shifts the image.
                         let M_lowFreq  = player.lowPassFilter400Hz(M)
                         let M_highFreq = M - M_lowFreq
-                        let spreadAmount = (coeff - 1.0) * 0.15
+                        let spreadAmount = max(0.0, coeff - 1.0) * 0.15
                         L += M_highFreq * spreadAmount
                         R -= M_highFreq * spreadAmount
                     }
