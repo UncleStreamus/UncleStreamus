@@ -53,6 +53,36 @@ struct ContentView_iOS: View {
 
     var body: some View {
         HStack(spacing: 0) {
+            // iPad: inline settings sidebar from left
+            if horizontalSizeClass == .regular && showSettings {
+                NavigationStack {
+                    SettingsView()
+                        .navigationTitle("Settings")
+                        .navigationBarTitleDisplayMode(.inline)
+                }
+                .frame(width: 390)
+                .transition(.move(edge: .leading))
+
+                Divider()
+                    .overlay(
+                        // Invisible wider hit area for swipe gesture
+                        Color.clear
+                            .frame(width: 30)
+                            .contentShape(Rectangle())
+                            .gesture(
+                                DragGesture(minimumDistance: 30)
+                                    .onEnded { value in
+                                        // Swipe left to push sidebar away
+                                        if value.translation.width < -30 && abs(value.translation.height) < 100 {
+                                            withAnimation(.easeInOut(duration: 0.25)) {
+                                                showSettings = false
+                                            }
+                                        }
+                                    }
+                            )
+                    )
+            }
+
             // Main content with play bar
             VStack(spacing: 0) {
                 NavigationStack {
@@ -98,7 +128,9 @@ struct ContentView_iOS: View {
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
                             Button {
-                                showSettings = true
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    showSettings.toggle()
+                                }
                             } label: {
                                 Image(systemName: "gear")
                             }
@@ -160,6 +192,45 @@ struct ContentView_iOS: View {
             }
         }
         .environment(\.fontScale, textScale)
+        .overlay {
+            // iPhone: Settings drawer slides in from left edge
+            if horizontalSizeClass == .compact {
+                ZStack(alignment: .leading) {
+                    Color.black.opacity(showSettings ? 0.3 : 0.0)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                showSettings = false
+                            }
+                        }
+                        .allowsHitTesting(showSettings)
+
+                    if showSettings {
+                        NavigationStack {
+                            SettingsView()
+                                .navigationTitle("Settings")
+                                .navigationBarTitleDisplayMode(.inline)
+                                .toolbar {
+                                    ToolbarItem(placement: .topBarTrailing) {
+                                        Button("Done") {
+                                            withAnimation(.easeInOut(duration: 0.25)) {
+                                                showSettings = false
+                                            }
+                                        }
+                                    }
+                                }
+                        }
+                        .frame(width: 300)
+                        .background(Color(uiColor: .systemBackground))
+                        .shadow(color: .black.opacity(0.2), radius: 12, x: 6, y: 0)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .ignoresSafeArea(edges: .vertical)
+                        .transition(.move(edge: .leading))
+                    }
+                }
+                .animation(.easeInOut(duration: 0.25), value: showSettings)
+            }
+        }
         .sheet(isPresented: $showFXPane) {
             NavigationStack {
                 AudioFXView(player: bassPlayer)
@@ -173,20 +244,6 @@ struct ContentView_iOS: View {
             }
             .presentationDetents([.fraction(0.75), .large])
             .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showSettings) {
-            NavigationStack {
-                SettingsView()
-                    .navigationTitle("Settings")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Done") {
-                                showSettings = false
-                            }
-                        }
-                    }
-            }
         }
         .sheet(item: $safariURL) { item in
             SafariView(url: item.url)
@@ -406,7 +463,8 @@ struct ContentView_iOS: View {
                         Text("FX")
                             .font(.subheadline.weight(.medium))
                     }
-                    .padding(.horizontal, 12)
+                    .frame(width: horizontalSizeClass == .regular ? 240 : nil)
+                    .padding(.horizontal, horizontalSizeClass == .regular ? 0 : 12)
                     .padding(.vertical, 8)
                     .background(
                         showFXPane

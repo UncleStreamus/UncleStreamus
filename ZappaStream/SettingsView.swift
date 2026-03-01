@@ -29,7 +29,7 @@ struct SettingsView: View {
             Picker("", selection: $selectedTab) {
                 Text("Playback").tag(SettingsTab.playback)
                 Text("Sync").tag(SettingsTab.sync)
-                Text("Saved Data").tag(SettingsTab.savedData)
+                Text("Data").tag(SettingsTab.savedData)
                 Text("Credits").tag(SettingsTab.credits)
             }
             .pickerStyle(.segmented)
@@ -119,7 +119,10 @@ struct PlaybackSettingsView: View {
             SettingsSectionHeader(title: "FX", systemImage: "slider.horizontal.3")
 
             SettingsSectionBox {
-                Toggle("FX settings persist across shows", isOn: $fxPersistAcrossShows)
+                Toggle(isOn: $fxPersistAcrossShows) {
+                    Text("FX settings persist across shows")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 Text("By default, all FX are reset when a new show starts. Enable this to keep your settings.")
                     .font(.caption)
