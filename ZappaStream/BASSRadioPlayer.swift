@@ -156,6 +156,31 @@ enum PlaybackState {
     // alpha = 2*pi*f / (2*pi*f + sr) ≈ 0.0556 for 400 Hz @ 44.1 kHz
     private let centerSpreadLPFAlpha: Float = 0.0556
 
+    // MARK: - Mono Stereo Synthesis (2-stage APF cascade for broad phase coverage)
+    // Two APF stages in series (both g = -0.75) double the phase accumulation,
+    // shifting the 90° crossover from ~5 kHz to ~2.5 kHz (centre of the audible band).
+    // Above ~5 kHz the cascade exceeds 180°, biasing slightly right — balancing the
+    // below-2.5 kHz left bias. Net result: much more even spread L and R across typical music.
+    // Classic L+=, R-= M/S synthesis is retained; the cascade output drives both.
+    private var synthAPFInput:   Float = 0.0   // Stage 1 x[n-1]
+    private var synthAPFOutput:  Float = 0.0   // Stage 1 y[n-1]
+    private var synthAPF2Input:  Float = 0.0   // Stage 2 x[n-1]
+    private var synthAPF2Output: Float = 0.0   // Stage 2 y[n-1]
+    private var smoothedMonoFraction: Float = 0.0  // Per-buffer mono detection (0=stereo, 1=mono)
+    private let synthAPFCoeff: Float = -0.75   // APF coefficient for both stages
+    // High-pass filter applied to M before the APF cascade — shapes widening by frequency:
+    //   < 100 Hz → −12 dB (barely spread)   ~400 Hz → −3 dB (somewhat)   > 1 kHz → < −1 dB (most)
+    // α = fs / (fs + 2π·fc) = 44100 / (44100 + 2π·400) ≈ 0.946
+    private var synthHPFInput:  Float = 0.0
+    private var synthHPFOutput: Float = 0.0
+    private let synthHPFAlpha:  Float = 0.9461
+
+    // MARK: - Center Spread APF (symmetric high-freq spread for right channel)
+    // R channel gets APF-shifted M_highFreq rather than -M_highFreq so it also
+    // gains high-frequency content (decorrelated from L) instead of losing it.
+    private var spreadAPFInput:  Float = 0.0
+    private var spreadAPFOutput: Float = 0.0
+
     // MARK: - FX Blend (smooth on/off transitions)
     // Ramp blend 0→1 (passthrough→active) over ~83ms when toggling compressor/EQ or master bypass.
     // Prevents clicks/pops caused by abrupt compressor state jumps or filter coefficient changes.
@@ -550,6 +575,21 @@ enum PlaybackState {
                 let count   = Int(length) / MemoryLayout<Float>.size
                 let frames  = count / 2
 
+                // Mono detection: RMS ratio of side vs. mid over this buffer
+                var sumM2: Float = 0, sumS2: Float = 0
+                for f in 0..<frames {
+                    let L0 = samples[f &* 2], R0 = samples[f &* 2 &+ 1]
+                    let M0 = (L0 + R0) * 0.5, S0 = (L0 - R0) * 0.5
+                    sumM2 += M0 * M0; sumS2 += S0 * S0
+                }
+                let rawMono: Float = max(0.0, 1.0 - sqrt(sumS2 / (sumM2 + Float(1e-10))))
+                player.smoothedMonoFraction += 0.15 * (rawMono - player.smoothedMonoFraction)
+                let monoFraction = player.smoothedMonoFraction
+
+                // Pre-compute synth gain endpoints for per-frame interpolation.
+                let prevSynthGain = max(0.0, prevCoeff - 1.0) * monoFraction * 0.4
+                let newSynthGain  = max(0.0, newCoeff  - 1.0) * monoFraction * 0.4
+
                 // Pre-compute pan trig at buffer start and end for interpolation
                 let aS: Float = prevPan < 0 ? -prevPan : 0, bS: Float = prevPan > 0 ? prevPan : 0
                 let aE: Float = newPan  < 0 ? -newPan  : 0, bE: Float = newPan  > 0 ? newPan  : 0
@@ -582,13 +622,41 @@ enum PlaybackState {
                         R = M - S_low * lowFreqCoeff - S_high * coeff
 
                         // Frequency-Dependent Center Spreading (coeff > 1: spread high-freq mono)
-                        // Always update LPF state for continuity, but clamp spreadAmount ≥ 0
-                        // so narrowing (coeff < 1) never inverts the spread and shifts the image.
+                        // L gets in-phase M_highFreq; R gets APF-shifted M_highFreq so that
+                        // R also *gains* high-frequency content (different phase) rather than
+                        // losing it — making the widening feel balanced across both channels.
                         let M_lowFreq  = player.lowPassFilter400Hz(M)
                         let M_highFreq = M - M_lowFreq
                         let spreadAmount = max(0.0, coeff - 1.0) * 0.15
+                        let gCS = player.synthAPFCoeff  // -0.75
+                        let spreadAPFout = gCS * M_highFreq + player.spreadAPFInput - gCS * player.spreadAPFOutput
+                        player.spreadAPFInput  = M_highFreq
+                        player.spreadAPFOutput = spreadAPFout
                         L += M_highFreq * spreadAmount
-                        R -= M_highFreq * spreadAmount
+                        R += spreadAPFout * spreadAmount  // phase-shifted high-freq (not subtracted)
+
+                        // Mono stereo synthesis: 2-stage APF cascade.
+                        // Cascading two identical APFs (g = -0.75) doubles the phase
+                        // accumulation: 90° crossover shifts from ~5 kHz to ~2.5 kHz,
+                        // and the curve continues to 180° at ~5 kHz, then beyond.
+                        // This means the left bias (below crossover) is partially offset
+                        // by a right bias (above ~5 kHz), giving a more even stereo field.
+                        // APF states always updated even when synthGain=0 (keeps filters warm).
+                        let synthGain = prevSynthGain + t * (newSynthGain - prevSynthGain)
+                        // High-pass filter M at ~400 Hz before the APF cascade so that
+                        // sub-bass content is barely spread and lows are only somewhat spread.
+                        // y[n] = α*(y[n-1] + x[n] - x[n-1])
+                        let a = player.synthHPFAlpha
+                        let M_hp = a * (player.synthHPFOutput + M - player.synthHPFInput)
+                        player.synthHPFInput  = M
+                        player.synthHPFOutput = M_hp
+                        let g = player.synthAPFCoeff  // -0.75
+                        let stage1 = g * M_hp + player.synthAPFInput - g * player.synthAPFOutput
+                        player.synthAPFInput  = M_hp;  player.synthAPFOutput  = stage1
+                        let stage2 = g * stage1 + player.synthAPF2Input - g * player.synthAPF2Output
+                        player.synthAPF2Input = stage1;  player.synthAPF2Output = stage2
+                        L += stage2 * synthGain
+                        R -= stage2 * synthGain
                     }
                     if applyPan {
                         let sinA = sinA_s + t * (sinA_e - sinA_s)

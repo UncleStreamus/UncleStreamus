@@ -229,6 +229,7 @@ struct EQBandView: View {
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .frame(height: 28)
+                .minimumScaleFactor(0.85)
                 .onTapGesture(count: 2) {
                     withAnimation(.spring(response: 0.25)) { gain = 0 }
                     onUpdate()
@@ -251,7 +252,7 @@ struct EQBandView: View {
                     onUpdate()
                 }
         }
-        .frame(width: 68)
+        .frame(width: 75)
     }
 }
 

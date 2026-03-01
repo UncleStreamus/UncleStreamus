@@ -129,7 +129,10 @@ struct PlaybackSettingsView: View {
                     .foregroundColor(.secondary)
                     .padding(.bottom, 6)
 
-                Toggle("FX settings persist on app restart", isOn: $fxPersistOnRestart)
+                Toggle(isOn: $fxPersistOnRestart) {
+                    Text("FX settings persist on app restart")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 Text("Restore your last FX settings when the app launches.")
                     .font(.caption)
