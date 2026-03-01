@@ -29,9 +29,12 @@ struct ContentView_iOS: View {
     @AppStorage("textScale") private var textScale: Double = 1.1
     @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "MP3"
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
+    @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
+    @AppStorage("fxPersistOnRestart") private var fxPersistOnRestart: Bool = false
     @State private var acronymsExpanded: Bool = false
     @State private var showSettings: Bool = false
     @State private var showSidebar: Bool = false
+    @State private var showFXPane: Bool = false
     @State private var bugReportData: BugReportData?
     @State private var showDelayWarning: Bool = false  // Temporarily show delay warning for non-MP3 streams
     @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
@@ -157,6 +160,20 @@ struct ContentView_iOS: View {
             }
         }
         .environment(\.fontScale, textScale)
+        .sheet(isPresented: $showFXPane) {
+            NavigationStack {
+                AudioFXView(player: bassPlayer)
+                    .navigationTitle("Audio FX")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { showFXPane = false }
+                        }
+                    }
+            }
+            .presentationDetents([.fraction(0.75), .large])
+            .presentationDragIndicator(.visible)
+        }
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 SettingsView()
@@ -377,6 +394,38 @@ struct ContentView_iOS: View {
                             playStream()
                         }
                     }
+                }
+
+                // FX button
+                Button {
+                    showFXPane.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.caption)
+                        Text("FX")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        showFXPane
+                            ? Color.accentColor.opacity(0.18)
+                            : bassPlayer.isFXBeingUsed
+                                ? Color.accentColor.opacity(0.12)
+                                : Color(.tertiarySystemBackground)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(
+                                showFXPane || bassPlayer.isFXBeingUsed
+                                    ? Color.accentColor.opacity(0.45)
+                                    : Color.clear,
+                                lineWidth: 1
+                            )
+                    )
+                    .cornerRadius(8)
+                    .foregroundColor(showFXPane || bassPlayer.isFXBeingUsed ? .accentColor : .primary)
                 }
 
                 // Play/Pause button
@@ -936,6 +985,27 @@ struct ContentView_iOS: View {
     func fetchShowInfo(date: String, showTime: ShowTime = .none) {
         guard currentShow?.date != date else { return }
 
+        // Determine whether to restore or reset FX based on show change and persistence settings
+        let lastShowDate = UserDefaults.standard.string(forKey: "lastShowDateOnQuit")
+        let showHasChanged = lastShowDate != nil && lastShowDate != date
+
+        if showHasChanged {
+            if !fxPersistAcrossShows {
+                bassPlayer.resetAllFX()
+            }
+        } else if lastShowDate == nil {
+            if !fxPersistAcrossShows {
+                bassPlayer.resetAllFX()
+            }
+        } else {
+            // Same show as when app quit: restore FX if "persist on restart" is enabled
+            if fxPersistOnRestart {
+                bassPlayer.restoreFXFromDefaults()
+            } else {
+                bassPlayer.resetAllFX()
+            }
+        }
+
         isFetchingShowInfo = true
         FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime) { show in
             DispatchQueue.main.async {
@@ -944,6 +1014,7 @@ struct ContentView_iOS: View {
                 self.isFetchingShowInfo = false
 
                 if let show = show {
+                    UserDefaults.standard.set(show.date, forKey: "lastShowDateOnQuit")
                     self.showDataManager?.recordListen(show: show)
                 }
 

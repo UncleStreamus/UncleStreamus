@@ -1,4 +1,3 @@
-#if os(macOS)
 import SwiftUI
 
 // MARK: - FX Info Icon
@@ -20,6 +19,7 @@ struct FXInfoIcon: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(10)
                     .frame(width: 240)
+                    .presentationCompactAdaptation(.popover)
             }
     }
 }
@@ -586,4 +586,3 @@ struct AudioFXView: View {
         }
     }
 }
-#endif

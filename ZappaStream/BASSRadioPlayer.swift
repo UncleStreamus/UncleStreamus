@@ -87,10 +87,6 @@ enum PlaybackState {
         ("OGG",       "https://shoutcast.norbert.de/zappa.ogg"),
         ("AAC",       "https://shoutcast.norbert.de/zappa.aac"),
         ("FLAC",      "https://shoutcast.norbert.de/zappa.flac"),
-        // Experiment 1: OGG played directly without mixer/DSP pipeline.
-        // Purpose: determine whether clicks at bitstream boundaries are inherent in the
-        // OGG stream or introduced by the mixer/DSP chain.
-        ("OGG-Direct", "https://shoutcast.norbert.de/zappa.ogg"),
     ]
 
     // MARK: - Audio Effects
@@ -112,6 +108,15 @@ enum PlaybackState {
     private let cgSilenceBufferCount   = 1    // silent buffers (~20ms)
     private var cgFadeBuffersRemaining: Int   = 0  // total guard buffers left (silence + fade-in)
     private var cgLastGuardTime: Double       = 0  // ProcessInfo.processInfo.systemUptime of last armed guard
+
+    // MARK: - FLAC Download Buffer Refill Pause
+    // When dlBuf falls below a threshold at a track boundary, briefly mute the mixer
+    // for ~1s to let the ring buffer refill, then fade back in.
+    private let bufferRefillThreshold: Double   = 3.0   // dlBuf% below which to trigger
+    private let bufferRefillTrackInterval: Int  = 5     // minimum track changes between pauses
+    private let bufferRefillDuration: TimeInterval = 3.0
+    private var trackChangeCount: Int           = 0
+    private var isRefillPausing: Bool           = false
 
     var eqLowGain:  Float = 0
     var eqMidGain:  Float = 0
@@ -283,38 +288,6 @@ enum PlaybackState {
 
         guard let cURL = entry.url.cString(using: .utf8) else { return }
 
-        // Experiment 1: OGG-Direct — play OGG without mixer or DSP pipeline.
-        // Bypasses all mixer buffering, effects, and click guard so we can hear whether
-        // clicks at bitstream boundaries are inherent in the stream or mixer-introduced.
-        if format == "OGG-Direct" {
-            let directFlags = DWORD(BASS_STREAM_STATUS) | DWORD(BASS_SAMPLE_FLOAT)  // no BASS_STREAM_DECODE
-            streamHandle = BASS_StreamCreateURL(cURL, 0, directFlags, nil, nil)
-            guard streamHandle != 0 else {
-                let err = BASS_ErrorGetCode()
-                print("❌  OGG-Direct stream creation failed (error \(err))")
-                DispatchQueue.main.async {
-                    self.playbackState = .error(err)
-                    self.isPlaying = false
-                }
-                return
-            }
-            // mixerHandle stays 0 — playbackHandle returns streamHandle
-            activeFormat = format
-            BASS_ChannelSetAttribute(streamHandle, DWORD(BASS_ATTRIB_NET_RESUME), 25)
-            setupSyncs(for: streamHandle)  // registers stall+end syncs; OGG_CHANGE skipped (format != "OGG")
-            print("   handle=\(streamHandle) mixer=0 (direct) — calling BASS_ChannelPlay…")
-            BASS_ChannelSetAttribute(streamHandle, DWORD(BASS_ATTRIB_VOL), 0)
-            BASS_ChannelPlay(streamHandle, 0)
-            startFadeIn(mixer: streamHandle)
-            DispatchQueue.main.async {
-                self.currentQuality = format
-                self.isPlaying = true
-                self.playbackState = .connecting
-            }
-            startMetadataPolling()
-            return
-        }
-
         // FLAC needs a larger download pre-buffer due to ~900kbps bitrate
         if format == "FLAC" {
             BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 30000)
@@ -370,16 +343,16 @@ enum PlaybackState {
         }
 
         if format == "FLAC" {
-            // Delay mixer start by 7s so the download ring buffer fills with compressed data.
+            // Delay mixer start by 10s so the download ring buffer fills with compressed data.
             // BASS_StreamCreateURL returns quickly (async); during the wait the server sends
-            // ~787 KB of FLAC (~7s × 900 kbps/8), giving the pre-mixer a larger ring buffer
+            // ~1.125 MB of FLAC (~10s × 900 kbps/8), giving the pre-mixer a larger ring buffer
             // reserve at startup. Metadata polling starts after the mixer plays — avoids false
-            // STOPPED detection. preBufferProgress drives the UI loading bar (0→1 over 7s).
+            // STOPPED detection. preBufferProgress drives the UI loading bar (0→1 over 10s).
             BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
             flacPendingFadeIn = true
             let capturedPH = ph
             let capturedSH = streamHandle
-            let totalDelay: TimeInterval = 7.0
+            let totalDelay: TimeInterval = 10.0
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 self.preBufferProgress = 0.0
@@ -414,6 +387,8 @@ enum PlaybackState {
         cancelFade()
         stopMetadataPolling()
         oggStopConfirmed = false
+        trackChangeCount = 0
+        isRefillPausing  = false
         lastFlacTitle = nil
         lastIcecastTitle = nil
         if mixerHandle != 0 {
@@ -594,13 +569,15 @@ enum PlaybackState {
                         let M = (L + R) * 0.5
                         let S = (L - R) * 0.5
 
-                        // Frequency-dependent narrowing: split side channel at 400 Hz.
-                        // Sub-400Hz uses coeff² when narrowing (coeff ≤ 1), so it collapses
-                        // toward mono faster than high-freq content as the slider moves left.
-                        // Both reach 0 (mono) when coeff=0 and 1 (unchanged) when coeff=1.
+                        // Frequency-dependent side-channel scaling (400 Hz crossover).
+                        // Narrowing (coeff ≤ 1): sub-400Hz uses coeff² so bass collapses toward
+                        //   mono faster than high-freq content as the slider moves left.
+                        // Widening (coeff > 1): sub-400Hz gets only half the width boost of
+                        //   high-freq content, keeping bass centered and tight.
+                        // Both reach 0 (mono) at coeff=0 and 1 (unchanged) at coeff=1.
                         let S_low  = player.lowPassFilterSide(S)
                         let S_high = S - S_low
-                        let lowFreqCoeff: Float = coeff <= 1.0 ? coeff * coeff : coeff
+                        let lowFreqCoeff: Float = coeff <= 1.0 ? coeff * coeff : 1.0 + (coeff - 1.0) * 0.5
                         L = M + S_low * lowFreqCoeff + S_high * coeff
                         R = M - S_low * lowFreqCoeff - S_high * coeff
 
@@ -1007,7 +984,7 @@ enum PlaybackState {
 
     private func handleEndSync(channel: DWORD) {
         guard channel == streamHandle, streamHandle != 0 else { return }
-        if activeFormat == "OGG" || activeFormat == "OGG-Direct" || activeFormat == "FLAC" {
+        if activeFormat == "OGG" || activeFormat == "FLAC" {
             print("🏁  BASS_SYNC_END fired for \(activeFormat) channel \(channel) — deferring to status poll")
             return
         }
@@ -1028,6 +1005,35 @@ enum PlaybackState {
 
         // Arm the guard: silence + fade-in starting immediately.
         cgFadeBuffersRemaining = cgSilenceBufferCount + cgFadeBufferCount
+
+        // FLAC only: check if download buffer is low and a refill pause is due.
+        if activeFormat == "FLAC" {
+            trackChangeCount += 1
+            if trackChangeCount >= bufferRefillTrackInterval, !isRefillPausing {
+                let dlFill = BASS_StreamGetFilePosition(streamHandle, DWORD(5))           // BASS_FILEPOS_BUFFER
+                let dlSize = BASS_StreamGetFilePosition(streamHandle, DWORD(BASS_FILEPOS_END))
+                let dlPct  = dlSize > 0 ? Double(dlFill) / Double(dlSize) * 100 : 100.0
+                if dlPct < bufferRefillThreshold {
+                    trackChangeCount = 0
+                    DispatchQueue.main.async { [weak self] in self?.performRefillPause() }
+                }
+            }
+        }
+    }
+
+    private func performRefillPause() {
+        guard activeFormat == "FLAC", !isRefillPausing else { return }
+        let ph = playbackHandle
+        guard ph != 0, case .playing = playbackState else { return }
+        isRefillPausing = true
+        print("⏸️ FLAC dlBuf low — pausing \(bufferRefillDuration)s to refill")
+        BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + bufferRefillDuration) { [weak self] in
+            guard let self = self else { return }
+            self.isRefillPausing = false
+            guard case .playing = self.playbackState, self.playbackHandle == ph else { return }
+            self.startFadeIn(mixer: ph)
+        }
     }
 
     // MARK: - Metadata Polling
@@ -1166,8 +1172,8 @@ enum PlaybackState {
             }
         }
 
-        // 3. AAC / FLAC / OGG / OGG-Direct: fetch from Icecast JSON endpoint
-        if activeFormat == "AAC" || activeFormat == "FLAC" || activeFormat == "OGG" || activeFormat == "OGG-Direct" {
+        // 3. AAC / FLAC / OGG: fetch from Icecast JSON endpoint
+        if activeFormat == "AAC" || activeFormat == "FLAC" || activeFormat == "OGG" {
             fetchIcecastMetadata()
         }
     }
@@ -1229,7 +1235,7 @@ enum PlaybackState {
         }
 
         if status == BASS_ACTIVE_STOPPED {
-            if activeFormat == "OGG" || activeFormat == "OGG-Direct" || activeFormat == "FLAC" {
+            if activeFormat == "OGG" || activeFormat == "FLAC" {
                 if !oggStopConfirmed {
                     oggStopConfirmed = true
                     print("⏸️  \(activeFormat) STOPPED detected — confirming in next poll…")
@@ -1251,25 +1257,6 @@ enum PlaybackState {
     private func restartStream() {
         print("🔄 Restarting \(activeFormat) stream...")
 
-        // OGG-Direct uses the direct (no-mixer) path — delegate back to switchQuality.
-        if activeFormat == "OGG-Direct" {
-            freeStream()
-            guard let entry = qualities.first(where: { $0.format == "OGG-Direct" }),
-                  let cURL = entry.url.cString(using: .utf8) else { return }
-            let directFlags = DWORD(BASS_STREAM_STATUS) | DWORD(BASS_SAMPLE_FLOAT)
-            streamHandle = BASS_StreamCreateURL(cURL, 0, directFlags, nil, nil)
-            guard streamHandle != 0 else { return }
-            activeFormat = "OGG-Direct"
-            BASS_ChannelSetAttribute(streamHandle, DWORD(BASS_ATTRIB_NET_RESUME), 25)
-            setupSyncs(for: streamHandle)
-            BASS_ChannelPlay(streamHandle, 0)
-            print("✅ OGG-Direct restarted handle=\(streamHandle)")
-            DispatchQueue.main.async {
-                self.playbackState = .playing
-                self.startMetadataPolling()
-            }
-            return
-        }
 
         freeStream()
 
@@ -1312,12 +1299,12 @@ enum PlaybackState {
 
         let ph = playbackHandle
         if current.format == "FLAC" {
-            // Same 7s pre-buffer as initial play — lets the ring buffer fill before decode starts.
+            // Same 10s pre-buffer as initial play — lets the ring buffer fill before decode starts.
             BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
             flacPendingFadeIn = true
             let capturedPH = ph
             let capturedSH = newHandle
-            let totalDelay: TimeInterval = 7.0
+            let totalDelay: TimeInterval = 10.0
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 self.preBufferProgress = 0.0
@@ -1361,7 +1348,7 @@ enum PlaybackState {
 
         URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
             guard let self = self, let data = data, error == nil else { return }
-            guard self.activeFormat == "AAC" || self.activeFormat == "FLAC" || self.activeFormat == "OGG" || self.activeFormat == "OGG-Direct" else { return }
+            guard self.activeFormat == "AAC" || self.activeFormat == "FLAC" || self.activeFormat == "OGG" else { return }
 
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let icestats = json["icestats"] as? [String: Any] else { return }

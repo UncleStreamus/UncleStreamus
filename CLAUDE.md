@@ -179,16 +179,21 @@ Platform-Specific:
 
 **Streaming & Metadata:**
 - `BASSRadioPlayer` polls metadata every 3 seconds via `Timer` (not a streaming callback, due to BASS architecture)
-- **Four Metadata Formats Supported:**
-  1. **ICY (MP3):** `StreamTitle='[1973 11 07 Boston MA] Artist: (01) Track Name (1973) [3:30]';`
-  2. **Vorbis Comments (OGG/FLAC):** Bitstream tags like `TITLE=[1973 11 07 Boston MA] Artist: (01) Track...`
-  3. **Icecast JSON (AAC/FLAC fallback):** `{"title": "...", "artist": "..."}`
-  4. **Bare Track Name (ultimate fallback):** Simple string when parsing fails, used as-is
+- **Metadata Transport Sources:**
+  1. **ICY** (`BASS_TAG_META`): `StreamTitle='...';` — MP3 only
+  2. **Vorbis Comments** (`BASS_TAG_OGG`): `TITLE=...` key-value list — OGG and FLAC bitstream tags; OGG tags are read but never published (routed to Icecast JSON instead); FLAC tags fire a short-title update immediately
+  3. **Icecast JSON** (`https://shoutcast.norbert.de/status-json.xsl`): `{"icestats": {"source": {"title": "..."}}}` — used by OGG, FLAC, and AAC; always reads from the `.mp3` mountpoint which mirrors the ICY stream
 - **Format-Specific Handling:**
-  - MP3: Exclusively ICY metadata
-  - OGG: Primarily Vorbis; Icecast JSON as secondary source
-  - AAC/FLAC: Always query Icecast JSON in parallel due to 1-poll-cycle lag in Vorbis comments
+  - MP3: ICY metadata only (`BASS_TAG_META`); returns immediately on match
+  - OGG: Vorbis tags are read but **never published directly** — always routed to Icecast JSON instead. Vorbis Format B shows send static venue/date tags that never change per track, so ICY-mirrored Icecast JSON is the only reliable source for both formats.
+  - FLAC: Vorbis tag checked; if changed, short title fires immediately via `publishTitle()` so UI updates without waiting for Icecast. Then `fetchIcecastMetadata()` always runs in parallel to get the full metadata. The short title (bare track name) is superseded when the full Icecast response arrives.
+  - AAC: No Vorbis tags; Icecast JSON fetched directly every poll cycle.
 - Single metadata callback (`onMetadataUpdate`) unifies all formats for downstream parsing via `ParsedTrackInfo.parse()`
+- **`ParsedTrackInfo.parse()` handles four string formats** (independent of transport):
+  1. **Full bracket:** `[1973 11 07 Boston MA] Artist: (01) Track Name (1973) [3:30]` — MP3 ICY and some FLAC Vorbis
+  2. **Simple date:** `1973 11 07 Boston MA - 01 Intro [0:03:30]` — alternate show format
+  3. **Numbered track:** `01 Intro` — bare FLAC Vorbis track with no show metadata
+  4. **Bare name:** `When The Lie's So Big` — ultimate fallback; displayed immediately until Icecast responds
 
 **Audio Effects DSP Pipeline:**
 - **3-Band EQ** (via BASS `BASS_FX_BFX_PEAKEQ`):
@@ -210,17 +215,16 @@ Platform-Specific:
   - **Parameter smoothing:** Per-buffer exponential smoothing (α=0.3) with linear interpolation within each buffer prevents pops/clicks from abrupt parameter jumps at buffer boundaries (~3–4 buffers to settle)
   - Frequency-dependent center spreading — high-freq mono content spreads while bass stays centered (see memory files for implementation details)
 - **Soft Limiter** (custom DSP callback, priority -1):
-  - Soft knee threshold at 0.89 amplitude prevents digital clipping
-  - Knee width: 0.11 (gradual limiting for transparent sound, not audible compression)
-  - Applied after all other effects
-  - Continuously active to protect audio output
+  - Soft knee starts at 0.85 amplitude (–1.4 dBFS); knee width 0.05; hard ceiling 0.891 (–1.0 dBFS)
+  - Applied after all other effects; continuously active to protect output
 - **Click Guard (custom DSP callback, priority -2):**
   - Suppresses clicks at OGG/FLAC bitstream boundaries during track changes
-  - Triggered by `BASS_SYNC_OGG_CHANGE` (mixtime sync) on bitstream boundary detection
-  - Applies 10ms fade-out to tail of last audio buffer before boundary, 10ms fade-in to head of first buffer after
-  - Seamless 20ms crossfade masks waveform discontinuity; inaudible as musical gap
-  - Applied last in DSP chain to ensure clean sample-level modification
-  - Format-specific: OGG and FLAC only (MP3 has no bitstream boundaries; AAC restarts the entire stream at each track change due to a server-side issue, so no click suppression is needed or possible)
+  - Triggered by `BASS_SYNC_OGG_CHANGE` (MIXTIME sync) on bitstream boundary — sample-accurate
+  - Silences 1 buffer (~20ms), then fades in over 2 buffers (~40ms); ~60ms total gap masks the discontinuity
+  - Debounced with 1.5s window: OGG fires 2 events per track change (~0.4s apart); only the first arms the guard
+  - **FLAC**: click guard DSP attaches to the DECODE-mode pre-mixer (not the FX output mixer) so it fires at the boundary before FX processing
+  - **OGG**: click guard attaches to the output mixer
+  - MP3/AAC: no bitstream boundaries; no click guard needed
 - **Effect Control:**
   - `isFXBeingUsed` property: returns true if EQ ≠ 0 dB, compressor enabled, or stereo ≠ default
   - Affects UI indication of active processing
@@ -234,13 +238,32 @@ Platform-Specific:
 - Public API: Call `stopWithFadeOut()` instead of `stop()` in UI when user initiates pause/stop
 
 **FLAC Streaming & Buffer Management:**
-- **Download buffering:** FLAC (~900 kbps compressed) requires aggressive pre-buffering due to 7× higher bitrate than MP3 (128 kbps). On stream start, BASS config is temporarily set to 60s download buffer + 75% pre-buffer threshold (~45s of data required before playback starts), then restored to normal (25s + 50%) after stream creation.
-- **Asynchronous decoding:** All formats use `BASS_MIXER_CHAN_BUFFER` flag to pre-decode on a background thread, keeping decoded audio ready so FX parameter changes take effect immediately when the mixer re-renders. Non-FLAC formats additionally use `BASS_MIXER_CHAN_NORAMPIN` to disable initial volume ramp at channel start (FLAC uses fade-in after pre-buffer delay instead).
-- **Output buffers:** Mixer output buffer set per format (FLAC: 2.5s for CPU-heavy decode headroom, OGG/MP3/AAC: 0.5s for responsive FX with minimal latency).
-- **Pre-buffer delay:** FLAC stream starts muted with volume = 0, then waits 4 seconds for the mixer's decode buffer to fill before fade-in starts. This ensures smooth, uninterrupted playback from the start; without it, initial audio dropout is likely.
-- **Metadata lag:** Vorbis comments (FLAC/OGG bitstream metadata) can lag by one 3-second poll cycle. For FLAC/AAC, always query the Icecast JSON endpoint in parallel to get the most current track info.
-- **Buffer flush:** `flushEffects()` calls `BASS_ChannelUpdate` to top up the mixer output buffer with freshly-processed audio after FX parameter changes. Works for all formats including FLAC (previously skipped for FLAC due to larger buffers). With reduced mixer buffers (0.5–2.5s), remaining latency is at most the buffer size.
-- **Stream restart:** When stream reconnects, the same 60s download buffer + 75% pre-buffer + 4s mute delay applies to FLAC. No fade applied on auto-restart; fade-in only happens on user-initiated play or after pre-buffer.
+- **Global BASS config** (set once in `BASSRadioPlayer.init`):
+  - `BASS_CONFIG_UPDATEPERIOD` = 20ms (decode/render thread tick rate)
+  - `BASS_CONFIG_UPDATETHREADS` = 2 (parallel decode + render for FLAC)
+  - `BASS_CONFIG_DEV_BUFFER` = 500ms (hardware output buffer — last-resort protection)
+  - `BASS_CONFIG_NET_BUFFER` = 25s download ring buffer (raised to 30s temporarily during FLAC stream creation, then lowered back)
+  - `BASS_CONFIG_NET_PREBUF` = 50% (wait for 50% of net buffer before starting)
+  - `BASS_CONFIG_BUFFER` = 15s max playback buffer cap
+- **FLAC two-mixer pipeline:** stream → DECODE-mode pre-mixer → FX output mixer → hardware
+  - Pre-mixer buffer: **3.0s** (stutter protection; absorbs FLAC decode jitter)
+  - FX output mixer buffer: **0.1s** (EQ/compressor changes audible within ~100ms)
+  - All DSP/FX live on the output post-mixer; click guard attaches to the pre-mixer
+- **Non-FLAC single-mixer pipeline:** stream → output mixer → hardware (0.5s buffer)
+- **FLAC pre-buffer sequence:**
+  1. `BASS_StreamCreateURL` called with 30s net buffer; config restored to 25s after creation
+  2. Mixer starts muted (vol=0); `flacPendingFadeIn = true`
+  3. 7-second wait (gives the 30s ring buffer ~787 KB of compressed data before decode starts)
+  4. `BASS_ChannelPlay` called; `checkStreamStatus()` polls the FX output buffer every 2s
+  5. Fade-in begins when FX output buffer reaches ≥80ms — confirms audio is flowing end-to-end
+  6. `preBufferProgress` (0→1 over 7s) drives the UI loading bar
+- **Channel flags:** All formats use `BASS_MIXER_CHAN_BUFFER` (pre-decode on background thread). Non-FLAC also uses `BASS_MIXER_CHAN_NORAMPIN` (no initial volume ramp; fade-in is explicit). FLAC stream→pre-mixer uses `BASS_MIXER_CHAN_NORAMPIN`; pre-mixer→output mixer uses only `BASS_MIXER_CHAN_BUFFER`.
+- **Metadata lag:** FLAC Vorbis tags lag one 3s poll cycle. FLAC fires short title immediately on Vorbis change, then fetches Icecast JSON for full metadata. OGG skips Vorbis titles entirely and always uses Icecast JSON.
+- **Buffer flush:** `flushEffects()` calls `BASS_ChannelUpdate(ph, 0)` on the output mixer after FX changes. Latency ≤ buffer size (0.1s for FLAC, 0.5s for others).
+- **Auto-restart behavior:**
+  - OGG/FLAC STOPPED: 2-poll confirmation before restart (avoids false positives from bitstream boundaries)
+  - AAC: restarts immediately on buffer underrun (status=playing + bufferedBytes=0 + pos>100KB)
+  - FLAC restart: same 7s pre-buffer + fade-in sequence as initial play; no fade applied (fade-in only on pre-buffer completion)
 
 **HTML Scraping:**
 - No external HTML parser; uses `NSRegularExpression` + string slicing
@@ -302,15 +325,6 @@ Platform-Specific:
 | `MarqueeText.swift` | Animated scrolling text for long track titles |
 | Shared utilities | `Acronym.swift`, `Stream.swift`, `PlatformHelpers.swift`, `SongFormatter.swift` — platform helpers (email, SafariView, system colors); lightweight data models |
 | iOS-only | `BASSBridgingHeader.h` — makes BASS C symbols globally available to Swift; set via SWIFT_OBJC_BRIDGING_HEADER |
-
-## Recent Work & In-Progress Features
-
-See project memory files for current status, decisions, and deferred work:
-
-- `/Users/Datisit/.claude/projects/-Users-Datisit-Developer-ZappaStream/memory/MEMORY.md` — Active plans, completed work, deferred features
-- `/Users/Datisit/.claude/projects/-Users-Datisit-Developer-ZappaStream/memory/audio_fx_ui_plan.md` — Audio FX panel UI design and implementation notes
-- `/Users/Datisit/.claude/projects/-Users-Datisit-Developer-ZappaStream/memory/fx_code_analysis.md` — FX code analysis
-- `/Users/Datisit/.claude/plans/cosmic-twirling-pie.md` — Stereo Widener Extension full implementation plan
 
 ## Development Notes
 
@@ -382,72 +396,16 @@ The project uses persistent memory files to track architectural decisions and on
 
 ### Testing Strategy
 
-Since there's no test suite, focus on manual testing:
-
-**Smoke test:**
-- Connect to stream, verify playback starts
-- Metadata updates every 3 seconds (observable in `BASSRadioPlayer.currentMetadata`)
-- Now-playing track is highlighted in setlist
-- Setlist fetches from zappateers.com within a few seconds
-
-**Regression test (after code changes):**
-- Verify show appears in History after playback
-- Can favorite and unfavorite shows
-- Filter/search works correctly
-- No crashes or hangs on stream reconnect
-
-**Format test (if modifying audio playback):**
-- Test all 4 stream formats: MP3 (128k), AAC (192k), OGG (256k), FLAC (750k lossless)
-- Verify each format transitions to `.playing` state
-- Check metadata parsing doesn't differ between formats
-- Test on both macOS and iOS (different audio stacks)
-
-**Platform test (for shared code changes):**
-- Test on both macOS (menubar + main window) and iOS (full app)
-- Verify layout adapts correctly on iPad landscape vs portrait
-- Check that data persists correctly (History, Favorites)
-
-**Date/parsing test:**
-- Test with shows from different eras (pre-2000, 2000s, 2010s, recent)
-- Metadata formats vary by era; some have inconsistent formatting
-- If adding date parsing changes, test with edge cases like "1999-12-31" shows
+No test suite — manual testing only. After audio playback changes, verify all 4 stream formats (MP3 128k, AAC 192k, OGG 256k, FLAC 750k) transition to `.playing` and metadata updates every 3s. After UI changes, test on both macOS (menubar + window) and iOS (simulator + iPad landscape). After parsing changes, test with shows from different eras (pre-2000, 2000s, recent) since metadata formats vary.
 
 ### Troubleshooting
 
-**iOS build fails with "BASSRadioPlayer" symbol not found**
-- Verify `SWIFT_OBJC_BRIDGING_HEADER` is set in Build Settings (should be `ZappaStream/BASSBridgingHeader.h`)
-- Verify `HEADER_SEARCH_PATHS` includes `$(PROJECT_DIR)/Frameworks/iOS/include`
-- Run Product → Clean Build Folder, then rebuild
+**iOS build fails:** Verify `SWIFT_OBJC_BRIDGING_HEADER = ZappaStream/BASSBridgingHeader.h` and `HEADER_SEARCH_PATHS += $(PROJECT_DIR)/Frameworks/iOS/include` in iOS target Build Settings. Clean build folder and rebuild.
 
-**Stream connects but metadata never updates**
-- Confirm `BASSRadioPlayer.playbackState` is `.playing` (not `.buffering`)
-- Add debug print to `ParsedTrackInfo.parse()` to see raw metadata string
-- Check that Zappateers stream is actually live (visit the stream URL in browser)
-- Verify network access is allowed in app entitlements (no sandbox restrictions on macOS)
+**Metadata never updates:** Confirm `playbackState == .playing`. For FLAC, the 7s pre-buffer must complete first. Add debug prints in `ParsedTrackInfo.parse()` to inspect raw title strings.
 
-**Setlist doesn't appear or is incomplete**
-- Check `FZShowsFetcher.fetchShowInfo()` — it may not have found a matching show on zappateers.com
-- Verify the parsed date/time from metadata is correct (debug `ParsedTrackInfo.parse()`)
-- Check if date is in `FZShowsFetcher.dateExceptions` — may need exception for known bad dates
-- Try the zappateers.com URL manually in browser to see if HTML is malformed
-- If HTML parsing fails, regex in `FZShowsFetcher` may need updating
+**Setlist missing:** Check `FZShowsFetcher.dateExceptions` for the show date. If not there, debug the parsed date from `ParsedTrackInfo` — wrong date → wrong URL → empty setlist. Verify zappateers.com URL manually.
 
-**macOS menubar icon doesn't appear**
-- Verify `ZappaStreamApp.setupMenubar()` is called in `ZappaStreamApp.init()`
-- Check System Preferences → General → Login Items to confirm app has access to menubar
-- Try restarting the app; menubar registration can be finicky on first launch
+**FLAC won't play on iOS:** Verify all 6 BASS xcframeworks are in Build Phases → Embed Frameworks (especially `bassflac.xcframework`). Check BASS error code in logs from `BASSRadioPlayer`.
 
-**FLAC playback fails on iOS**
-- FLAC decoder on iOS requires longer buffering — check `BASSRadioPlayer` pre-buffer duration
-- Verify all BASS frameworks are embedded in Build Phases (including `bassflac.xcframework`)
-- Check BASS error code returned from stream creation (logged in `BASSRadioPlayer`)
-
-**History or Favorites not persisting**
-- Verify SwiftData `ModelContainer` is created correctly in `ZappaStreamApp.init()`
-- Check file permissions — app may not have access to app's Documents directory on iOS
-- Try uninstalling and reinstalling the app (clears local storage)
-
-**Simulator runs but crashes when toggling format selection**
-- Verify `SettingsView` properly notifies `BASSRadioPlayer` of format changes
-- Ensure stream is stopped before changing format (see `SettingsView.onChangeFormat`)
-- Check that `BASSRadioPlayer` handles rapid format changes gracefully
+**Stream keeps restarting:** AAC auto-restarts on buffer underrun; OGG/FLAC need 2 consecutive STOPPED polls. If restarting continuously, check network or server availability.

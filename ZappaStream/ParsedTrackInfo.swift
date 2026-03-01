@@ -30,6 +30,8 @@ struct ParsedTrackInfo {
     static let trackNameExceptions: [String: String] = [
         "Pound For A Brown": "A Pound For a Brown",
         "A Pound For a Brown": "A Pound For a Brown",
+        "More Trouble Every Day": "Trouble Every Day",
+        "Trouble Every Day": "Trouble Every Day",
     ]
 
     /// Normalizes a track name to match FZShows setlist format

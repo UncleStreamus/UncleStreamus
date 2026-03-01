@@ -116,7 +116,6 @@ struct PlaybackSettingsView: View {
                     .foregroundColor(.secondary)
             }
 
-            #if os(macOS)
             SettingsSectionHeader(title: "FX", systemImage: "slider.horizontal.3")
 
             SettingsSectionBox {
@@ -133,7 +132,6 @@ struct PlaybackSettingsView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            #endif
 
             Spacer()
         }

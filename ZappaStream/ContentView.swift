@@ -40,9 +40,6 @@ struct ContentView: View {
         Stream(name: "OGG (90 kbit/s)", url: "https://shoutcast.norbert.de/zappa.ogg", format: "OGG"),
         Stream(name: "AAC (256 kbit/s)", url: "https://shoutcast.norbert.de/zappa.aac", format: "AAC"),
         Stream(name: "FLAC (750 kbit/s)", url: "https://shoutcast.norbert.de/zappa.flac", format: "FLAC"),
-        // Experiment 1: OGG without mixer/DSP — no click guard, no effects.
-        // Confirms whether clicks are in the raw stream or introduced by the mixer pipeline.
-        Stream(name: "OGG ⚡ Direct (exp.)", url: "https://shoutcast.norbert.de/zappa.ogg", format: "OGG-Direct"),
     ]
 
     private let sidebarWidth: CGFloat = 280
