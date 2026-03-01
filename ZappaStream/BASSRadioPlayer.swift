@@ -50,6 +50,9 @@ enum PlaybackState {
 
     private var streamHandle: DWORD = 0
     private var mixerHandle: DWORD = 0
+    private var preMixerHandle: DWORD = 0  // FLAC only: DECODE-mode pre-mixer; stutter buffer + click guard
+    var preBufferProgress: Double = 0.0    // 0.0–1.0 during FLAC pre-buffer; drives UI progress bar
+    private var preBufferTimer: Timer?     // updates preBufferProgress every 100ms during FLAC pre-buffer wait
     private var stallSync: HSYNC = 0
     private var endSync: HSYNC = 0
     private var oggChangeSync: HSYNC = 0
@@ -191,9 +194,10 @@ enum PlaybackState {
         // mixer rendering + DSP chain. A second thread lets BASS parallelise decode and render,
         // preventing decode slowdowns from starving the mixer output buffer.
         BASS_SetConfig(DWORD(BASS_CONFIG_UPDATETHREADS), 2)
-        // Larger device output buffer (default ~40ms → 300ms): last-resort defense before
+        // Larger device output buffer (default ~40ms → 500ms): last-resort defense before
         // hardware. Adds trivial latency for a radio stream but absorbs any upstream hiccup.
-        BASS_SetConfig(DWORD(BASS_CONFIG_DEV_BUFFER), 300)
+        // 500ms provides extra protection when the mixer output buffer hits 0ms during FLAC decode stalls.
+        BASS_SetConfig(DWORD(BASS_CONFIG_DEV_BUFFER), 500)
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 25000)  // 25s download buffer for mobile resilience
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)    // Wait for 50% of net buffer before starting (~reduces initial stutter)
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 10000)
@@ -335,9 +339,23 @@ enum PlaybackState {
             return
         }
 
-        mixerHandle = BASS_Mixer_StreamCreate(44100, 2, DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
-        let addFlags = DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN)
-        BASS_Mixer_StreamAddChannel(mixerHandle, streamHandle, addFlags)
+        if format == "FLAC" {
+            // Two-mixer pipeline: DECODE-mode pre-mixer (3.0s stutter buffer + click guard)
+            // feeds into the output post-mixer (0.1s FX latency). All DSP/FX live on the post-mixer.
+            preMixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+                DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE))
+            BASS_Mixer_StreamAddChannel(preMixerHandle, streamHandle,
+                DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN))
+            mixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+                DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
+            BASS_Mixer_StreamAddChannel(mixerHandle, preMixerHandle,
+                DWORD(BASS_MIXER_CHAN_BUFFER))
+        } else {
+            mixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+                DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
+            let addFlags = DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN)
+            BASS_Mixer_StreamAddChannel(mixerHandle, streamHandle, addFlags)
+        }
 
         activeFormat = format
 
@@ -345,25 +363,49 @@ enum PlaybackState {
         setupSyncs(for: streamHandle)
 
         let ph = playbackHandle
-        print("   handle=\(streamHandle) mixer=\(mixerHandle) playback=\(ph) — calling BASS_ChannelPlay…")
-        if format == "FLAC" {
-            // Start muted; checkStreamStatus() will trigger fade-in once playback buffer is filled.
-            BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
-            flacPendingFadeIn = true
-            BASS_ChannelPlay(ph, 0)
-        } else {
-            BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
-            BASS_ChannelPlay(ph, 0)
-            startFadeIn(mixer: ph)
-        }
-
         DispatchQueue.main.async {
             self.currentQuality = format
             self.isPlaying = true
             self.playbackState = .connecting
         }
 
-        startMetadataPolling()
+        if format == "FLAC" {
+            // Delay mixer start by 7s so the download ring buffer fills with compressed data.
+            // BASS_StreamCreateURL returns quickly (async); during the wait the server sends
+            // ~787 KB of FLAC (~7s × 900 kbps/8), giving the pre-mixer a larger ring buffer
+            // reserve at startup. Metadata polling starts after the mixer plays — avoids false
+            // STOPPED detection. preBufferProgress drives the UI loading bar (0→1 over 7s).
+            BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
+            flacPendingFadeIn = true
+            let capturedPH = ph
+            let capturedSH = streamHandle
+            let totalDelay: TimeInterval = 7.0
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.preBufferProgress = 0.0
+                self.preBufferTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                    guard let self = self else { return }
+                    self.preBufferProgress = min(self.preBufferProgress + 0.1 / totalDelay, 1.0)
+                }
+            }
+            print("   handle=\(capturedSH) mixer=\(mixerHandle) preMix=\(preMixerHandle) playback=\(capturedPH) — pre-buffering \(Int(totalDelay))s before mixer start…")
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + totalDelay) { [weak self] in
+                guard let self = self, self.streamHandle == capturedSH else { return }
+                DispatchQueue.main.async {
+                    self.preBufferTimer?.invalidate()
+                    self.preBufferTimer = nil
+                }
+                print("   🎬 FLAC pre-buffer complete — calling BASS_ChannelPlay")
+                BASS_ChannelPlay(capturedPH, 0)
+                DispatchQueue.main.async { self.startMetadataPolling() }
+            }
+        } else {
+            print("   handle=\(streamHandle) mixer=\(mixerHandle) playback=\(ph) — calling BASS_ChannelPlay…")
+            BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
+            BASS_ChannelPlay(ph, 0)
+            startFadeIn(mixer: ph)
+            startMetadataPolling()
+        }
     }
 
     private func freeStream() {
@@ -379,6 +421,15 @@ enum PlaybackState {
             BASS_StreamFree(mixerHandle)
             print("⏹  mixer freed (handle was \(mixerHandle))")
             mixerHandle = 0
+        }
+        preBufferTimer?.invalidate()
+        preBufferTimer = nil
+        DispatchQueue.main.async { self.preBufferProgress = 0.0 }
+        if preMixerHandle != 0 {
+            BASS_ChannelStop(preMixerHandle)
+            BASS_StreamFree(preMixerHandle)
+            print("⏹  pre-mixer freed (handle was \(preMixerHandle))")
+            preMixerHandle = 0
         }
         if streamHandle != 0 {
             // For FLAC direct playback the stream IS the playback channel (already stopped/freed
@@ -406,30 +457,34 @@ enum PlaybackState {
     // MARK: - Stream Attributes
 
     private func configureStreamAttributes(format: String, handle: DWORD) {
-        let ph = playbackHandle  // FLAC: == streamHandle (direct), others: == mixerHandle
+        let ph = playbackHandle  // Always mixerHandle when playing (output post-mixer for FLAC, single mixer for others)
 
         let netResume: Float = 25
         BASS_ChannelSetAttribute(handle, DWORD(BASS_ATTRIB_NET_RESUME), netResume)
 
-        // FLAC gets a larger mixer buffer: 1.5s gives headroom for the ~470ms decoder
-        // re-init stall at track changes without underrunning. Click guard requires the
-        // mixer (for BASS_SYNC_MIXTIME accuracy). Other formats use 0.5s.
+        // FLAC two-mixer: pre-mixer gets the large stutter-protection buffer (3.0s); the FX
+        // output mixer gets a tiny buffer (0.1s) so EQ/compressor changes are heard within ~100ms.
+        // Other formats use a single 0.5s mixer buffer (responsive FX, minimal latency).
         if mixerHandle != 0 {
-            let mixerBuffer: Float = format == "FLAC" ? 1.5 : 0.5
-            BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_BUFFER), mixerBuffer)
-            var actualMixerBuf: Float = 0
-            BASS_ChannelGetAttribute(mixerHandle, DWORD(BASS_ATTRIB_BUFFER), &actualMixerBuf)
-            print("⚙️  configureStreamAttributes format=\(format) mixerBuf=\(actualMixerBuf)s")
+            if format == "FLAC", preMixerHandle != 0 {
+                BASS_ChannelSetAttribute(preMixerHandle, DWORD(BASS_ATTRIB_BUFFER), 3.0)
+                BASS_ChannelSetAttribute(mixerHandle,    DWORD(BASS_ATTRIB_BUFFER), 0.1)
+                print("⚙️  configureStreamAttributes format=FLAC preMixBuf=3.0s fxMixBuf=0.1s")
+            } else {
+                BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_BUFFER), 0.5)
+                print("⚙️  configureStreamAttributes format=\(format) mixerBuf=0.5s")
+            }
         } else {
             print("⚙️  configureStreamAttributes format=\(format) — no mixer (direct mode)")
         }
 
-        applyEffects(to: ph)
+        let cgHandle: DWORD? = (format == "FLAC" && preMixerHandle != 0) ? preMixerHandle : nil
+        applyEffects(to: ph, clickGuardOn: cgHandle)
     }
 
     // MARK: - Audio Effects
 
-    private func applyEffects(to handle: DWORD) {
+    private func applyEffects(to handle: DWORD, clickGuardOn cgHandle: DWORD? = nil) {
         let userData = Unmanaged.passUnretained(self).toOpaque()
 
         eqFX = BASS_ChannelSetFX(handle, DWORD(BASS_FX_BFX_PEAKEQ), 0)
@@ -599,9 +654,11 @@ enum PlaybackState {
             -1
         )
         // Click guard DSP: runs after limiter (priority -2).
-        // OGG/FLAC: silence + fade-in at bitstream boundaries to suppress clicks.
+        // OGG/FLAC: for FLAC in two-mixer mode, attaches to the pre-mixer (cgHandle) so it fires
+        // in the DECODE-mode render context at the bitstream boundary, before FX processing.
+        // For OGG and all other formats, attaches to handle (the output mixer).
         clickGuardDSP = BASS_ChannelSetDSP(
-            handle,
+            cgHandle ?? handle,
             { _, _, buffer, length, user in
                 guard let buffer = buffer, let user = user else { return }
                 let p = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
@@ -1132,25 +1189,30 @@ enum PlaybackState {
             }
         }
 
-        // FLAC buffer health: log download buffer and playback buffer levels.
+        // FLAC buffer health: log download buffer and FX output buffer levels.
+        // Note: BASS_DATA_AVAILABLE returns 0xFFFFFFFF for DECODE-mode channels (the pre-mixer),
+        // so we only measure the output post-mixer (fxBuf) which has a real 0.1s fill buffer.
         if activeFormat == "FLAC", status == BASS_ACTIVE_PLAYING {
             let dlBufFill = BASS_StreamGetFilePosition(streamHandle, DWORD(5))
             let dlBufSize = BASS_StreamGetFilePosition(streamHandle, DWORD(BASS_FILEPOS_END))
             let dlPct = dlBufSize > 0 ? Double(dlBufFill) / Double(dlBufSize) * 100 : -1
-            var buf: Float = 0
-            BASS_ChannelGetAttribute(streamHandle, DWORD(BASS_ATTRIB_BUFFER), &buf)
-            let ph = playbackHandle
-            let avail = ph != 0 ? BASS_ChannelGetData(ph, nil, DWORD(BASS_DATA_AVAILABLE)) : 0
-            let availMs = avail > 0 ? Double(avail) / (44100.0 * 2 * 4) * 1000 : 0
-            print("📊 FLAC health: pos=\(String(format:"%.1f",secs))s dlBuf=\(String(format:"%.0f",dlPct))% buf=\(buf)s playBuf=\(String(format:"%.0f",availMs))ms")
 
-            // Trigger FLAC fade-in once playback buffer has ≥1s of audio
-            if flacPendingFadeIn, availMs >= 250 {
+            // FX output buffer: readable fill level on the playing post-mixer (0.1s target).
+            let ph = playbackHandle
+            let fxAvail = ph != 0 ? BASS_ChannelGetData(ph, nil, DWORD(BASS_DATA_AVAILABLE)) : 0
+            let fxBufMs = fxAvail > 0 ? Double(fxAvail) / (44100.0 * 2 * 4) * 1000 : 0
+
+            print("📊 FLAC health: pos=\(String(format:"%.1f",secs))s dlBuf=\(String(format:"%.0f",dlPct))% fxBuf=\(String(format:"%.0f",fxBufMs))ms")
+
+            // Trigger fade-in once the FX output buffer has ≥80ms of audio (80% of its 0.1s
+            // capacity). This fires on the first health poll after BASS_ChannelPlay succeeds,
+            // confirming that data is flowing from the pre-mixer through the FX chain.
+            if flacPendingFadeIn, fxBufMs >= 80 {
                 flacPendingFadeIn = false
-                let capturedPH = ph
-                print("🔊 FLAC buffer ready (\(String(format:"%.0f",availMs))ms) — starting fade-in")
+                print("🔊 FLAC buffer ready (fxBuf=\(String(format:"%.0f",fxBufMs))ms) — starting fade-in")
                 DispatchQueue.main.async { [weak self] in
-                    self?.startFadeIn(mixer: capturedPH)
+                    self?.preBufferProgress = 0.0  // dismiss loading bar
+                    self?.startFadeIn(mixer: ph)
                 }
             }
         }
@@ -1230,24 +1292,62 @@ enum PlaybackState {
         guard newHandle != 0 else { return }
 
         streamHandle = newHandle
-        mixerHandle = BASS_Mixer_StreamCreate(44100, 2, DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
-        let restartAddFlags = DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN)
-        BASS_Mixer_StreamAddChannel(mixerHandle, streamHandle, restartAddFlags)
+        if current.format == "FLAC" {
+            preMixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+                DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE))
+            BASS_Mixer_StreamAddChannel(preMixerHandle, streamHandle,
+                DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN))
+            mixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+                DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
+            BASS_Mixer_StreamAddChannel(mixerHandle, preMixerHandle,
+                DWORD(BASS_MIXER_CHAN_BUFFER))
+        } else {
+            mixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+                DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
+            let restartAddFlags = DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN)
+            BASS_Mixer_StreamAddChannel(mixerHandle, streamHandle, restartAddFlags)
+        }
         configureStreamAttributes(format: current.format, handle: streamHandle)
         setupSyncs(for: streamHandle)
 
         let ph = playbackHandle
         if current.format == "FLAC" {
+            // Same 7s pre-buffer as initial play — lets the ring buffer fill before decode starts.
             BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
             flacPendingFadeIn = true
-            BASS_ChannelPlay(ph, 0)
+            let capturedPH = ph
+            let capturedSH = newHandle
+            let totalDelay: TimeInterval = 7.0
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.preBufferProgress = 0.0
+                self.preBufferTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                    guard let self = self else { return }
+                    self.preBufferProgress = min(self.preBufferProgress + 0.1 / totalDelay, 1.0)
+                }
+            }
+            print("   🔄 FLAC restart: pre-buffering \(Int(totalDelay))s — handle=\(capturedSH) mixer=\(mixerHandle) preMix=\(preMixerHandle)")
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + totalDelay) { [weak self] in
+                guard let self = self, self.streamHandle == capturedSH else { return }
+                DispatchQueue.main.async {
+                    self.preBufferTimer?.invalidate()
+                    self.preBufferTimer = nil
+                }
+                print("   🎬 FLAC restart pre-buffer complete — calling BASS_ChannelPlay")
+                BASS_ChannelPlay(capturedPH, 0)
+                print("✅ Restarted handle=\(capturedSH) playback=\(capturedPH)")
+                DispatchQueue.main.async {
+                    self.playbackState = .playing
+                    self.startMetadataPolling()
+                }
+            }
         } else {
             BASS_ChannelPlay(ph, 0)
-        }
-        print("✅ Restarted handle=\(newHandle) mixer=\(mixerHandle) playback=\(ph)")
-        DispatchQueue.main.async {
-            self.playbackState = .playing
-            self.startMetadataPolling()
+            print("✅ Restarted handle=\(newHandle) mixer=\(mixerHandle) playback=\(ph)")
+            DispatchQueue.main.async {
+                self.playbackState = .playing
+                self.startMetadataPolling()
+            }
         }
     }
 

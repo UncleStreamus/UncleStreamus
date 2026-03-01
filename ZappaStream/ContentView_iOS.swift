@@ -314,6 +314,20 @@ struct ContentView_iOS: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
 
+                    // FLAC pre-buffer loading bar: fills 0→100% over 7s then disappears
+                    if stream.format == "FLAC", bassPlayer.preBufferProgress > 0 {
+                        VStack(spacing: 2) {
+                            ProgressView(value: bassPlayer.preBufferProgress)
+                                .progressViewStyle(.linear)
+                                .tint(.secondary)
+                            Text("Buffering FLAC…")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        .animation(.easeInOut(duration: 0.3), value: bassPlayer.preBufferProgress > 0)
+                    }
+
                     // Delay warning when using AAC stream - shows briefly then hides
                     if stream.format == "AAC" && showDelayWarning {
                         Text("Info can be up to 1min behind when using AAC...")
