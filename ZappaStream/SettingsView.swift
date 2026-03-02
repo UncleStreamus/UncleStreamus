@@ -16,7 +16,7 @@ struct SettingsView: View {
 
         var height: CGFloat {
             switch self {
-            case .playback: return 360
+            case .playback: return 500
             case .sync: return 200
             case .savedData: return 320
             case .credits: return 280
@@ -103,10 +103,20 @@ struct PlaybackSettingsView: View {
     @AppStorage("autoResumeOnLaunch") private var autoResumeOnLaunch: Bool = true
     @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
     @AppStorage("fxPersistOnRestart") private var fxPersistOnRestart: Bool = false
+    @AppStorage("dvrEnabled") private var dvrEnabled: Bool = true
+    @AppStorage("dvrBufferMinutes") private var dvrBufferMinutes: Int = 15
+
+    /// Disk space used by the DVR ring buffer for a given number of minutes.
+    /// Buffer stores decoded 16-bit PCM at 44100 Hz stereo regardless of input format.
+    private func dvrDiskSize(minutes: Int) -> String {
+        let bytes = Double(minutes) * 60.0 * 44100 * 2 * 2   // samples/s × ch × bytes/sample
+        let mb = bytes / (1024 * 1024)
+        return "~\(Int(mb.rounded())) MB"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SettingsSectionHeader(title: "Launch", systemImage: "play.circle")
+            SettingsSectionHeader(title: "Stream from Launch", systemImage: "play.circle")
 
             SettingsSectionBox {
                 Toggle("Resume playback on launch", isOn: $autoResumeOnLaunch)
@@ -114,6 +124,45 @@ struct PlaybackSettingsView: View {
                 Text("Automatically continue playing when the app launches, if it was playing when you last quit.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+
+                #if os(macOS)
+                Divider()
+                    .padding(.vertical, 4)
+
+                Toggle("Continue buffering while paused", isOn: $dvrEnabled)
+
+                Text("Keep the stream buffering when paused so you can resume from where you left off.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                HStack {
+                    Text("Buffer window")
+                        .font(.callout)
+                    Spacer()
+                    Text("\(dvrBufferMinutes) min")
+                        .font(.callout.monospacedDigit())
+                        .foregroundColor(dvrEnabled ? .primary : .secondary)
+                }
+                .padding(.top, 4)
+
+                Slider(
+                    value: Binding(
+                        get: { Double(dvrBufferMinutes) },
+                        set: { dvrBufferMinutes = Int($0) }
+                    ),
+                    in: 5...30,
+                    step: 5
+                )
+                .disabled(!dvrEnabled)
+
+                HStack {
+                    Text("5 min (\(dvrDiskSize(minutes: 5)))")
+                    Spacer()
+                    Text("30 min (\(dvrDiskSize(minutes: 30)))")
+                }
+                .font(.caption)
+                .foregroundColor(.secondary)
+                #endif
             }
 
             SettingsSectionHeader(title: "FX", systemImage: "slider.horizontal.3")

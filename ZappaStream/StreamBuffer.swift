@@ -19,8 +19,8 @@ final class StreamBuffer {
 
     // MARK: - Constants
 
-    let maxSegments     = 15
-    let segmentDuration = 60.0    // seconds per segment
+    private(set) var maxSegments: Int  // 1 segment per minute; set from Settings (5–30)
+    let segmentDuration = 60.0     // seconds per segment
     let sampleRate: Int32 = 44100
     let numChannels: Int32 = 2
 
@@ -54,9 +54,11 @@ final class StreamBuffer {
 
     // MARK: - Init
 
-    init() {
-        tempDir    = FileManager.default.temporaryDirectory
-        memBuffer  = [Float](repeating: 0, count: 524_288)
+    /// - Parameter maxMinutes: How many minutes of audio to retain (5–30). Defaults to 15.
+    init(maxMinutes: Int = 15) {
+        maxSegments = max(5, min(30, maxMinutes))
+        tempDir     = FileManager.default.temporaryDirectory
+        memBuffer   = [Float](repeating: 0, count: 524_288)
     }
 
     // MARK: - Lifecycle
@@ -81,6 +83,14 @@ final class StreamBuffer {
     func cleanup() {
         for i in 0..<maxSegments {
             try? FileManager.default.removeItem(at: segmentPath(index: i))
+        }
+    }
+
+    /// Update the ring buffer window while recording is active (increase or safe decrease).
+    /// Dispatched onto the write queue so it's serialised with segment rotation.
+    func updateMaxSegments(_ newMax: Int) {
+        writeQueue.async { [weak self] in
+            self?.maxSegments = newMax
         }
     }
 
@@ -130,8 +140,10 @@ final class StreamBuffer {
         guard FileManager.default.fileExists(atPath: path),
               let cPath = path.cString(using: .utf8) else { return 0 }
 
-        // BASS needs to read the WAV header from offset 0, then we seek.
-        let stream = BASS_StreamCreateFile(0, cPath, 0, 0, DWORD(BASS_SAMPLE_FLOAT))
+        // BASS_STREAM_DECODE: required so the stream can be added to a mixer via
+        // BASS_Mixer_StreamAddChannel. Without it the call silently fails and the mixer
+        // produces silence. BASS_SAMPLE_FLOAT: keep samples as Float32 matching the mixer.
+        let stream = BASS_StreamCreateFile(0, cPath, 0, 0, DWORD(BASS_SAMPLE_FLOAT | BASS_STREAM_DECODE))
         guard stream != 0 else {
             print("❌ DVR: BASS_StreamCreateFile failed (err=\(BASS_ErrorGetCode())) path=\(path)")
             return 0

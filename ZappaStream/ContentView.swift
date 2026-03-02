@@ -34,6 +34,8 @@ struct ContentView: View {
     @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
     @State private var showFXPane: Bool = false
     @AppStorage("setlistWasOpenBeforeFX") private var setlistWasOpenBeforeFX: Bool = false  // Track setlist state before FX panel opened; persisted so app relaunch can restore it
+    @AppStorage("dvrEnabled") private var dvrEnabled: Bool = true
+    @AppStorage("dvrBufferMinutes") private var dvrBufferMinutes: Int = 15
     @State private var windowHeightBeforeFX: CGFloat = 0  // Track window height before FX opens
 
     let streams = [
@@ -129,6 +131,13 @@ struct ContentView: View {
             #endif
             stopStream()
         }
+        #if os(macOS)
+        .onChange(of: dvrBufferMinutes) { _, _ in
+            // Apply new buffer size immediately if live; ignored while paused/playing
+            // so the current DVR session is unaffected.
+            bassPlayer.updateDVRBufferSize()
+        }
+        #endif
         .onChange(of: showFXPane) { oldValue, newValue in
             if newValue && !oldValue {
                 // FX pane is opening: save current height and expand to max
@@ -449,7 +458,29 @@ struct ContentView: View {
             VStack(spacing: 12) {
                 Divider()
 
-                // Stream status (now above controls)
+                // DVR status: LIVE badge when streaming live, Go Live + delay indicator in DVR mode.
+                if isPlaying {
+                    HStack(spacing: 8) {
+                        if bassPlayer.dvrState != .live {
+                            Text("\(dvrFormattedBehind(bassPlayer.behindLiveSeconds)) / \(dvrFormattedBehind(bassPlayer.dvrMaxBufferSeconds))")
+                                .font(.caption)
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                            Button("Go Live") { bassPlayer.goLive() }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.red)
+                                .controlSize(.small)
+                        } else {
+                            Text("● LIVE")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.red)
+                        }
+                    }
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.25), value: bassPlayer.dvrState == .live)
+                }
+
+                // Stream status
                 if isPlaying, let stream = selectedStream {
                     VStack(spacing: 2) {
                         Text("Streaming \(stream.name)")
@@ -480,30 +511,6 @@ struct ContentView: View {
                         }
                     }
                     .animation(.easeInOut(duration: 0.3), value: showDelayWarning)
-                }
-
-                // DVR status: LIVE badge when streaming live, Go Live + delay indicator in DVR mode.
-                if isPlaying {
-                    HStack(spacing: 8) {
-                        if bassPlayer.dvrState != .live {
-                            if bassPlayer.behindLiveSeconds > 1 {
-                                Text("−\(dvrFormattedBehind(bassPlayer.behindLiveSeconds))")
-                                    .font(.caption)
-                                    .monospacedDigit()
-                                    .foregroundStyle(.secondary)
-                            }
-                            Button("Go Live") { bassPlayer.goLive() }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.red)
-                                .controlSize(.small)
-                        } else {
-                            Text("● LIVE")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.red)
-                        }
-                    }
-                    .transition(.opacity)
-                    .animation(.easeInOut(duration: 0.25), value: bassPlayer.dvrState == .live)
                 }
 
                 HStack(spacing: 12) {
@@ -589,7 +596,7 @@ struct ContentView: View {
                         case (false, _):
                             playStream()
                         case (true, .live):
-                            bassPlayer.dvrPause()
+                            if dvrEnabled { bassPlayer.dvrPause() } else { stopStream() }
                         case (true, .paused):
                             bassPlayer.dvrResume()
                         case (true, .playing):
