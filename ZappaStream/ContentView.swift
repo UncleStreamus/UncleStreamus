@@ -924,8 +924,9 @@ struct ContentView: View {
     /// Renders a setlist row with current track highlighting
     @ViewBuilder
     private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {
-        let currentPosition = findCurrentTrackPosition()
-        let isCurrent = currentPosition == index
+        // Use the confirmed position directly — re-calling findCurrentTrackPosition() here
+        // would use "> currentSetlistPosition" and always highlight the *next* duplicate, not the current one.
+        let isCurrent = currentSetlistPosition == index
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             // Speaker icon for currently playing track (or invisible placeholder)
             Image(systemName: "speaker.wave.2.fill")
@@ -1277,6 +1278,11 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 self.currentShow = show
                 self.currentSetlistPosition = 0  // Reset position for new show
+                // Re-compute from parsedTrack so the speaker appears on first load
+                // without waiting for the next metadata poll.
+                if let position = self.findCurrentTrackPosition() {
+                    self.currentSetlistPosition = position
+                }
                 self.isFetchingShowInfo = false
 
                 // Always persist the current show date so it's available on next launch
