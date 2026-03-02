@@ -116,7 +116,7 @@ struct PlaybackSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SettingsSectionHeader(title: "Stream from Launch", systemImage: "play.circle")
+            SettingsSectionHeader(title: "Stream", systemImage: "play.circle")
 
             SettingsSectionBox {
                 Toggle("Resume playback on launch", isOn: $autoResumeOnLaunch)
@@ -125,7 +125,6 @@ struct PlaybackSettingsView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                #if os(macOS)
                 Divider()
                     .padding(.vertical, 4)
 
@@ -162,7 +161,6 @@ struct PlaybackSettingsView: View {
                 }
                 .font(.caption)
                 .foregroundColor(.secondary)
-                #endif
             }
 
             SettingsSectionHeader(title: "FX", systemImage: "slider.horizontal.3")

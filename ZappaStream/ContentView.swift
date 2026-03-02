@@ -468,7 +468,7 @@ struct ContentView: View {
                                 .foregroundStyle(.secondary)
                             Button("Go Live") { bassPlayer.goLive() }
                                 .buttonStyle(.borderedProminent)
-                                .tint(.red)
+                                .tint(Color(red: 0.72, green: 0.07, blue: 0.07))
                                 .controlSize(.small)
                         } else {
                             Text("● LIVE")

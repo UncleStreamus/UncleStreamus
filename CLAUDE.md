@@ -200,7 +200,7 @@ Platform-Specific:
   - Low band: 100 Hz center frequency
   - Mid band: 1 kHz center frequency
   - High band: 10 kHz center frequency
-  - Each band supports ±24 dB gain adjustment
+  - Each band supports ±6 dB gain adjustment
   - Applied first in DSP chain
 - **Compressor** (via BASS `BASS_FX_BFX_COMPRESSOR2`):
   - **Adaptive program-dependent threshold:** A level-meter DSP measures RMS of the post-compression signal over ~1.5s windows with EMA smoothing (~4.5s effective time constant). The compressor threshold is set relative to this measured program level, so it compresses proportionally regardless of track loudness.
