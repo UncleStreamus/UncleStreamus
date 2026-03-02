@@ -91,7 +91,9 @@ enum PlaybackState {
 
     // MARK: - Audio Effects
 
-    private var eqFX: HFX = 0
+    private var eqLowFX:  HFX = 0   // BASS_BFX_BQF_LOWSHELF  @ 120 Hz
+    private var eqMidFX:  HFX = 0   // BASS_BFX_BQF_PEAKINGEQ @ 1800 Hz
+    private var eqHighFX: HFX = 0   // BASS_BFX_BQF_HIGHSHELF @ 7500 Hz
     private var compressorFX: HFX = 0
     private var levelMeterDSP: HDSP = 0
     private var stereoDSP: HDSP = 0
@@ -495,7 +497,9 @@ enum PlaybackState {
             print("⏹  stream freed (handle was \(streamHandle))")
             streamHandle = 0
         }
-        eqFX = 0
+        eqLowFX  = 0
+        eqMidFX  = 0
+        eqHighFX = 0
         compressorFX = 0
         levelMeterDSP = 0
         stereoDSP = 0
@@ -560,7 +564,9 @@ enum PlaybackState {
     private func applyEffects(to handle: DWORD, clickGuardOn cgHandle: DWORD? = nil) {
         let userData = Unmanaged.passUnretained(self).toOpaque()
 
-        eqFX = BASS_ChannelSetFX(handle, DWORD(BASS_FX_BFX_PEAKEQ), 0)
+        eqLowFX  = BASS_ChannelSetFX(handle, DWORD(BASS_FX_BFX_BQF), 0)
+        eqMidFX  = BASS_ChannelSetFX(handle, DWORD(BASS_FX_BFX_BQF), 0)
+        eqHighFX = BASS_ChannelSetFX(handle, DWORD(BASS_FX_BFX_BQF), 0)
         // Snap blend to goal on stream start — no ramp needed for a fresh stream.
         eqBlend     = (eqEnabled && !masterBypassEnabled) ? 1.0 : 0.0
         eqBlendGoal = eqBlend
@@ -835,16 +841,38 @@ enum PlaybackState {
         )
     }
 
-    private func applyEQBand(_ band: Int32, center: Float, gain: Float) {
-        guard eqFX != 0 else { return }
-        var p = BASS_BFX_PEAKEQ()
-        p.lBand      = band
-        p.fCenter    = center
-        p.fBandwidth = 1.0
-        p.fQ         = 0
-        p.fGain      = gain
-        p.lChannel   = -1
-        BASS_FXSetParameters(eqFX, &p)
+    private func applyLowShelf(gain: Float) {
+        guard eqLowFX != 0 else { return }
+        var p = BASS_BFX_BQF()
+        p.lFilter  = Int32(BASS_BFX_BQF_LOWSHELF)
+        p.fCenter  = 120
+        p.fGain    = gain
+        p.fS       = 0.7
+        p.lChannel = -1
+        BASS_FXSetParameters(eqLowFX, &p)
+    }
+
+    private func applyMidPeak(gain: Float) {
+        guard eqMidFX != 0 else { return }
+        let bw = max(0.1, 2.0 - (abs(eqMidGain) / 6.0) * 1.0)
+        var p = BASS_BFX_BQF()
+        p.lFilter     = Int32(BASS_BFX_BQF_PEAKINGEQ)
+        p.fCenter     = 1800
+        p.fGain       = gain
+        p.fBandwidth  = bw
+        p.lChannel    = -1
+        BASS_FXSetParameters(eqMidFX, &p)
+    }
+
+    private func applyHighShelf(gain: Float) {
+        guard eqHighFX != 0 else { return }
+        var p = BASS_BFX_BQF()
+        p.lFilter  = Int32(BASS_BFX_BQF_HIGHSHELF)
+        p.fCenter  = 7500
+        p.fGain    = gain
+        p.fS       = 0.7
+        p.lChannel = -1
+        BASS_FXSetParameters(eqHighFX, &p)
     }
 
     private func applyCompressorParams() {
@@ -920,10 +948,9 @@ enum PlaybackState {
 
     /// Apply EQ band gains scaled by the current eqBlend (0=bypassed, 1=active).
     private func applyEQAtCurrentBlend() {
-        guard eqFX != 0 else { return }
-        applyEQBand(0, center: 100,   gain: eqLowGain  * eqBlend)
-        applyEQBand(1, center: 1000,  gain: eqMidGain  * eqBlend)
-        applyEQBand(2, center: 10000, gain: eqHighGain * eqBlend)
+        applyLowShelf(gain:  eqLowGain  * eqBlend)
+        applyMidPeak(gain:   eqMidGain  * eqBlend)
+        applyHighShelf(gain: eqHighGain * eqBlend)
     }
 
     /// Start the FX ramp timer if it isn't already running.
