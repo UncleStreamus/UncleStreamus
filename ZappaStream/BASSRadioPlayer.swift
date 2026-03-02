@@ -181,6 +181,35 @@ enum PlaybackState {
     private var spreadAPFInput:  Float = 0.0
     private var spreadAPFOutput: Float = 0.0
 
+    // MARK: - DVR
+    // macOS only at runtime; properties must be unconditionally declared so @Observable
+    // macro can generate correct accessor code (macro-expanded files have no #if guards).
+
+    enum DVRState { case live, paused, playing }
+
+    /// Current DVR mode. `.live` = normal streaming, `.paused` = live stream muted
+    /// while recording continues, `.playing` = playing back from WAV ring buffer.
+    /// Always `.live` on iOS (DVR feature not implemented there yet).
+    var dvrState: DVRState = .live
+
+    /// How many seconds behind live the current DVR playback position is.
+    private(set) var behindLiveSeconds: TimeInterval = 0
+
+    private var streamBuffer:       StreamBuffer?  = nil
+    private var recordingDSP:       DWORD          = 0
+    private var dvrPlaybackStream:  DWORD          = 0
+    private var dvrPauseTimestamp:  Double         = 0
+    private var dvrCurrentSegNum:   Int            = 0
+    private var dvrBehindTimer:     Timer?         = nil
+
+    // DVR metadata journal — maps recording timestamps to raw metadata strings.
+    // Populated by publishTitle() during live streaming; consulted during DVR playback
+    // to replay track-change notifications at the correct recorded position.
+    // All reads/writes happen on the main thread (append dispatched from publishTitle).
+    private var dvrMetadataJournal: [(timestamp: Double, metadata: String)] = []
+    private var lastDVRPublishedMetadata: String? = nil
+    private var dvrMetadataTimer: Timer? = nil
+
     // MARK: - FX Blend (smooth on/off transitions)
     // Ramp blend 0→1 (passthrough→active) over ~83ms when toggling compressor/EQ or master bypass.
     // Prevents clicks/pops caused by abrupt compressor state jumps or filter coefficient changes.
@@ -357,6 +386,12 @@ enum PlaybackState {
 
         activeFormat = format
 
+        #if os(macOS)
+        // Start DVR recording before attaching DSPs so no audio is missed.
+        streamBuffer = StreamBuffer()
+        streamBuffer?.start()
+        #endif
+
         configureStreamAttributes(format: format, handle: streamHandle)
         setupSyncs(for: streamHandle)
 
@@ -416,8 +451,20 @@ enum PlaybackState {
         isRefillPausing  = false
         lastFlacTitle = nil
         lastIcecastTitle = nil
+
+        // Stop DVR playback and timers before freeing channels.
+        // Ordering: stop timer → free DVR stream → stop BASS channels (stops DSP) → cleanup buffer.
+        dvrBehindTimer?.invalidate()
+        dvrBehindTimer = nil
+        dvrMetadataTimer?.invalidate()
+        dvrMetadataTimer = nil
+        if dvrPlaybackStream != 0 {
+            BASS_StreamFree(dvrPlaybackStream)
+            dvrPlaybackStream = 0
+        }
+
         if mixerHandle != 0 {
-            BASS_ChannelStop(mixerHandle)
+            BASS_ChannelStop(mixerHandle)     // stops DSP callbacks including recordingDSP
             BASS_StreamFree(mixerHandle)
             print("⏹  mixer freed (handle was \(mixerHandle))")
             mixerHandle = 0
@@ -452,6 +499,18 @@ enum PlaybackState {
         cgFadeBuffersRemaining = 0
         cgLastGuardTime = 0
         flacPendingFadeIn = false
+
+        // Channels are now stopped — safe to tear down StreamBuffer.
+        recordingDSP = 0
+        streamBuffer?.stop()
+        streamBuffer?.cleanup()
+        streamBuffer = nil
+        dvrState = .live
+        behindLiveSeconds = 0
+        dvrCurrentSegNum = 0
+        dvrPauseTimestamp = 0
+        dvrMetadataJournal.removeAll()
+        lastDVRPublishedMetadata = nil
     }
 
     // MARK: - Stream Attributes
@@ -733,6 +792,21 @@ enum PlaybackState {
             },
             userData,
             -2
+        )
+
+        // Recording DSP — priority -3, after all FX, limiter, and click guard.
+        // Captures the final post-FX PCM that the user actually hears into the DVR ring buffer.
+        // On iOS: streamBuffer is always nil (DVR not enabled there), so append() is a no-op.
+        recordingDSP = BASS_ChannelSetDSP(
+            handle,
+            { _, _, buffer, length, user in
+                guard let buffer = buffer, let user = user else { return }
+                Unmanaged<BASSRadioPlayer>.fromOpaque(user)
+                    .takeUnretainedValue()
+                    .streamBuffer?.append(buffer: buffer, length: Int(length))
+            },
+            userData,
+            -3
         )
     }
 
@@ -1058,6 +1132,10 @@ enum PlaybackState {
             print("🏁  BASS_SYNC_END fired for \(activeFormat) channel \(channel) — deferring to status poll")
             return
         }
+        guard dvrState == .live else {
+            print("🏁  BASS_SYNC_END fired during DVR mode — ignoring")
+            return
+        }
         print("🏁  BASS_SYNC_END fired for channel \(channel) — event-based restart")
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.restartStream()
@@ -1297,9 +1375,14 @@ enum PlaybackState {
            status == BASS_ACTIVE_PLAYING,
            bufferedBytes == 0,
            bytes > 100000 {
-            print("🔄 AAC buffer underrun detected (pos=\(String(format:"%.0f",secs)) buffered=0) — fast restart")
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                self?.restartStream()
+            if dvrState == .live {
+                print("🔄 AAC buffer underrun detected (pos=\(String(format:"%.0f",secs)) buffered=0) — fast restart")
+                DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.restartStream() }
+            } else {
+                print("🔄 AAC buffer underrun in DVR mode — partial live restart")
+                #if os(macOS)
+                DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.partialRestartLiveChannel() }
+                #endif
             }
             return
         }
@@ -1314,9 +1397,14 @@ enum PlaybackState {
                 oggStopConfirmed = false
             }
             let err = BASS_ErrorGetCode()
-            print("🔄 Stream STOPPED (err=\(err)) — fast auto restart")
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                self?.restartStream()
+            if dvrState == .live {
+                print("🔄 Stream STOPPED (err=\(err)) — fast auto restart")
+                DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.restartStream() }
+            } else {
+                print("🔄 Stream STOPPED (err=\(err)) in DVR mode — partial live restart")
+                #if os(macOS)
+                DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.partialRestartLiveChannel() }
+                #endif
             }
             return
         } else {
@@ -1326,8 +1414,7 @@ enum PlaybackState {
 
     private func restartStream() {
         print("🔄 Restarting \(activeFormat) stream...")
-
-
+        // freeStream() resets dvrState → .live and cleans up DVR playback/recording.
         freeStream()
 
         guard let current = qualities.first(where: { $0.format == activeFormat }),
@@ -1364,6 +1451,13 @@ enum PlaybackState {
             let restartAddFlags = DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN)
             BASS_Mixer_StreamAddChannel(mixerHandle, streamHandle, restartAddFlags)
         }
+
+        #if os(macOS)
+        // Recreate StreamBuffer so recording resumes after restart (freeStream() cleared it).
+        streamBuffer = StreamBuffer()
+        streamBuffer?.start()
+        #endif
+
         configureStreamAttributes(format: current.format, handle: streamHandle)
         setupSyncs(for: streamHandle)
 
@@ -1500,10 +1594,278 @@ enum PlaybackState {
         return nil
     }
 
+    // MARK: - DVR Public Interface (macOS only)
+
+    #if os(macOS)
+
+    /// Pause live output while keeping the stream + recording alive.
+    /// Saves the current recording timestamp so `dvrResume()` plays from here.
+    func dvrPause() {
+        guard dvrState == .live else { return }
+        let ph = mixerHandle != 0 ? mixerHandle : streamHandle
+        guard ph != 0 else { return }
+
+        dvrPauseTimestamp = streamBuffer?.currentTimestamp ?? 0
+        dvrState = .paused
+        startBehindTimer()   // begin counting up how far behind live the user is
+
+        startFadeOut(mixer: ph) {
+            // Mute after fade; stream and recording DSP remain active.
+            BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
+        }
+        print("⏸️ DVR paused at t=\(String(format: "%.2f", dvrPauseTimestamp))s")
+    }
+
+    /// Pause DVR playback (while in .playing state).
+    /// Saves the current playback position as the new pause point so dvrResume() picks up from here.
+    func dvrPausePlayback() {
+        guard dvrState == .playing, let buffer = streamBuffer else { return }
+
+        let posBytes = BASS_ChannelGetPosition(dvrPlaybackStream, DWORD(BASS_POS_BYTE))
+        let posSecs  = BASS_ChannelBytes2Seconds(dvrPlaybackStream, posBytes)
+        let currentRecordingTime = Double(dvrCurrentSegNum) * buffer.segmentDuration + posSecs
+
+        BASS_StreamFree(dvrPlaybackStream)
+        dvrPlaybackStream = 0
+        dvrMetadataTimer?.invalidate()
+        dvrMetadataTimer = nil
+
+        dvrPauseTimestamp = currentRecordingTime
+        dvrState = .paused
+        startBehindTimer()   // keep counting up from current behind position
+        print("⏸️ DVR playback paused at recording t=\(String(format: "%.2f", dvrPauseTimestamp))s")
+    }
+
+    /// Start DVR playback from the saved pause timestamp.
+    /// The live stream stays muted and continues recording.
+    func dvrResume() {
+        guard dvrState == .paused, let buffer = streamBuffer else { return }
+
+        let stream = buffer.createPlaybackStream(from: dvrPauseTimestamp)
+        guard stream != 0 else {
+            print("❌ DVR: failed to create playback stream at t=\(dvrPauseTimestamp)")
+            return
+        }
+
+        dvrPlaybackStream = stream
+        dvrCurrentSegNum  = Int(dvrPauseTimestamp / buffer.segmentDuration)
+
+        // Register end sync for automatic segment continuation.
+        let userData = Unmanaged.passUnretained(self).toOpaque()
+        BASS_ChannelSetSync(stream, DWORD(BASS_SYNC_END), 0, { _, ch, _, user in
+            guard let user = user else { return }
+            let player = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
+            DispatchQueue.main.async { player.handleDVRStreamEnd(channel: ch) }
+        }, userData)
+
+        BASS_ChannelPlay(stream, 0)
+        dvrState = .playing
+        startBehindTimer()
+        startDVRMetadataPolling()
+        print("▶️  DVR playback started from t=\(String(format: "%.2f", dvrPauseTimestamp))s")
+    }
+
+    /// Exit DVR mode and return to the live stream immediately.
+    /// The live stream is unmuted with a fade-in.
+    func goLive() {
+        guard dvrState != .live else { return }
+
+        // Stop DVR playback
+        if dvrPlaybackStream != 0 {
+            BASS_StreamFree(dvrPlaybackStream)
+            dvrPlaybackStream = 0
+        }
+        dvrBehindTimer?.invalidate()
+        dvrBehindTimer = nil
+        dvrMetadataTimer?.invalidate()
+        dvrMetadataTimer = nil
+        behindLiveSeconds = 0
+        dvrState = .live
+        // Force next live pollMetadata to re-publish (live track may differ from DVR track).
+        lastPublishedTitle = nil
+        lastDVRPublishedMetadata = nil
+
+        // Unmute live stream
+        let ph = mixerHandle != 0 ? mixerHandle : streamHandle
+        if ph != 0 {
+            startFadeIn(mixer: ph)
+        }
+        print("📡 DVR → LIVE")
+    }
+
+    // MARK: - DVR Private Helpers
+
+    private func startBehindTimer() {
+        dvrBehindTimer?.invalidate()
+        // Fires on the main runloop so UI updates happen on the main thread.
+        // Runs in both .paused (counts up as recording grows) and .playing (stays static).
+        dvrBehindTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self,
+                  let buffer = self.streamBuffer,
+                  self.dvrState != .live else { return }
+
+            switch self.dvrState {
+            case .paused:
+                // While paused, behind = how much has been recorded since the pause point.
+                self.behindLiveSeconds = max(0, buffer.bufferedDuration - self.dvrPauseTimestamp)
+            case .playing where self.dvrPlaybackStream != 0:
+                // While playing, behind = live recording head minus DVR playback position.
+                // Both advance at ~1 s/s, so this value stays roughly constant.
+                let posBytes = BASS_ChannelGetPosition(self.dvrPlaybackStream, DWORD(BASS_POS_BYTE))
+                let posSecs  = BASS_ChannelBytes2Seconds(self.dvrPlaybackStream, posBytes)
+                let currentRecordingTime = Double(self.dvrCurrentSegNum) * buffer.segmentDuration + posSecs
+                self.behindLiveSeconds   = max(0, buffer.bufferedDuration - currentRecordingTime)
+            default:
+                break
+            }
+        }
+    }
+
+    /// Called (on main thread) when the current DVR playback stream reaches EOF.
+    /// Tries to advance to the next segment; goes live if no more data is available.
+    private func handleDVRStreamEnd(channel: DWORD) {
+        guard dvrState == .playing, channel == dvrPlaybackStream,
+              let buffer = streamBuffer else { return }
+
+        let nextSegNum    = dvrCurrentSegNum + 1
+        let nextTimestamp = Double(nextSegNum) * buffer.segmentDuration
+
+        guard nextTimestamp < buffer.bufferedDuration else {
+            print("📡 DVR end-of-buffer reached — going live")
+            goLive()
+            return
+        }
+
+        BASS_StreamFree(dvrPlaybackStream)
+
+        let newStream = buffer.createPlaybackStream(from: nextTimestamp)
+        guard newStream != 0 else {
+            print("❌ DVR: failed to open segment \(nextSegNum) — going live")
+            goLive()
+            return
+        }
+
+        dvrPlaybackStream = newStream
+        dvrCurrentSegNum  = nextSegNum
+
+        let userData = Unmanaged.passUnretained(self).toOpaque()
+        BASS_ChannelSetSync(newStream, DWORD(BASS_SYNC_END), 0, { _, ch, _, user in
+            guard let user = user else { return }
+            let player = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
+            DispatchQueue.main.async { player.handleDVRStreamEnd(channel: ch) }
+        }, userData)
+
+        BASS_ChannelPlay(newStream, 0)
+        print("⏭️  DVR → segment \(nextSegNum) (t=\(String(format: "%.0f", nextTimestamp))s)")
+    }
+
+    /// Rebuild only the live BASS stream + mixer while keeping DVR state intact.
+    /// Called when the live stream dies (STOPPED or buffer underrun) during DVR pause/playback.
+    /// The existing StreamBuffer keeps running, so WAV segments continue to grow and DVR
+    /// playback is unaffected. The new live stream starts muted.
+    private func partialRestartLiveChannel() {
+        guard activeFormat != "FLAC" else {
+            // FLAC two-mixer setup is too complex for a partial restart; go live as a fallback.
+            DispatchQueue.main.async { self.goLive() }
+            DispatchQueue.global(qos: .userInitiated).async { self.restartStream() }
+            return
+        }
+        guard let current = qualities.first(where: { $0.format == activeFormat }),
+              let cURL = current.url.cString(using: .utf8) else { return }
+
+        print("🔄 DVR partial restart: rebuilding \(current.format) live channel (DVR state preserved)")
+
+        cancelFade()
+        stopMetadataPolling()   // also stops state polling timer
+        oggStopConfirmed = false
+
+        // Free only live BASS channels. BASS_ChannelFree removes all DSPs from the channel.
+        if mixerHandle != 0 { BASS_ChannelFree(mixerHandle); mixerHandle = 0 }
+        if streamHandle != 0 { BASS_StreamFree(streamHandle); streamHandle = 0 }
+        stallSync = 0; endSync = 0; oggChangeSync = 0
+        recordingDSP = 0; clickGuardDSP = 0; cgFadeBuffersRemaining = 0
+
+        // Reconnect live stream.
+        let streamFlags = DWORD(BASS_STREAM_STATUS) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE)
+        let newHandle = BASS_StreamCreateURL(cURL, 0, streamFlags, nil, nil)
+        guard newHandle != 0 else {
+            print("❌ DVR partial restart: stream creation failed (err=\(BASS_ErrorGetCode()))")
+            return
+        }
+
+        streamHandle = newHandle
+        mixerHandle = BASS_Mixer_StreamCreate(44100, 2, DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
+        BASS_Mixer_StreamAddChannel(mixerHandle, streamHandle,
+            DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN))
+
+        // applyEffects inside configureStreamAttributes re-attaches the recording DSP.
+        // self.streamBuffer is still alive, so recording continues without interruption.
+        configureStreamAttributes(format: current.format, handle: streamHandle)
+        setupSyncs(for: streamHandle)
+
+        // Start muted — DVR state controls the volume.
+        BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_VOL), 0)
+        BASS_ChannelPlay(mixerHandle, 0)
+
+        DispatchQueue.main.async {
+            self.playbackState = .playing
+            self.startMetadataPolling()
+        }
+        print("✅ DVR partial restart complete — dvrState=\(dvrState) seg=\(dvrCurrentSegNum)")
+    }
+
+    // MARK: - DVR Metadata Playback
+
+    /// Consult the journal for the current DVR playback position and fire `onMetadataUpdate`
+    /// if the track has changed. Called on the main thread.
+    private func publishDVRMetadata() {
+        guard dvrState == .playing, let buffer = streamBuffer, dvrPlaybackStream != 0 else { return }
+
+        let posBytes = BASS_ChannelGetPosition(dvrPlaybackStream, DWORD(BASS_POS_BYTE))
+        let posSecs  = BASS_ChannelBytes2Seconds(dvrPlaybackStream, posBytes)
+        let currentRecordingTime = Double(dvrCurrentSegNum) * buffer.segmentDuration + posSecs
+
+        // Find the latest journal entry at or before the current playback position.
+        guard let entry = dvrMetadataJournal.last(where: { $0.timestamp <= currentRecordingTime }),
+              entry.metadata != lastDVRPublishedMetadata else { return }
+
+        lastDVRPublishedMetadata = entry.metadata
+        print("📼 DVR metadata @ t=\(String(format: "%.1f", currentRecordingTime))s → \(entry.metadata)")
+        onMetadataUpdate?(entry.metadata)
+    }
+
+    /// Start polling the metadata journal for DVR playback position every 3 s.
+    /// Fires once immediately so the UI updates without waiting for the first tick.
+    private func startDVRMetadataPolling() {
+        dvrMetadataTimer?.invalidate()
+        publishDVRMetadata()   // immediate update on resume
+        dvrMetadataTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+            guard let self = self, self.dvrState == .playing else { return }
+            self.publishDVRMetadata()
+        }
+    }
+
+    #endif
+
     // MARK: - Publish
 
     private func publishTitle(_ title: String) {
         print("🎵  \(title)")
+
+        // Journal every track change with its recording timestamp so DVR playback can
+        // replay track info at the correct position.  All journal mutations run on the
+        // main thread to keep reads (DVR timer, also main) data-race-free.
+        #if os(macOS)
+        if let buffer = streamBuffer {
+            let ts = buffer.currentTimestamp
+            DispatchQueue.main.async { self.dvrMetadataJournal.append((timestamp: ts, metadata: title)) }
+        }
+        #endif
+
+        // In DVR mode the live metadata is NOT what the user is hearing.
+        // Suppress live updates; the DVR metadata timer publishes historical track info.
+        guard dvrState == .live else { return }
+
         // Only fire callback if title actually changed (dedup repeated polls)
         guard title != lastPublishedTitle else { return }
         lastPublishedTitle = title

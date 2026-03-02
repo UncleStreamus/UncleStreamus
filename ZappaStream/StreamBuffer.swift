@@ -1,0 +1,251 @@
+import Foundation
+#if os(macOS)
+import Bass
+#endif
+
+// MARK: - StreamBuffer
+//
+// Rolling WAV ring buffer for DVR "pause live stream" feature.
+//
+// Architecture:
+//   DSP audio thread → append() → in-memory ring buffer (os_unfair_lock)
+//                                      ↓ drain at ~50 Hz on write queue
+//                              WAV segment files on disk (15 × 60 s)
+//
+// Storage: 16-bit PCM, 44100 Hz, stereo → ~10.5 MB/segment → ~157 MB max.
+// WAV header uses placeholder data size (0xFFFFFFFF) — BASS reads to EOF fine.
+
+final class StreamBuffer {
+
+    // MARK: - Constants
+
+    let maxSegments     = 15
+    let segmentDuration = 60.0    // seconds per segment
+    let sampleRate: Int32 = 44100
+    let numChannels: Int32 = 2
+
+    var bytesPerSecond: Int64  { Int64(sampleRate) * Int64(numChannels) * 2 }          // 176 400 B/s
+    var samplesPerSegment: Int64 { Int64(segmentDuration) * Int64(sampleRate) * Int64(numChannels) }
+
+    private let wavHeaderSize: Int64 = 44
+
+    // MARK: - In-memory ring buffer (write: audio thread, read: write queue)
+
+    // 512 K Float32 samples ≈ 5.8 s of stereo audio @ 44.1 kHz.
+    // Acts as a lock-free-style bridge; os_unfair_lock keeps critical sections <10 µs.
+    private let memCapacity = 524_288          // Float32 samples
+    private var memBuffer:  [Float]
+    private var memWritePos = 0
+    private var memReadPos  = 0
+    private var memAvailable = 0
+    private var lock = os_unfair_lock()
+
+    // MARK: - Disk state (write queue only)
+
+    private var currentSegmentIndex: Int   = 0
+    private var samplesInCurrentSegment: Int64 = 0
+    private(set) var totalSamplesWritten:  Int64 = 0  // cumulative, never reset
+
+    private var fileHandle: FileHandle?
+    private let writeQueue = DispatchQueue(label: "com.zappastream.dvr", qos: .background)
+    private var isRunning  = false
+
+    private let tempDir: URL
+
+    // MARK: - Init
+
+    init() {
+        tempDir    = FileManager.default.temporaryDirectory
+        memBuffer  = [Float](repeating: 0, count: 524_288)
+    }
+
+    // MARK: - Lifecycle
+
+    func start() {
+        isRunning = true
+        openSegment(index: 0)
+        scheduleWriteTick()
+    }
+
+    /// Flush remaining samples and close the current segment file.
+    /// Blocks the caller briefly (write-queue sync flush).
+    func stop() {
+        isRunning = false
+        writeQueue.sync {
+            self.drainAndWrite()
+            self.closeCurrentSegment()
+        }
+    }
+
+    /// Delete all temporary WAV segment files.
+    func cleanup() {
+        for i in 0..<maxSegments {
+            try? FileManager.default.removeItem(at: segmentPath(index: i))
+        }
+    }
+
+    // MARK: - Audio Thread Interface (non-blocking)
+
+    /// Called from the BASS DSP callback on the audio thread.
+    /// Copies Float32 samples into the in-memory ring buffer without blocking.
+    /// Excess samples are silently dropped when the buffer is full (should not happen normally).
+    func append(buffer: UnsafeRawPointer, length: Int) {
+        let floats = buffer.assumingMemoryBound(to: Float.self)
+        let count  = length / MemoryLayout<Float>.size
+
+        os_unfair_lock_lock(&lock)
+        let space = memCapacity - memAvailable
+        let n     = min(count, space)
+        for i in 0..<n {
+            memBuffer[memWritePos] = floats[i]
+            memWritePos = (memWritePos &+ 1) % memCapacity
+        }
+        memAvailable += n
+        os_unfair_lock_unlock(&lock)
+    }
+
+    // MARK: - Timing
+
+    /// Total seconds of audio recorded since start().
+    var bufferedDuration: Double {
+        Double(totalSamplesWritten) / Double(sampleRate) / Double(numChannels)
+    }
+
+    /// Alias for `bufferedDuration`; represents the recording timestamp at the write head.
+    var currentTimestamp: Double { bufferedDuration }
+
+    // MARK: - Playback Stream Creation
+
+    /// Create a BASS file stream starting at `timestamp` seconds into the recording.
+    /// The caller must call `BASS_StreamFree` when done.
+    /// Returns 0 if the segment file does not exist or the timestamp is out of range.
+    func createPlaybackStream(from timestamp: Double) -> DWORD {
+        guard timestamp >= 0, timestamp < bufferedDuration else { return 0 }
+
+        let segNum     = Int(timestamp / segmentDuration)
+        let segIdx     = segNum % maxSegments
+        let offsetSecs = timestamp - Double(segNum) * segmentDuration
+
+        let path = segmentPath(index: segIdx).path
+        guard FileManager.default.fileExists(atPath: path),
+              let cPath = path.cString(using: .utf8) else { return 0 }
+
+        // BASS needs to read the WAV header from offset 0, then we seek.
+        let stream = BASS_StreamCreateFile(0, cPath, 0, 0, DWORD(BASS_SAMPLE_FLOAT))
+        guard stream != 0 else {
+            print("❌ DVR: BASS_StreamCreateFile failed (err=\(BASS_ErrorGetCode())) path=\(path)")
+            return 0
+        }
+
+        if offsetSecs > 0 {
+            let seekPos = BASS_ChannelSeconds2Bytes(stream, offsetSecs)
+            BASS_ChannelSetPosition(stream, seekPos, DWORD(BASS_POS_BYTE))
+        }
+
+        return stream
+    }
+
+    // MARK: - Private — Segment Management
+
+    private func segmentPath(index: Int) -> URL {
+        tempDir.appendingPathComponent("zappastream_dvr_seg_\(index).wav")
+    }
+
+    private func openSegment(index: Int) {
+        let path = segmentPath(index: index)
+        try? FileManager.default.removeItem(at: path)       // overwrite ring-buffer slot
+        FileManager.default.createFile(atPath: path.path, contents: nil)
+        fileHandle = try? FileHandle(forWritingTo: path)
+        // Placeholder data size 0xFFFFFFFF: BASS reads to EOF regardless of the header value.
+        fileHandle?.write(makeWAVHeader(dataSize: 0xFFFF_FFFF))
+        samplesInCurrentSegment = 0
+    }
+
+    private func closeCurrentSegment() {
+        fileHandle?.closeFile()
+        fileHandle = nil
+    }
+
+    // MARK: - Private — Write Loop
+
+    private func scheduleWriteTick() {
+        writeQueue.asyncAfter(deadline: .now() + 0.02) { [weak self] in
+            guard let self, self.isRunning else { return }
+            self.drainAndWrite()
+            self.scheduleWriteTick()
+        }
+    }
+
+    private func drainAndWrite() {
+        // Process in chunks; keep stereo alignment (even sample count).
+        while true {
+            os_unfair_lock_lock(&lock)
+            let available = memAvailable
+            os_unfair_lock_unlock(&lock)
+            guard available >= 2 else { break }
+
+            let chunkSamples = min(available & ~1, 8192)   // ≤ 8192, even
+            var chunk = [Float](repeating: 0, count: chunkSamples)
+
+            os_unfair_lock_lock(&lock)
+            for i in 0..<chunkSamples {
+                chunk[i]   = memBuffer[memReadPos]
+                memReadPos = (memReadPos &+ 1) % memCapacity
+            }
+            memAvailable -= chunkSamples
+            os_unfair_lock_unlock(&lock)
+
+            // Float32 → Int16 conversion (clamp then scale)
+            var pcm16 = [Int16](repeating: 0, count: chunkSamples)
+            for i in 0..<chunkSamples {
+                pcm16[i] = Int16(max(-32_768.0, min(32_767.0, chunk[i] * 32_767.0)))
+            }
+
+            let data = pcm16.withUnsafeBufferPointer { Data(buffer: $0) }
+            fileHandle?.write(data)
+
+            samplesInCurrentSegment += Int64(chunkSamples)
+            totalSamplesWritten     += Int64(chunkSamples)
+
+            // Rotate to next segment when the current one is full.
+            if samplesInCurrentSegment >= samplesPerSegment {
+                closeCurrentSegment()
+                currentSegmentIndex = (currentSegmentIndex + 1) % maxSegments
+                openSegment(index: currentSegmentIndex)
+            }
+        }
+    }
+
+    // MARK: - Private — WAV Header
+
+    private func makeWAVHeader(dataSize: UInt32) -> Data {
+        var h = Data(capacity: 44)
+
+        let sr  = UInt32(sampleRate)
+        let ch  = UInt16(numChannels)
+        let bps: UInt16 = 16
+        let ba  = ch * bps / 8
+        let br  = sr * UInt32(ba)
+
+        func u16(_ v: UInt16) -> [UInt8] { [UInt8(v & 0xFF), UInt8(v >> 8)] }
+        func u32(_ v: UInt32) -> [UInt8] {
+            [UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF), UInt8((v >> 16) & 0xFF), UInt8(v >> 24)]
+        }
+
+        h.append(contentsOf: Array("RIFF".utf8))
+        h.append(contentsOf: u32(dataSize &+ 36))   // RIFF chunk size
+        h.append(contentsOf: Array("WAVE".utf8))
+        h.append(contentsOf: Array("fmt ".utf8))
+        h.append(contentsOf: u32(16))               // fmt chunk size
+        h.append(contentsOf: u16(1))                // PCM
+        h.append(contentsOf: u16(ch))
+        h.append(contentsOf: u32(sr))
+        h.append(contentsOf: u32(br))
+        h.append(contentsOf: u16(ba))
+        h.append(contentsOf: u16(bps))
+        h.append(contentsOf: Array("data".utf8))
+        h.append(contentsOf: u32(dataSize))
+
+        return h
+    }
+}
