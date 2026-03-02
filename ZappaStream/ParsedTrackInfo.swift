@@ -25,19 +25,40 @@ struct ParsedTrackInfo {
 
     // MARK: - Track Name Normalization
 
-    /// Maps stream metadata track names to canonical FZShows setlist names
-    /// Handles cases where the stream metadata differs from zappateers.com
+    /// Maps stream metadata track names to display-normalized forms (fixes capitalization/alternate titles)
     static let trackNameExceptions: [String: String] = [
         "Pound For A Brown": "A Pound For a Brown",
-        "A Pound For a Brown": "A Pound For a Brown",
         "More Trouble Every Day": "Trouble Every Day",
-        "Trouble Every Day": "Trouble Every Day",
     ]
 
-    /// Normalizes a track name to match FZShows setlist format
+    /// Groups of track names that are considered synonymous with each other.
+    /// A name can appear in multiple groups — two names match if they share any group.
+    /// This allows partial overlaps: String Quartet bridges the Pound and Sleeping groups
+    /// without making Sleeping In a Jar match the Pound names directly.
+    static let synonymGroups: [Set<String>] = [
+        ["A Pound For a Brown", "Pound For A Brown", "The String Quartet", "String Quartet"],
+        ["The String Quartet", "String Quartet", "Sleeping In a Jar"],
+        ["Trouble Every Day", "More Trouble Every Day"],
+    ]
+
+    /// Normalizes a track name for display purposes
     static func normalizeTrackName(_ name: String?) -> String? {
         guard let name = name else { return nil }
         return trackNameExceptions[name] ?? name
+    }
+
+    /// Returns true if two track names should be treated as matching,
+    /// accounting for synonym groups with possible overlaps.
+    static func tracksMatch(_ a: String, _ b: String) -> Bool {
+        if a == b { return true }
+        let normA = normalizeTrackName(a) ?? a
+        let normB = normalizeTrackName(b) ?? b
+        if normA == normB { return true }
+        for group in synonymGroups {
+            if (group.contains(a) || group.contains(normA)) &&
+               (group.contains(b) || group.contains(normB)) { return true }
+        }
+        return false
     }
 
     static func parse(_ title: String) -> ParsedTrackInfo {
