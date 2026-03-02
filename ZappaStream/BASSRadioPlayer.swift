@@ -198,8 +198,10 @@ enum PlaybackState {
     private var streamBuffer:       StreamBuffer?  = nil
     private var recordingDSP:       DWORD          = 0
     private var dvrPlaybackStream:  DWORD          = 0
+    private var dvrNextStream:      DWORD          = 0   // pre-loaded next segment (gapless)
     private var dvrPauseTimestamp:  Double         = 0
     private var dvrCurrentSegNum:   Int            = 0
+    private var dvrNextSegNum:      Int            = 0
     private var dvrBehindTimer:     Timer?         = nil
 
     // DVR metadata journal — maps recording timestamps to raw metadata strings.
@@ -464,6 +466,10 @@ enum PlaybackState {
             BASS_StreamFree(dvrPlaybackStream)
             dvrPlaybackStream = 0
         }
+        if dvrNextStream != 0 {
+            BASS_StreamFree(dvrNextStream)
+            dvrNextStream = 0
+        }
 
         if mixerHandle != 0 {
             BASS_ChannelStop(mixerHandle)     // stops DSP callbacks including recordingDSP
@@ -511,6 +517,7 @@ enum PlaybackState {
         dvrBufferFull = false
         behindLiveSeconds = 0
         dvrCurrentSegNum = 0
+        dvrNextSegNum    = 0
         dvrPauseTimestamp = 0
         dvrMetadataJournal.removeAll()
         lastDVRPublishedMetadata = nil
@@ -1680,6 +1687,10 @@ enum PlaybackState {
 
         BASS_StreamFree(dvrPlaybackStream)
         dvrPlaybackStream = 0
+        if dvrNextStream != 0 {
+            BASS_StreamFree(dvrNextStream)
+            dvrNextStream = 0
+        }
         dvrMetadataTimer?.invalidate()
         dvrMetadataTimer = nil
 
@@ -1705,13 +1716,9 @@ enum PlaybackState {
         dvrPlaybackStream = stream
         dvrCurrentSegNum  = Int(dvrPauseTimestamp / buffer.segmentDuration)
 
-        // Register end sync for automatic segment continuation.
-        let userData = Unmanaged.passUnretained(self).toOpaque()
-        BASS_ChannelSetSync(stream, DWORD(BASS_SYNC_END), 0, { _, ch, _, user in
-            guard let user = user else { return }
-            let player = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
-            DispatchQueue.main.async { player.handleDVRStreamEnd(channel: ch) }
-        }, userData)
+        // Register gapless end-sync and pre-load the following segment.
+        registerDVREndSync(on: stream)
+        preloadDVRNextSegment()
 
         // Route DVR audio through the FX output mixer so EQ/compressor/stereo/limiter apply.
         // The recording DSP is on the pre-FX source (streamHandle/preMixerHandle), so it
@@ -1739,6 +1746,10 @@ enum PlaybackState {
         if dvrPlaybackStream != 0 {
             BASS_StreamFree(dvrPlaybackStream)
             dvrPlaybackStream = 0
+        }
+        if dvrNextStream != 0 {
+            BASS_StreamFree(dvrNextStream)
+            dvrNextStream = 0
         }
         // Restore live source volume (was silenced when DVR playback started).
         let liveSource: DWORD = preMixerHandle != 0 ? preMixerHandle : streamHandle
@@ -1825,49 +1836,104 @@ enum PlaybackState {
                 let posSecs  = BASS_ChannelBytes2Seconds(self.dvrPlaybackStream, posBytes)
                 let currentRecordingTime = Double(self.dvrCurrentSegNum) * buffer.segmentDuration + posSecs
                 self.behindLiveSeconds   = max(0, buffer.bufferedDuration - currentRecordingTime)
+
+                // If the next segment wasn't available at resume time, retry now.
+                // Once it's been recorded, preload it so the upcoming transition is gapless.
+                if self.dvrNextStream == 0 { self.preloadDVRNextSegment() }
             default:
                 break
             }
         }
     }
 
-    /// Called (on main thread) when the current DVR playback stream reaches EOF.
-    /// Tries to advance to the next segment; goes live if no more data is available.
-    private func handleDVRStreamEnd(channel: DWORD) {
-        guard dvrState == .playing, channel == dvrPlaybackStream,
-              let buffer = streamBuffer else { return }
-
-        let nextSegNum    = dvrCurrentSegNum + 1
-        let nextTimestamp = Double(nextSegNum) * buffer.segmentDuration
-
-        guard nextTimestamp < buffer.bufferedDuration else {
-            print("📡 DVR end-of-buffer reached — going live")
-            goLive()
-            return
-        }
-
-        BASS_StreamFree(dvrPlaybackStream)
-
-        let newStream = buffer.createPlaybackStream(from: nextTimestamp)
-        guard newStream != 0 else {
-            print("❌ DVR: failed to open segment \(nextSegNum) — going live")
-            goLive()
-            return
-        }
-
-        dvrPlaybackStream = newStream
-        dvrCurrentSegNum  = nextSegNum
-
+    /// Register a MIXTIME END sync on a DVR playback stream.
+    /// BASS_SYNC_MIXTIME fires in the mixing thread at the exact sample boundary,
+    /// enabling gapless segment transitions via handleDVRStreamEndMixtime.
+    private func registerDVREndSync(on stream: DWORD) {
         let userData = Unmanaged.passUnretained(self).toOpaque()
-        BASS_ChannelSetSync(newStream, DWORD(BASS_SYNC_END), 0, { _, ch, _, user in
+        BASS_ChannelSetSync(stream, DWORD(BASS_SYNC_END | BASS_SYNC_MIXTIME), 0, { _, ch, _, user in
             guard let user = user else { return }
             let player = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
-            DispatchQueue.main.async { player.handleDVRStreamEnd(channel: ch) }
+            player.handleDVRStreamEndMixtime(oldStream: ch)
         }, userData)
+    }
 
-        BASS_Mixer_StreamAddChannel(mixerHandle, newStream,
-                                    DWORD(BASS_MIXER_CHAN_BUFFER | BASS_MIXER_CHAN_NORAMPIN))
-        print("⏭️  DVR → segment \(nextSegNum) (t=\(String(format: "%.0f", nextTimestamp))s)")
+    /// Pre-create the stream for segment (dvrCurrentSegNum + 1) so it is ready to add
+    /// to the mixer instantly when the current segment ends.  Must be called on main thread.
+    private func preloadDVRNextSegment() {
+        if dvrNextStream != 0 {
+            BASS_StreamFree(dvrNextStream)
+            dvrNextStream = 0
+        }
+        guard let buffer = streamBuffer else { return }
+        let nextSeg = dvrCurrentSegNum + 1
+        let nextTs  = Double(nextSeg) * buffer.segmentDuration
+        guard nextTs < buffer.bufferedDuration else { return }
+        let s = buffer.createPlaybackStream(from: nextTs)
+        if s != 0 {
+            dvrNextStream = s
+            dvrNextSegNum = nextSeg
+        }
+    }
+
+    /// Called from the BASS mixing thread (MIXTIME sync) when a DVR segment stream hits EOF.
+    /// Adds the pre-loaded next segment to the mixer at the exact sample boundary (no gap),
+    /// then dispatches state cleanup and next-segment pre-loading to the main thread.
+    private func handleDVRStreamEndMixtime(oldStream: DWORD) {
+        guard dvrState == .playing else { return }
+
+        let nextStream = dvrNextStream  // capture before any async work
+        let nextSegNum = dvrNextSegNum
+
+        if nextStream != 0 {
+            // Sample-accurate: add next stream NOW, in the mixing thread.
+            // BASS_Mixer_StreamAddChannel is safe to call from MIXTIME callbacks.
+            BASS_Mixer_StreamAddChannel(mixerHandle, nextStream,
+                                        DWORD(BASS_MIXER_CHAN_BUFFER | BASS_MIXER_CHAN_NORAMPIN))
+        }
+
+        // Non-time-critical cleanup and pre-loading on main thread.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.dvrState == .playing else {
+                // Cancelled during the async hop — free the pre-loaded stream if unused.
+                if nextStream != 0 { BASS_StreamFree(nextStream) }
+                return
+            }
+
+            BASS_StreamFree(oldStream)
+
+            if nextStream != 0 {
+                // Normal path: pre-loaded stream was added to mixer in MIXTIME callback.
+                self.dvrPlaybackStream = nextStream
+                self.dvrCurrentSegNum  = nextSegNum
+                self.dvrNextStream     = 0
+                self.registerDVREndSync(on: nextStream)
+                self.preloadDVRNextSegment()
+                print("⏭️  DVR → segment \(nextSegNum)")
+            } else {
+                // Fallback: preload was skipped (segment wasn't buffered yet at resume time).
+                // Re-check now — the live recording may have caught up since then.
+                let fallbackSeg = self.dvrCurrentSegNum + 1
+                let fallbackTs  = Double(fallbackSeg) * (self.streamBuffer?.segmentDuration ?? 60.0)
+                if let buffer = self.streamBuffer,
+                   fallbackTs < buffer.bufferedDuration,
+                   let lateStream = Optional(buffer.createPlaybackStream(from: fallbackTs)),
+                   lateStream != 0 {
+                    // Not sample-accurate (tiny gap possible), but far better than going live.
+                    BASS_Mixer_StreamAddChannel(self.mixerHandle, lateStream,
+                                                DWORD(BASS_MIXER_CHAN_BUFFER | BASS_MIXER_CHAN_NORAMPIN))
+                    self.dvrPlaybackStream = lateStream
+                    self.dvrCurrentSegNum  = fallbackSeg
+                    self.dvrNextStream     = 0
+                    self.registerDVREndSync(on: lateStream)
+                    self.preloadDVRNextSegment()
+                    print("⏭️  DVR → segment \(fallbackSeg) (late-open)")
+                } else {
+                    print("📡 DVR end-of-buffer reached — going live")
+                    self.goLive()
+                }
+            }
+        }
     }
 
     /// Rebuild only the live BASS stream + mixer while keeping DVR state intact.
