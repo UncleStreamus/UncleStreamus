@@ -209,6 +209,7 @@ enum PlaybackState {
     private var dvrMetadataJournal: [(timestamp: Double, metadata: String)] = []
     private var lastDVRPublishedMetadata: String? = nil
     private var dvrMetadataTimer: Timer? = nil
+    private(set) var dvrBufferFull: Bool = false   // set when recording fills the window
 
     // MARK: - FX Blend (smooth on/off transitions)
     // Ramp blend 0→1 (passthrough→active) over ~83ms when toggling compressor/EQ or master bypass.
@@ -388,7 +389,8 @@ enum PlaybackState {
 
         #if os(macOS)
         // Start DVR recording before attaching DSPs so no audio is missed.
-        streamBuffer = StreamBuffer()
+        let dvrMins = UserDefaults.standard.integer(forKey: "dvrBufferMinutes")
+        streamBuffer = StreamBuffer(maxMinutes: dvrMins > 0 ? dvrMins : 15)
         streamBuffer?.start()
         #endif
 
@@ -506,6 +508,7 @@ enum PlaybackState {
         streamBuffer?.cleanup()
         streamBuffer = nil
         dvrState = .live
+        dvrBufferFull = false
         behindLiveSeconds = 0
         dvrCurrentSegNum = 0
         dvrPauseTimestamp = 0
@@ -537,7 +540,11 @@ enum PlaybackState {
             print("⚙️  configureStreamAttributes format=\(format) — no mixer (direct mode)")
         }
 
-        let cgHandle: DWORD? = (format == "FLAC" && preMixerHandle != 0) ? preMixerHandle : nil
+        // FLAC: click guard on preMixerHandle (fires before the FX output mixer).
+        // OGG/non-FLAC: click guard on streamHandle so it:
+        //   (a) runs at priority -2, before the recording DSP at -3, giving click-clean recordings
+        //   (b) fires on the muted live source during DVR playback — no effect on DVR audio in mixerHandle
+        let cgHandle: DWORD? = preMixerHandle != 0 ? preMixerHandle : streamHandle
         applyEffects(to: ph, clickGuardOn: cgHandle)
     }
 
@@ -795,10 +802,21 @@ enum PlaybackState {
         )
 
         // Recording DSP — priority -3, after all FX, limiter, and click guard.
-        // Captures the final post-FX PCM that the user actually hears into the DVR ring buffer.
-        // On iOS: streamBuffer is always nil (DVR not enabled there), so append() is a no-op.
+        attachRecordingDSP()
+    }
+
+    /// Attach the recording DSP to the PRE-FX source, not the output mixer.
+    /// For FLAC: preMixerHandle (post-click-guard, pre-FX output chain).
+    /// For non-FLAC: streamHandle (raw decoded PCM before any processing).
+    /// This ensures the WAV ring buffer stores the original stream audio, independent
+    /// of whatever FX the user has dialled in. DSP callbacks receive audio before volume
+    /// scaling, so muting the source during DVR playback does not silence the recording.
+    private func attachRecordingDSP() {
+        let sourceHandle: DWORD = preMixerHandle != 0 ? preMixerHandle : streamHandle
+        guard sourceHandle != 0 else { return }
+        let userData = Unmanaged.passUnretained(self).toOpaque()
         recordingDSP = BASS_ChannelSetDSP(
-            handle,
+            sourceHandle,
             { _, _, buffer, length, user in
                 guard let buffer = buffer, let user = user else { return }
                 Unmanaged<BASSRadioPlayer>.fromOpaque(user)
@@ -1454,7 +1472,8 @@ enum PlaybackState {
 
         #if os(macOS)
         // Recreate StreamBuffer so recording resumes after restart (freeStream() cleared it).
-        streamBuffer = StreamBuffer()
+        let dvrMins = UserDefaults.standard.integer(forKey: "dvrBufferMinutes")
+        streamBuffer = StreamBuffer(maxMinutes: dvrMins > 0 ? dvrMins : 15)
         streamBuffer?.start()
         #endif
 
@@ -1598,6 +1617,40 @@ enum PlaybackState {
 
     #if os(macOS)
 
+    /// The effective buffer window for the current session, in seconds.
+    /// Reads the live StreamBuffer's actual maxSegments so the UI denominator always
+    /// reflects what the session is truly using — important when a decrease has been deferred.
+    var dvrMaxBufferSeconds: Double {
+        Double(streamBuffer?.maxSegments ?? 0) * 60.0
+    }
+
+    /// Apply a changed buffer-window setting from Settings.
+    /// - Live state: recreates StreamBuffer entirely.
+    /// - Paused/playing state: applies the new value if it still covers everything already
+    ///   recorded (both increases and safe decreases). Defers only if the new value would
+    ///   be smaller than what the user has already saved in this session.
+    func updateDVRBufferSize() {
+        guard let buffer = streamBuffer else { return }
+        let dvrMins = UserDefaults.standard.integer(forKey: "dvrBufferMinutes")
+        let newMax  = dvrMins > 0 ? dvrMins : 15
+        guard newMax != buffer.maxSegments else { return }
+
+        if dvrState == .live {
+            buffer.stop()
+            buffer.cleanup()
+            streamBuffer = StreamBuffer(maxMinutes: newMax)
+            streamBuffer?.start()
+            print("📼 DVR buffer resized to \(newMax) min (live)")
+        } else if Double(newMax) * 60.0 >= behindLiveSeconds {
+            // Safe to apply: new window still covers everything already recorded.
+            buffer.updateMaxSegments(newMax)
+            print("📼 DVR buffer adjusted to \(newMax) min (recorded=\(Int(behindLiveSeconds))s, safe)")
+        } else {
+            // New value would truncate content the user could still play back — defer to next go-live.
+            print("📼 DVR buffer decrease deferred (recorded \(Int(behindLiveSeconds / 60))min > new \(newMax)min)")
+        }
+    }
+
     /// Pause live output while keeping the stream + recording alive.
     /// Saves the current recording timestamp so `dvrResume()` plays from here.
     func dvrPause() {
@@ -1639,6 +1692,8 @@ enum PlaybackState {
     /// Start DVR playback from the saved pause timestamp.
     /// The live stream stays muted and continues recording.
     func dvrResume() {
+        // Buffer was full and cleared — go straight to live instead of resuming from files.
+        if dvrBufferFull { goLive(); return }
         guard dvrState == .paused, let buffer = streamBuffer else { return }
 
         let stream = buffer.createPlaybackStream(from: dvrPauseTimestamp)
@@ -1658,7 +1713,17 @@ enum PlaybackState {
             DispatchQueue.main.async { player.handleDVRStreamEnd(channel: ch) }
         }, userData)
 
-        BASS_ChannelPlay(stream, 0)
+        // Route DVR audio through the FX output mixer so EQ/compressor/stereo/limiter apply.
+        // The recording DSP is on the pre-FX source (streamHandle/preMixerHandle), so it
+        // continues capturing the live stream without picking up the DVR audio.
+        // Silence the live source channel so only DVR audio is heard through the mixer.
+        let liveSource: DWORD = preMixerHandle != 0 ? preMixerHandle : streamHandle
+        if liveSource != 0 {
+            BASS_ChannelSetAttribute(liveSource, DWORD(BASS_ATTRIB_VOL), 0.0)
+        }
+        BASS_Mixer_StreamAddChannel(mixerHandle, stream,
+                                    DWORD(BASS_MIXER_CHAN_BUFFER | BASS_MIXER_CHAN_NORAMPIN))
+        startFadeIn(mixer: mixerHandle)
         dvrState = .playing
         startBehindTimer()
         startDVRMetadataPolling()
@@ -1670,10 +1735,15 @@ enum PlaybackState {
     func goLive() {
         guard dvrState != .live else { return }
 
-        // Stop DVR playback
+        // Stop DVR playback (freeing the stream auto-removes it from mixerHandle).
         if dvrPlaybackStream != 0 {
             BASS_StreamFree(dvrPlaybackStream)
             dvrPlaybackStream = 0
+        }
+        // Restore live source volume (was silenced when DVR playback started).
+        let liveSource: DWORD = preMixerHandle != 0 ? preMixerHandle : streamHandle
+        if liveSource != 0 {
+            BASS_ChannelSetAttribute(liveSource, DWORD(BASS_ATTRIB_VOL), 1.0)
         }
         dvrBehindTimer?.invalidate()
         dvrBehindTimer = nil
@@ -1681,10 +1751,18 @@ enum PlaybackState {
         dvrMetadataTimer = nil
         behindLiveSeconds = 0
         dvrState = .live
-        // Force an immediate metadata poll so the UI updates right away (don't wait 3s for timer).
         lastPublishedTitle = nil
         lastIcecastTitle = nil
         lastDVRPublishedMetadata = nil
+
+        // If the buffer filled and was cleared, recreate StreamBuffer so DVR is available
+        // again immediately after returning to live (recording DSP picks up the new instance).
+        if dvrBufferFull {
+            dvrBufferFull = false
+            let dvrMins = UserDefaults.standard.integer(forKey: "dvrBufferMinutes")
+            streamBuffer = StreamBuffer(maxMinutes: dvrMins > 0 ? dvrMins : 15)
+            streamBuffer?.start()
+        }
 
         // FLAC: the live mixer has been muted and its download buffer stale for the duration of the
         // pause. Tear it down and do a full reconnect + pre-buffer (progress bar + fade-in) so the
@@ -1706,6 +1784,20 @@ enum PlaybackState {
 
     // MARK: - DVR Private Helpers
 
+    /// Called when the recording ring buffer has been completely filled.
+    /// Stops and clears the recorded content, freezes the counter at the max,
+    /// and sets `dvrBufferFull` so the next play press goes live rather than
+    /// trying to resume from the (now-deleted) WAV files.
+    private func handleDVRBufferFull(maxSecs: Double) {
+        dvrBehindTimer?.invalidate()
+        dvrBehindTimer = nil
+        behindLiveSeconds = maxSecs   // freeze counter at max
+        dvrBufferFull = true
+        streamBuffer?.stop()
+        streamBuffer?.cleanup()       // delete the WAV segment files ("cleared")
+        print("📼 DVR buffer full (\(Int(maxSecs / 60)) min) — recording stopped, awaiting go-live")
+    }
+
     private func startBehindTimer() {
         dvrBehindTimer?.invalidate()
         // Fires on the main runloop so UI updates happen on the main thread.
@@ -1718,7 +1810,14 @@ enum PlaybackState {
             switch self.dvrState {
             case .paused:
                 // While paused, behind = how much has been recorded since the pause point.
-                self.behindLiveSeconds = max(0, buffer.bufferedDuration - self.dvrPauseTimestamp)
+                let behind = max(0, buffer.bufferedDuration - self.dvrPauseTimestamp)
+                let maxSecs = Double(buffer.maxSegments) * buffer.segmentDuration
+                if behind >= maxSecs {
+                    // Buffer completely full — stop recording and await user action.
+                    self.handleDVRBufferFull(maxSecs: maxSecs)
+                } else {
+                    self.behindLiveSeconds = behind
+                }
             case .playing where self.dvrPlaybackStream != 0:
                 // While playing, behind = live recording head minus DVR playback position.
                 // Both advance at ~1 s/s, so this value stays roughly constant.
@@ -1766,7 +1865,8 @@ enum PlaybackState {
             DispatchQueue.main.async { player.handleDVRStreamEnd(channel: ch) }
         }, userData)
 
-        BASS_ChannelPlay(newStream, 0)
+        BASS_Mixer_StreamAddChannel(mixerHandle, newStream,
+                                    DWORD(BASS_MIXER_CHAN_BUFFER | BASS_MIXER_CHAN_NORAMPIN))
         print("⏭️  DVR → segment \(nextSegNum) (t=\(String(format: "%.0f", nextTimestamp))s)")
     }
 

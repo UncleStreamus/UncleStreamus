@@ -47,13 +47,58 @@ struct ParsedTrackInfo {
         return trackNameExceptions[name] ?? name
     }
 
+    /// Normalizes a single word from plural to singular form
+    private static func singularizeWord(_ word: String) -> String {
+        // Handle common plural patterns
+        if word.hasSuffix("ations") && word.count > 6 {
+            return String(word.dropLast(1)) // "Improvisations" → "Improvisation"
+        }
+        if word.hasSuffix("ies") && word.count > 3 {
+            return String(word.dropLast(3)) + "y" // "Discoveries" → "Discovery"
+        }
+        if word.hasSuffix("es") && word.count > 2 {
+            return String(word.dropLast(2)) // "Boxes" → "Box"
+        }
+        if word.hasSuffix("s") && word.count > 1 && !word.hasSuffix("ss") {
+            return String(word.dropLast(1)) // "Songs" → "Song"
+        }
+        return word
+    }
+
+    /// Normalizes plural forms to singular for matching by processing each word
+    /// (e.g., "Improvisations in Q" → "Improvisation in Q")
+    static func normalizePluralForm(_ name: String) -> String {
+        let name = name.trimmingCharacters(in: .whitespaces)
+
+        // Remove trailing asterisks and punctuation that don't affect track identity
+        var cleanedName = name
+        while cleanedName.hasSuffix("*") || cleanedName.hasSuffix(".") {
+            cleanedName = String(cleanedName.dropLast())
+        }
+
+        // Split into words and normalize plural forms in each word
+        let words = cleanedName.split(separator: " ", omittingEmptySubsequences: true)
+        let normalizedWords = words.map { word -> String in
+            let wordStr = String(word)
+            return singularizeWord(wordStr)
+        }
+
+        return normalizedWords.joined(separator: " ")
+    }
+
     /// Returns true if two track names should be treated as matching,
-    /// accounting for synonym groups with possible overlaps.
+    /// accounting for synonym groups with possible overlaps and singular/plural forms.
     static func tracksMatch(_ a: String, _ b: String) -> Bool {
-        if a == b { return true }
+        if a.lowercased() == b.lowercased() { return true }
         let normA = normalizeTrackName(a) ?? a
         let normB = normalizeTrackName(b) ?? b
-        if normA == normB { return true }
+        if normA.lowercased() == normB.lowercased() { return true }
+
+        // Check singular/plural normalization (case-insensitive)
+        let pluralNormA = normalizePluralForm(normA).lowercased()
+        let pluralNormB = normalizePluralForm(normB).lowercased()
+        if pluralNormA == pluralNormB { return true }
+
         for group in synonymGroups {
             if (group.contains(a) || group.contains(normA)) &&
                (group.contains(b) || group.contains(normB)) { return true }
