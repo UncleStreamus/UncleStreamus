@@ -83,7 +83,10 @@ struct VerticalEQSlider: View {
             let centerY  = trackTop + trackH / 2
 
             Canvas { (ctx: inout GraphicsContext, size: CGSize) in
-                let normalised = CGFloat((value + 6) / 12)
+                let maxGain: CGFloat = 6
+                let v = CGFloat(value)
+                let uDisp: CGFloat = v >= 0 ? sqrt(v / maxGain) : -sqrt(-v / maxGain)
+                let normalised = (1 + uDisp) / 2
                 let thumbY     = (1 - normalised) * trackH
                 let thumbMidY  = thumbY + thumbSize / 2
                 let fillTop    = min(thumbMidY, centerY)
@@ -131,7 +134,9 @@ struct VerticalEQSlider: View {
                 DragGesture(minimumDistance: 0)
                     .onChanged { drag in
                         let relY = drag.location.y - trackTop
-                        value = 6 - max(0, min(1, Float(relY / trackH))) * 12
+                        let t = max(0, min(1, Float(relY / trackH)))
+                        let u = 1 - 2 * t                               // +1 at top, -1 at bottom
+                        value = 6 * (u >= 0 ? u * u : -(u * u))
                         onUpdate()
                     }
             )
@@ -523,9 +528,9 @@ struct AudioFXView: View {
                         }
 
                         HStack(spacing: 12) {
-                            EQBandView(label: "Low\n100 Hz",  gain: $player.eqLowGain,  onUpdate: player.updateEQ)
-                            EQBandView(label: "Mid\n1 kHz",   gain: $player.eqMidGain,  onUpdate: player.updateEQ)
-                            EQBandView(label: "High\n10 kHz", gain: $player.eqHighGain, onUpdate: player.updateEQ)
+                            EQBandView(label: "Low\n120 Hz",   gain: $player.eqLowGain,  onUpdate: player.updateEQ)
+                            EQBandView(label: "Mid\n1.8 kHz",  gain: $player.eqMidGain,  onUpdate: player.updateEQ)
+                            EQBandView(label: "High\n7.5 kHz", gain: $player.eqHighGain, onUpdate: player.updateEQ)
                         }
                         .frame(maxWidth: .infinity, alignment: .center)
                         .opacity(player.eqEnabled ? 1.0 : 0.4)
