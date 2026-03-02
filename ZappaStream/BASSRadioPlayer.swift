@@ -1681,11 +1681,22 @@ enum PlaybackState {
         dvrMetadataTimer = nil
         behindLiveSeconds = 0
         dvrState = .live
-        // Force next live pollMetadata to re-publish (live track may differ from DVR track).
+        // Force an immediate metadata poll so the UI updates right away (don't wait 3s for timer).
         lastPublishedTitle = nil
+        lastIcecastTitle = nil
         lastDVRPublishedMetadata = nil
 
-        // Unmute live stream
+        // FLAC: the live mixer has been muted and its download buffer stale for the duration of the
+        // pause. Tear it down and do a full reconnect + pre-buffer (progress bar + fade-in) so the
+        // user gets clean audio — identical to the first-play experience.
+        if activeFormat == "FLAC" {
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.restartStream() }
+            print("📡 DVR → LIVE (FLAC full re-buffer)")
+            return
+        }
+
+        // Non-FLAC: the live stream kept buffering while muted; just unmute with a fade-in.
+        bassPollingQueue.async { [weak self] in self?.pollMetadata() }
         let ph = mixerHandle != 0 ? mixerHandle : streamHandle
         if ph != 0 {
             startFadeIn(mixer: ph)
