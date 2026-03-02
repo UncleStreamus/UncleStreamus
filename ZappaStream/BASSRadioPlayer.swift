@@ -391,12 +391,10 @@ enum PlaybackState {
 
         activeFormat = format
 
-        #if os(macOS)
         // Start DVR recording before attaching DSPs so no audio is missed.
         let dvrMins = UserDefaults.standard.integer(forKey: "dvrBufferMinutes")
         streamBuffer = StreamBuffer(maxMinutes: dvrMins > 0 ? dvrMins : 15)
         streamBuffer?.start()
-        #endif
 
         configureStreamAttributes(format: format, handle: streamHandle)
         setupSyncs(for: streamHandle)
@@ -1432,9 +1430,7 @@ enum PlaybackState {
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.restartStream() }
             } else {
                 print("🔄 AAC buffer underrun in DVR mode — partial live restart")
-                #if os(macOS)
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.partialRestartLiveChannel() }
-                #endif
             }
             return
         }
@@ -1454,9 +1450,7 @@ enum PlaybackState {
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.restartStream() }
             } else {
                 print("🔄 Stream STOPPED (err=\(err)) in DVR mode — partial live restart")
-                #if os(macOS)
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.partialRestartLiveChannel() }
-                #endif
             }
             return
         } else {
@@ -1504,12 +1498,10 @@ enum PlaybackState {
             BASS_Mixer_StreamAddChannel(mixerHandle, streamHandle, restartAddFlags)
         }
 
-        #if os(macOS)
         // Recreate StreamBuffer so recording resumes after restart (freeStream() cleared it).
-        let dvrMins = UserDefaults.standard.integer(forKey: "dvrBufferMinutes")
-        streamBuffer = StreamBuffer(maxMinutes: dvrMins > 0 ? dvrMins : 15)
+        let dvrMins2 = UserDefaults.standard.integer(forKey: "dvrBufferMinutes")
+        streamBuffer = StreamBuffer(maxMinutes: dvrMins2 > 0 ? dvrMins2 : 15)
         streamBuffer?.start()
-        #endif
 
         configureStreamAttributes(format: current.format, handle: streamHandle)
         setupSyncs(for: streamHandle)
@@ -1647,9 +1639,7 @@ enum PlaybackState {
         return nil
     }
 
-    // MARK: - DVR Public Interface (macOS only)
-
-    #if os(macOS)
+    // MARK: - DVR Public Interface
 
     /// The effective buffer window for the current session, in seconds.
     /// Reads the live StreamBuffer's actual maxSegments so the UI denominator always
@@ -2049,8 +2039,6 @@ enum PlaybackState {
         }
     }
 
-    #endif
-
     // MARK: - Publish
 
     private func publishTitle(_ title: String) {
@@ -2059,12 +2047,10 @@ enum PlaybackState {
         // Journal every track change with its recording timestamp so DVR playback can
         // replay track info at the correct position.  All journal mutations run on the
         // main thread to keep reads (DVR timer, also main) data-race-free.
-        #if os(macOS)
         if let buffer = streamBuffer {
             let ts = buffer.currentTimestamp
             DispatchQueue.main.async { self.dvrMetadataJournal.append((timestamp: ts, metadata: title)) }
         }
-        #endif
 
         // In DVR mode the live metadata is NOT what the user is hearing.
         // Suppress live updates; the DVR metadata timer publishes historical track info.

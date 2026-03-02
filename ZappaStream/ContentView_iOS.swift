@@ -31,6 +31,8 @@ struct ContentView_iOS: View {
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
     @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
     @AppStorage("fxPersistOnRestart") private var fxPersistOnRestart: Bool = false
+    @AppStorage("dvrEnabled") private var dvrEnabled: Bool = true
+    @AppStorage("dvrBufferMinutes") private var dvrBufferMinutes: Int = 15
     @State private var acronymsExpanded: Bool = false
     @State private var showSettings: Bool = false
     @State private var showSidebar: Bool = false
@@ -295,6 +297,9 @@ struct ContentView_iOS: View {
                 UserDefaults.standard.set(isPlaying, forKey: "wasPlayingOnQuit")
             }
         }
+        .onChange(of: dvrBufferMinutes) { _, _ in
+            bassPlayer.updateDVRBufferSize()
+        }
     }
 
     // MARK: - Track Info Card
@@ -377,10 +382,38 @@ struct ContentView_iOS: View {
         .cornerRadius(12)
     }
 
+    private func dvrFormattedBehind(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds)
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
     // MARK: - Stream Controls Bar
 
     private var streamControlsBar: some View {
         VStack(spacing: 4) {
+            // DVR status row
+            if isPlaying {
+                HStack(spacing: 8) {
+                    if bassPlayer.dvrState != .live {
+                        Text("\(dvrFormattedBehind(bassPlayer.behindLiveSeconds)) / \(dvrFormattedBehind(bassPlayer.dvrMaxBufferSeconds))")
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                        Button("Go Live") { bassPlayer.goLive() }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Color(red: 0.72, green: 0.07, blue: 0.07))
+                            .controlSize(.small)
+                    } else {
+                        Text("● LIVE")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.red)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.25), value: bassPlayer.dvrState == .live)
+            }
+
             // Stream status notes (above controls)
             if isPlaying, let stream = selectedStream {
                 VStack(spacing: 2) {
@@ -488,17 +521,26 @@ struct ContentView_iOS: View {
 
                 // Play/Pause button
                 Button {
-                    if isPlaying { stopStream() } else { playStream() }
+                    switch (isPlaying, bassPlayer.dvrState) {
+                    case (false, _):
+                        playStream()
+                    case (true, .live):
+                        if dvrEnabled { bassPlayer.dvrPause() } else { stopStream() }
+                    case (true, .paused):
+                        bassPlayer.dvrResume()
+                    case (true, .playing):
+                        bassPlayer.dvrPausePlayback()
+                    }
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                        Image(systemName: isPlaying && bassPlayer.dvrState != .paused ? "pause.fill" : "play.fill")
                             .font(.body)
-                        Text(isPlaying ? "Pause" : "Play")
+                        Text(isPlaying && bassPlayer.dvrState != .paused ? "Pause" : "Play")
                             .font(.subheadline.weight(.medium))
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
-                    .background(isPlaying ? Color.red.opacity(0.85) : Color.accentColor)
+                    .background(isPlaying && bassPlayer.dvrState != .paused ? Color.red.opacity(0.85) : Color.accentColor)
                     .foregroundColor(.white)
                     .cornerRadius(8)
                 }
