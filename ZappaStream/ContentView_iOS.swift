@@ -818,7 +818,7 @@ struct ContentView_iOS: View {
         var matchingPositions: [Int] = []
         for (index, song) in setlist.enumerated() {
             let songWords = firstWords(song)
-            if songWords == trackWords {
+            if songWords == trackWords || ParsedTrackInfo.tracksMatch(trackName, song) {
                 matchingPositions.append(index + 1)  // 1-based position
             }
         }

@@ -901,7 +901,7 @@ struct ContentView: View {
         for (index, song) in setlist.enumerated() {
             let normalizedSong = ParsedTrackInfo.normalizeTrackName(song) ?? song
             let songWords = firstWords(normalizedSong)
-            if songWords == trackWords {
+            if songWords == trackWords || ParsedTrackInfo.tracksMatch(normalizedTrack, song) {
                 matchingPositions.append(index + 1)  // 1-based position
             }
         }
