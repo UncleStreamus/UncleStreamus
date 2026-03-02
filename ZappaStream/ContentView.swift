@@ -482,6 +482,30 @@ struct ContentView: View {
                     .animation(.easeInOut(duration: 0.3), value: showDelayWarning)
                 }
 
+                // DVR status: LIVE badge when streaming live, Go Live + delay indicator in DVR mode.
+                if isPlaying {
+                    HStack(spacing: 8) {
+                        if bassPlayer.dvrState != .live {
+                            if bassPlayer.behindLiveSeconds > 1 {
+                                Text("−\(dvrFormattedBehind(bassPlayer.behindLiveSeconds))")
+                                    .font(.caption)
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            }
+                            Button("Go Live") { bassPlayer.goLive() }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.red)
+                                .controlSize(.small)
+                        } else {
+                            Text("● LIVE")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.red)
+                        }
+                    }
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.25), value: bassPlayer.dvrState == .live)
+                }
+
                 HStack(spacing: 12) {
                     // Stream picker
                     Menu {
@@ -561,18 +585,28 @@ struct ContentView: View {
 
                     // Play/Pause button
                     Button(action: {
-                        if isPlaying { stopStream() } else { playStream() }
+                        switch (isPlaying, bassPlayer.dvrState) {
+                        case (false, _):
+                            playStream()
+                        case (true, .live):
+                            bassPlayer.dvrPause()
+                        case (true, .paused):
+                            bassPlayer.dvrResume()
+                        case (true, .playing):
+                            bassPlayer.dvrPausePlayback()
+                        }
                     }) {
+                        let showPlay = !isPlaying || bassPlayer.dvrState == .paused
                         HStack(spacing: 6) {
-                            Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                            Image(systemName: showPlay ? "play.fill" : "pause.fill")
                                 .scaledFont(.body)
-                            Text(isPlaying ? "Pause" : "Play")
+                            Text(showPlay ? "Play" : "Pause")
                                 .scaledFont(.subheadline, weight: .semibold)
                         }
                         .padding(.horizontal, 20)
                         .padding(.vertical, 8)
                         .frame(minWidth: 100)
-                        .background(isPlaying ? Color.red.opacity(0.85) : Color.accentColor)
+                        .background(!showPlay ? Color.red.opacity(0.85) : Color.accentColor)
                         .foregroundColor(.white)
                         .cornerRadius(8)
                     }
@@ -829,6 +863,13 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    // MARK: - DVR Helpers
+
+    private func dvrFormattedBehind(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds)
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     // MARK: - Placeholder Text

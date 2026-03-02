@@ -67,6 +67,8 @@
 		BEF8E53E2F3A873A000B6773 /* MarqueeText.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */; };
 		D7AD703B5B1743C183C698F7 /* AudioFXView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */; };
 		F62804A5EF88994291433F17 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
+		C3A1F8B52F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */; };
+		C3A1F8B62F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */; };
 		FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752DBEE239607630EF9BE524 /* SongFormatter.swift */; };
 /* End PBXBuildFile section */
 
@@ -125,6 +127,7 @@
 		BED5C49B2F30D50C009DB6FE /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsFetcher.swift; sourceTree = "<group>"; };
 		BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MarqueeText.swift; sourceTree = "<group>"; };
+		C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamBuffer.swift; sourceTree = "<group>"; };
 		DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FilterView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -212,6 +215,7 @@
 				5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */,
 				BE024DE12F4A67D800B2C079 /* BASSBridgingHeader.h */,
 				BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */,
+				C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */,
 			);
 			path = ZappaStream;
 			sourceTree = "<group>";
@@ -372,6 +376,7 @@
 				FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */,
 				BE024DE32F4A67D800B2C079 /* BASSRadioPlayer.swift in Sources */,
 				9D924559343B4593F5DE1323 /* SettingsView.swift in Sources */,
+				C3A1F8B52F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -398,6 +403,7 @@
 				BE2FCA7C2F3CBBCA0038E706 /* MarqueeText.swift in Sources */,
 				BE2FCA6B2F3CBB520038E706 /* ContentView_iOS.swift in Sources */,
 				D7AD703B5B1743C183C698F7 /* AudioFXView.swift in Sources */,
+				C3A1F8B62F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
