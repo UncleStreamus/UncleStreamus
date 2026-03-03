@@ -528,9 +528,9 @@ struct AudioFXView: View {
                         }
 
                         HStack(spacing: 12) {
-                            EQBandView(label: "Low\n120 Hz",   gain: $player.eqLowGain,  onUpdate: player.updateEQ)
-                            EQBandView(label: "Mid\n1.8 kHz",  gain: $player.eqMidGain,  onUpdate: player.updateEQ)
-                            EQBandView(label: "High\n7.5 kHz", gain: $player.eqHighGain, onUpdate: player.updateEQ)
+                            EQBandView(label: "Low",   gain: $player.eqLowGain,  onUpdate: player.updateEQ)
+                            EQBandView(label: "Mid",  gain: $player.eqMidGain,  onUpdate: player.updateEQ)
+                            EQBandView(label: "High", gain: $player.eqHighGain, onUpdate: player.updateEQ)
                         }
                         .frame(maxWidth: .infinity, alignment: .center)
                         .opacity(player.eqEnabled ? 1.0 : 0.4)

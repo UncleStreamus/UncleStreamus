@@ -47,7 +47,7 @@ struct ContentView: View {
 
     private let sidebarWidth: CGFloat = 280
     private let dividerWidth: CGFloat = 1  // Width of the visible divider line
-    private let mainContentMinWidth: CGFloat = 360  // Min width for main content area
+    private let mainContentMinWidth: CGFloat = 370  // Min width for main content area
     private let mainContentMaxWidth: CGFloat = 619  // Max width for main content area
 
     /// Minimum height when setlist is expanded, scales with text size
@@ -513,7 +513,7 @@ struct ContentView: View {
                     .animation(.easeInOut(duration: 0.3), value: showDelayWarning)
                 }
 
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     // Stream picker
                     Menu {
                         ForEach(streams) { stream in
@@ -534,6 +534,7 @@ struct ContentView: View {
                                 .scaledFont(.caption)
                             Text(selectedStream?.format ?? "Stream")
                                 .scaledFont(.subheadline, weight: .medium)
+                                .lineLimit(1)
                             Image(systemName: "chevron.up.chevron.down")
                                 .scaledFont(.caption2)
                         }
@@ -604,15 +605,18 @@ struct ContentView: View {
                         }
                     }) {
                         let showPlay = !isPlaying || bassPlayer.dvrState == .paused
+                        let activeIcon = dvrEnabled ? "pause.fill" : "stop.fill"
+                        let activeLabel = dvrEnabled ? "Pause" : "Stop"
                         HStack(spacing: 6) {
-                            Image(systemName: showPlay ? "play.fill" : "pause.fill")
+                            Image(systemName: showPlay ? "play.fill" : activeIcon)
                                 .scaledFont(.body)
-                            Text(showPlay ? "Play" : "Pause")
+                            Text(showPlay ? "Play" : activeLabel)
                                 .scaledFont(.subheadline, weight: .semibold)
+                                .lineLimit(1)
                         }
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .frame(minWidth: 100)
+                        .frame(minWidth: 70)
                         .background(!showPlay ? Color.red.opacity(0.85) : Color.accentColor)
                         .foregroundColor(.white)
                         .cornerRadius(8)
@@ -620,6 +624,28 @@ struct ContentView: View {
                     .buttonStyle(.plain)
                     // .keyboardShortcut(.space, modifiers: [])
                     .disabled(selectedStream == nil)
+
+                    // Stop button (DVR enabled only) — stops stream and clears buffer
+                    if dvrEnabled {
+                        Button(action: {
+                            stopStream()
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "stop.fill")
+                                    .scaledFont(.body)
+                                Text("Stop")
+                                    .scaledFont(.subheadline, weight: .semibold)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .frame(minWidth: 70)
+                            .background(Color.gray.opacity(0.15))
+                            .foregroundColor(isPlaying ? .primary : .secondary)
+                            .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!isPlaying)
+                    }
                 }
             }
             .padding(.horizontal)

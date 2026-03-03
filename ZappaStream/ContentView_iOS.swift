@@ -244,7 +244,7 @@ struct ContentView_iOS: View {
                         }
                     }
             }
-            .presentationDetents([.fraction(0.75), .large])
+            .presentationDetents([.fraction(0.78), .large])
             .presentationDragIndicator(.visible)
         }
         .sheet(item: $safariURL) { item in
@@ -533,9 +533,10 @@ struct ContentView_iOS: View {
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: isPlaying && bassPlayer.dvrState != .paused ? "pause.fill" : "play.fill")
+                        let activelyPlaying = isPlaying && bassPlayer.dvrState != .paused
+                        Image(systemName: activelyPlaying ? (dvrEnabled ? "pause.fill" : "stop.fill") : "play.fill")
                             .font(.body)
-                        Text(isPlaying && bassPlayer.dvrState != .paused ? "Pause" : "Play")
+                        Text(activelyPlaying ? (dvrEnabled ? "Pause" : "Stop") : "Play")
                             .font(.subheadline.weight(.medium))
                     }
                     .frame(maxWidth: .infinity)
@@ -545,6 +546,26 @@ struct ContentView_iOS: View {
                     .cornerRadius(8)
                 }
                 .disabled(selectedStream == nil)
+
+                // Stop button (DVR enabled only) — stops stream and clears buffer
+                if dvrEnabled {
+                    Button {
+                        stopStream()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "stop.fill")
+                                .font(.body)
+                            Text("Stop")
+                                .font(.subheadline.weight(.medium))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color(.tertiarySystemBackground))
+                        .foregroundColor(isPlaying ? .primary : .secondary)
+                        .cornerRadius(8)
+                    }
+                    .disabled(!isPlaying)
+                }
             }
         }
         .padding(.horizontal, 12)

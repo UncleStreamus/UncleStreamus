@@ -65,10 +65,10 @@
 		BEAA00092F34000100AA0009 /* ShowEntryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00082F34000100AA0009 /* ShowEntryRow.swift */; };
 		BEE59E1F2F3223DB00230D3D /* FZShowsFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */; };
 		BEF8E53E2F3A873A000B6773 /* MarqueeText.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */; };
-		D7AD703B5B1743C183C698F7 /* AudioFXView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */; };
-		F62804A5EF88994291433F17 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
 		C3A1F8B52F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */; };
 		C3A1F8B62F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */; };
+		D7AD703B5B1743C183C698F7 /* AudioFXView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */; };
+		F62804A5EF88994291433F17 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
 		FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752DBEE239607630EF9BE524 /* SongFormatter.swift */; };
 /* End PBXBuildFile section */
 
@@ -611,6 +611,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
@@ -633,6 +634,7 @@
 				MARKETING_VERSION = 0.9;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.datisit.ZappaStream-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = ZappaStream/BASSBridgingHeader.h;
@@ -646,6 +648,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
@@ -668,6 +671,7 @@
 				MARKETING_VERSION = 0.9;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.datisit.ZappaStream-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = ZappaStream/BASSBridgingHeader.h;

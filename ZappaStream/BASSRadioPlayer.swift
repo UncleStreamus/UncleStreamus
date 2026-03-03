@@ -1316,6 +1316,8 @@ enum PlaybackState {
 
         var currentVolume: Float = 1.0
         BASS_ChannelGetAttribute(mixer, DWORD(BASS_ATTRIB_VOL), &currentVolume)
+        guard currentVolume > 0 else { completion(); return }
+        let startVolume = currentVolume
         let startTime = Date()
         let tickInterval: TimeInterval = 1.0 / 60.0  // ~60Hz
 
@@ -1324,7 +1326,7 @@ enum PlaybackState {
 
             let elapsed = Date().timeIntervalSince(startTime)
             let progress = min(elapsed / self.fadeOutDuration, 1.0)
-            let newVolume = Float(1.0 - progress)
+            let newVolume = startVolume * Float(1.0 - progress)
 
             BASS_ChannelSetAttribute(mixer, DWORD(BASS_ATTRIB_VOL), newVolume)
 
