@@ -483,22 +483,18 @@ struct ContentView: View {
                 // Stream status
                 if isPlaying, let stream = selectedStream {
                     VStack(spacing: 2) {
-                        Text("Streaming \(stream.name)")
+                        let isBuffering = stream.format == "FLAC" && bassPlayer.preBufferProgress > 0
+                        Text("\(isBuffering ? "Buffering" : "Streaming") \(stream.name)")
                             .scaledFont(.caption2)
                             .foregroundColor(.secondary)
 
                         // FLAC pre-buffer loading bar: fills 0→100% over 7s then disappears
-                        if stream.format == "FLAC", bassPlayer.preBufferProgress > 0 {
-                            VStack(spacing: 2) {
-                                ProgressView(value: bassPlayer.preBufferProgress)
-                                    .progressViewStyle(.linear)
-                                    .tint(.secondary)
-                                Text("Buffering FLAC…")
-                                    .scaledFont(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                            .animation(.easeInOut(duration: 0.3), value: bassPlayer.preBufferProgress > 0)
+                        if isBuffering {
+                            ProgressView(value: bassPlayer.preBufferProgress)
+                                .progressViewStyle(.linear)
+                                .tint(.secondary)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                                .animation(.easeInOut(duration: 0.3), value: isBuffering)
                         }
 
                         // Delay warning when using AAC stream - shows briefly then hides
