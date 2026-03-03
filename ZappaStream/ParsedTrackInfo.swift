@@ -228,9 +228,18 @@ struct ParsedTrackInfo {
                     trackNumber = String(trackText.dropFirst().dropLast())
                 }
                 
-                if let trackNumEnd = afterColon.range(of: #"\(\d+\)"#, options: .regularExpression)?.upperBound,
-                   let yearStart = afterColon.range(of: #"\(\d{4}\)"#, options: .regularExpression)?.lowerBound {
-                    trackName = String(afterColon[trackNumEnd..<yearStart]).trimmingCharacters(in: .whitespaces)
+                if let trackNumEnd = afterColon.range(of: #"\(\d+\)"#, options: .regularExpression)?.upperBound {
+                    if let yearStart = afterColon.range(of: #"\(\d{4}\)"#, options: .regularExpression)?.lowerBound {
+                        trackName = String(afterColon[trackNumEnd..<yearStart]).trimmingCharacters(in: .whitespaces)
+                    } else {
+                        // No year annotation — take everything from after track number to the duration bracket
+                        let afterTrackNum = String(afterColon[trackNumEnd...]).trimmingCharacters(in: .whitespaces)
+                        if let durationStart = afterTrackNum.range(of: #"\[\d"#, options: .regularExpression)?.lowerBound {
+                            trackName = String(afterTrackNum[..<durationStart]).trimmingCharacters(in: .whitespaces)
+                        } else if !afterTrackNum.isEmpty {
+                            trackName = afterTrackNum
+                        }
+                    }
                 }
                 
                 if let yearRange = afterColon.range(of: #"\((\d{4})\)"#, options: .regularExpression) {
