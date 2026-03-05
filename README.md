@@ -13,7 +13,7 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 - **All 4 codec/quality options** — MP3 (128 kbps), OGG (90 kbps), AAC (256 kbps), FLAC (750 kbps lossless)
 - **Automatic stream recovery** — Handles dropouts and reconnects gracefully
 - **Resume on launch** —  Continues with the last played stream
-- **Continue buffering while paused** – Pick up from where you were for up to 30mins, continue playing delayed until you're ready to jump back to live
+- **Continue buffering while paused** — Pick up from where you were for up to 30mins, continue playing delayed until you're ready to jump back to live
 
 ### Now Playing
 - **Live track info** — Current song, show date, venue, and location
