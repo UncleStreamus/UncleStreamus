@@ -2,16 +2,18 @@
 
 A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted by [norbert.de](https://www.norbert.de/index.php/frank-zappa/).
 
-<img width="894" height="856" alt="macOS" src="https://github.com/user-attachments/assets/d2b055d8-4c58-4938-ae1a-5b02a67bc5ee" />
+<img width="600" alt="Screenshot 2026-03-05 at 11 58 42" src="https://github.com/user-attachments/assets/a05120be-c558-4e9e-9733-702aebc8539b" />
 
-<img width="565" height="1068" alt="iOS iPhone 15" src="https://github.com/user-attachments/assets/a7fc43d1-b793-4258-80ef-0017f24cca79" />
+<img width="380"  alt="Screenshot 2026-03-05 at 11 39 09" src="https://github.com/user-attachments/assets/b8fd9b06-dd61-4c36-8532-235e4e900b2a" />
+
 
 ## Features
 
 ### Streaming
-- **All 4 codec/quality options** — MP3 (128 kbps), AAC (192 kbps), OGG (256 kbps), FLAC (750 kbps lossless)
+- **All 4 codec/quality options** — MP3 (128 kbps), OGG (90 kbps), AAC (256 kbps), FLAC (750 kbps lossless)
 - **Automatic stream recovery** — Handles dropouts and reconnects gracefully
-- **Resume on launch** — Optionally picks up where you left off (configure in the settings)
+- **Resume on launch** —  Continues with the last played stream
+- **Continue buffering while paused** – Pick up from where you were for up to 30mins, continue playing delayed until you're ready to jump back to live
 
 ### Now Playing
 - **Live track info** — Current song, show date, venue, and location
@@ -23,6 +25,12 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 - **Listening history** — Automatically tracks shows you've heard
 - **Favorites** — Star shows to save them for later
 - **Search & filter** — Find shows by period, tour, year, country, state & city
+
+### Audio FX
+- 3-band 'musical' EQ
+- Adaptive Compressor
+- Mono - Stereo - Stereo-Wider slider
+- L-R Panner
 
 ### Platform Features
 
@@ -46,15 +54,6 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 **Customisable section headers for the Favourites tab:**
 - Not just by year, but also period, tour, band member, location etc.
 
-**Audio FX:**
-To slightly mould certain shows into a more favourable sound if necassary
-
-- L-R Panner
-- Mono - Stereo - Stereo-Wider slider
-- 3-band EQ
-- Compressor
-
-
 ### Current issues & Feedback options
 
 **Mismatched 'Now Playing' track to setlist:**
@@ -65,24 +64,30 @@ To slightly mould certain shows into a more favourable sound if necassary
 
 **Provide feedback on a currently playing show:**
 - Right click or long press on a show either when it's currently playing, or in the History or Favourites sidebar and choose 'Report Issue...' to email me with the details of the show from the livestream metadata and I will look into why the full setlist wasn't fetched correctly from the FZShows database
-<img width="482" height="663" alt="Screenshot 2026-02-13 at 13 56 33" src="https://github.com/user-attachments/assets/fad12c2a-16ed-459f-b12b-7f22cf4e3209" />
-<img width="461" height="652" alt="Screenshot 2026-02-13 at 13 56 54" src="https://github.com/user-attachments/assets/35bc7608-d446-4d9a-9ffc-c621239e6a1d" />
+<img width="447" height="660" alt="Screenshot 2026-03-05 at 11 31 08" src="https://github.com/user-attachments/assets/2b8a4867-440f-4059-9f7e-40df20839019" />
+<img width="429" height="648" alt="Screenshot 2026-03-05 at 11 30 40" src="https://github.com/user-attachments/assets/41d701b6-7e05-40b9-a9c2-8b7a77ea7116" />
+
 
 
 ## Screenshots
 
 **macOS:**
 
-<img width="890" height="912" alt="Screenshot 2026-02-13 at 13 20 35" src="https://github.com/user-attachments/assets/f21dd90a-75f6-4b90-a189-ef6b3bc2180e" />
-<img width="1126" height="932" alt="Screenshot 2026-02-13 at 12 06 25" src="https://github.com/user-attachments/assets/4010e54b-6034-4228-8d0c-5bac1827d6ab" />
-<img width="869" height="504" alt="Screenshot 2026-02-13 at 13 21 49" src="https://github.com/user-attachments/assets/417ab528-1c15-464b-836f-63d1552a3597" />
-<img width="753" height="768" alt="Screenshot 2026-02-13 at 13 23 18" src="https://github.com/user-attachments/assets/da78bd80-1e73-4df1-bc17-44db43b9421e" />
+<img width="480" height="256" alt="Screenshot 2026-03-05 at 11 37 15" src="https://github.com/user-attachments/assets/54c52fb8-c6d2-45f1-a598-45a95063793a" />
+<img width="839" height="672" alt="Screenshot 2026-03-05 at 11 35 38" src="https://github.com/user-attachments/assets/cefb8cda-1547-483c-b5b1-d3902da863d8" />
+<img width="859" height="676" alt="Screenshot 2026-03-05 at 11 35 01" src="https://github.com/user-attachments/assets/828fe77a-57f5-4bae-bc38-944f4c490460" />
+<img width="763" height="892" alt="Screenshot 2026-03-05 at 11 33 55" src="https://github.com/user-attachments/assets/be21a9d2-cbd5-487c-85f0-443a4ef4db4b" />
+<img width="926" height="859" alt="Screenshot 2026-03-05 at 11 32 51" src="https://github.com/user-attachments/assets/8ef93bd3-c8bf-4735-9cb6-df932119e872" />
+<img width="482" height="912" alt="Screenshot 2026-03-05 at 11 38 38" src="https://github.com/user-attachments/assets/ec9dd67c-1111-46cd-a1cf-0047d654f9a9" />
+
 
 **iOS/iPadOS:**
 
-<img width="565" height="1068" alt="Screenshot 2026-02-13 at 13 24 14" src="https://github.com/user-attachments/assets/399f4a80-6d44-48b3-bfbd-4686e95c9821" />
-<img width="565" height="1068" alt="Screenshot 2026-02-13 at 13 25 08" src="https://github.com/user-attachments/assets/d8cdd1d5-657d-4946-9fe5-48a75e50d7f8" />
-<img src="https://github.com/user-attachments/assets/557e9fd4-547f-410a-8cf1-4062c106a7c8" />
+<img width="559" height="1062" alt="Screenshot 2026-03-05 at 11 43 30" src="https://github.com/user-attachments/assets/d2e8c4f2-9dd4-483a-9a40-33c55986815d" />
+<img width="559" height="1062" alt="Screenshot 2026-03-05 at 11 41 15" src="https://github.com/user-attachments/assets/5ac74d36-4125-4129-b591-8dbfa21dfec8" />
+<img src="https://github.com/user-attachments/assets/90c244b3-bb42-4a6f-a2c8-ce89e5b8c44a" />
+
+
 
 
 
@@ -97,7 +102,7 @@ To slightly mould certain shows into a more favourable sound if necassary
 
 Download the latest release from the [Releases](../../releases) page.
 
-Hopefully availabel in the App Store at some point.
+Hopefully available in the App Store at some point.
 
 ### iOS
 
@@ -108,7 +113,7 @@ Hopefully available in the App Store if there's enough interest.
 
 - **Stream**: Hosted by [norbert.de](https://www.norbert.de/index.php/frank-zappa/)
 - **Setlist data**: [Zappateers](https://www.zappateers.com)
-- **Audio playback**: [VLCKit](https://code.videolan.org/videolan/VLCKit)
+- **Audio library**:  
 - **Development**: Built with [Claude Code](https://claude.ai/code) — I'm not a developer, but I designed, directed, and managed this project while Claude wrote the code
 
 ## Contributing
