@@ -459,9 +459,11 @@ struct ContentView: View {
                 Divider()
 
                 // DVR status: LIVE badge when streaming live, Go Live + delay indicator in DVR mode.
+                // When the buffer-full 15-min window has expired, show LIVE badge (pressing play goes live).
                 if isPlaying {
+                    let dvrActive = bassPlayer.dvrState != .live && !bassPlayer.dvrBufferFullExpired
                     HStack(spacing: 8) {
-                        if bassPlayer.dvrState != .live {
+                        if dvrActive {
                             Text("\(dvrFormattedBehind(bassPlayer.behindLiveSeconds)) / \(dvrFormattedBehind(bassPlayer.dvrMaxBufferSeconds))")
                                 .font(.caption)
                                 .monospacedDigit()
@@ -477,7 +479,7 @@ struct ContentView: View {
                         }
                     }
                     .transition(.opacity)
-                    .animation(.easeInOut(duration: 0.25), value: bassPlayer.dvrState == .live)
+                    .animation(.easeInOut(duration: 0.25), value: dvrActive)
                 }
 
                 // Stream status

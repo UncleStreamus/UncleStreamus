@@ -52,6 +52,22 @@ final class StreamBuffer {
 
     private let tempDir: URL
 
+    // MARK: - Buffer-full protection
+    // Set by BASSRadioPlayer when the user pauses: the write queue will NOT rotate into this
+    // segment index (which would overwrite the oldest pause-point data). Instead it stops
+    // cleanly and fires onBufferFull so the full ring can be played back from dvrPauseTimestamp.
+    private var stopBeforeSegmentIndex: Int? = nil
+    private var onBufferFull: (() -> Void)? = nil
+
+    /// Tell the ring to stop before overwriting `index` (called from any thread; dispatched
+    /// to write queue for serialisation). `onFull` fires on the main thread when triggered.
+    func setStopBeforeSegment(index: Int, onFull: @escaping () -> Void) {
+        writeQueue.async { [weak self] in
+            self?.stopBeforeSegmentIndex = index
+            self?.onBufferFull = onFull
+        }
+    }
+
     // MARK: - Init
 
     /// - Parameter maxMinutes: How many minutes of audio to retain (5–30). Defaults to 15.
@@ -71,7 +87,9 @@ final class StreamBuffer {
 
     /// Flush remaining samples and close the current segment file.
     /// Blocks the caller briefly (write-queue sync flush).
+    /// Idempotent: returns immediately if already stopped (e.g., by stopBeforeSegmentIndex trigger).
     func stop() {
+        guard isRunning else { return }
         isRunning = false
         writeQueue.sync {
             self.drainAndWrite()
@@ -222,7 +240,21 @@ final class StreamBuffer {
             // Rotate to next segment when the current one is full.
             if samplesInCurrentSegment >= samplesPerSegment {
                 closeCurrentSegment()
-                currentSegmentIndex = (currentSegmentIndex + 1) % maxSegments
+                let nextIdx = (currentSegmentIndex + 1) % maxSegments
+                // If the next slot is protected (pause segment), stop cleanly without
+                // overwriting it — the full ring content from dvrPauseTimestamp is intact.
+                if let stopBefore = stopBeforeSegmentIndex, nextIdx == stopBefore {
+                    // Remove the chunk-size overshoot so bufferedDuration lands on a clean
+                    // segment boundary. Without this, bufferedDuration > maxSecs by up to
+                    // ~93 ms, which lets preloadDVRNextSegment open the protected pause
+                    // segment as "segment N+1" and play wrong audio before going live.
+                    totalSamplesWritten -= Int64(samplesInCurrentSegment - samplesPerSegment)
+                    isRunning = false
+                    let cb = onBufferFull
+                    DispatchQueue.main.async { cb?() }
+                    return
+                }
+                currentSegmentIndex = nextIdx
                 openSegment(index: currentSegmentIndex)
             }
         }

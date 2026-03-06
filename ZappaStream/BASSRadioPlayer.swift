@@ -237,7 +237,9 @@ enum PlaybackState {
     private var dvrMetadataJournal: [(timestamp: Double, metadata: String)] = []
     private var lastDVRPublishedMetadata: String? = nil
     private var dvrMetadataTimer: Timer? = nil
-    private(set) var dvrBufferFull: Bool = false   // set when recording fills the window
+    private(set) var dvrBufferFull: Bool = false        // set when recording fills the window
+    private(set) var dvrBufferFullExpired: Bool = false // set after 15-min playback window elapses
+    private var dvrBufferExpiryTimer: Timer? = nil
 
     // MARK: - FX Blend (smooth on/off transitions)
     // Ramp blend 0→1 (passthrough→active) over ~83ms when toggling compressor/EQ or master bypass.
@@ -372,13 +374,16 @@ enum PlaybackState {
         pathMonitor = monitor
         monitor.pathUpdateHandler = { [weak self] path in
             guard let self = self else { return }
-            guard path.status == .satisfied,
-                  self.isUserIntendedPlay,
-                  !self.isStreamActive else { return }
-            print("🌐 Network restored — triggering immediate reconnect")
-            self.cancelReconnectTimer()
-            self.reconnectAttempt = 0
-            self.bassPollingQueue.async { self.restartStream() }
+            guard path.status == .satisfied, self.isUserIntendedPlay else { return }
+            self.bassPollingQueue.async {
+                // Re-check on the serial queue so we don't start multiple restarts
+                // if NWPathMonitor fires several times before handles are set.
+                guard !self.isStreamActive else { return }
+                print("🌐 Network restored — triggering immediate reconnect")
+                self.cancelReconnectTimer()
+                self.reconnectAttempt = 0
+                self.restartStream()
+            }
         }
         monitor.start(queue: networkMonitorQueue)
     }
@@ -617,6 +622,9 @@ enum PlaybackState {
         streamBuffer = nil
         dvrState = .live
         dvrBufferFull = false
+        dvrBufferFullExpired = false
+        dvrBufferExpiryTimer?.invalidate()
+        dvrBufferExpiryTimer = nil
         behindLiveSeconds = 0
         dvrCurrentSegNum = 0
         dvrNextSegNum    = 0
@@ -1797,6 +1805,19 @@ enum PlaybackState {
         dvrState = .paused
         startBehindTimer()   // begin counting up how far behind live the user is
 
+        // Register the pause segment as protected so the ring buffer stops cleanly before
+        // overwriting it. When the ring fills, onBufferFull fires handleDVRBufferFull on main.
+        if let buffer = streamBuffer {
+            let segDur      = buffer.segmentDuration
+            let maxSegs     = buffer.maxSegments
+            let pauseSegIdx = Int(dvrPauseTimestamp / segDur) % maxSegs
+            let maxSecs     = Double(maxSegs) * segDur
+            buffer.setStopBeforeSegment(index: pauseSegIdx) { [weak self] in
+                guard let self, self.dvrState == .paused else { return }
+                self.handleDVRBufferFull(maxSecs: maxSecs)
+            }
+        }
+
         // Fade the live source channel vol to 0; the output mixer vol stays at 1.0.
         // This avoids BASS output-mixer buffer smoothing that caused a double fade-in
         // when the user paused and quickly resumed (mid-fade mixer vol + DVR stream
@@ -1846,8 +1867,8 @@ enum PlaybackState {
     /// Start DVR playback from the saved pause timestamp.
     /// The live stream stays muted and continues recording.
     func dvrResume() {
-        // Buffer was full and cleared — go straight to live instead of resuming from files.
-        if dvrBufferFull { goLive(); return }
+        // Buffer was full: if the 15-min window has expired, go live; otherwise play the buffer.
+        if dvrBufferFull && dvrBufferFullExpired { goLive(); return }
         guard dvrState == .paused, let buffer = streamBuffer else { return }
 
         let stream = buffer.createPlaybackStream(from: dvrPauseTimestamp)
@@ -1931,25 +1952,30 @@ enum PlaybackState {
         lastIcecastTitle = nil
         lastDVRPublishedMetadata = nil
 
-        // If the buffer filled and was cleared, recreate StreamBuffer so DVR is available
-        // again immediately after returning to live (recording DSP picks up the new instance).
+        // If the buffer filled (stream was paused to stop network activity), clean up the
+        // WAV files and recreate StreamBuffer so DVR recording restarts immediately from live.
+        let wasBufferFull = dvrBufferFull
         if dvrBufferFull {
             dvrBufferFull = false
+            dvrBufferFullExpired = false
+            dvrBufferExpiryTimer?.invalidate()
+            dvrBufferExpiryTimer = nil
+            streamBuffer?.cleanup()       // delete the preserved WAV segment files
             let dvrMins = UserDefaults.standard.integer(forKey: "dvrBufferMinutes")
             streamBuffer = StreamBuffer(maxMinutes: dvrMins > 0 ? dvrMins : 15)
             streamBuffer?.start()
         }
 
-        // FLAC: the live mixer has been muted and its download buffer stale for the duration of the
-        // pause. Tear it down and do a full reconnect + pre-buffer (progress bar + fade-in) so the
-        // user gets clean audio — identical to the first-play experience.
-        if activeFormat == "FLAC" {
+        // FLAC always restarts from scratch. Non-FLAC also restarts when the live stream was
+        // paused (buffer-full): the paused channel has no usable download buffer, so a fresh
+        // connect is identical to a normal play-from-stopped experience.
+        if activeFormat == "FLAC" || wasBufferFull {
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.restartStream() }
-            print("📡 DVR → LIVE (FLAC full re-buffer)")
+            print("📡 DVR → LIVE (full restart)")
             return
         }
 
-        // Non-FLAC: the live stream kept buffering while muted; just unmute with a fade-in.
+        // Normal DVR unpause (stream was never paused): unmute with a fade-in.
         bassPollingQueue.async { [weak self] in self?.pollMetadata() }
         if preMixerHandle != 0 {
             cancelFade()                       // cancel any DVR stream ch-vol fade; advance generation
@@ -1961,17 +1987,36 @@ enum PlaybackState {
     // MARK: - DVR Private Helpers
 
     /// Called when the recording ring buffer has been completely filled.
-    /// Stops and clears the recorded content, freezes the counter at the max,
-    /// and sets `dvrBufferFull` so the next play press goes live rather than
-    /// trying to resume from the (now-deleted) WAV files.
+    /// Stops recording (flushing and closing segment files) but keeps the WAV files on disk
+    /// so the user can play back the full buffer within a 15-minute window.
+    /// After that window the UI reverts to a "live" appearance and pressing play goes live.
     private func handleDVRBufferFull(maxSecs: Double) {
         dvrBehindTimer?.invalidate()
         dvrBehindTimer = nil
-        behindLiveSeconds = maxSecs   // freeze counter at max
+        // Freeze at actual playable content from the pause point. bufferedDuration is now
+        // a clean segment boundary (overshoot removed by StreamBuffer). dvrPauseTimestamp
+        // may be nonzero if the user paused partway into the first recorded segment, giving
+        // slightly less than maxSecs; this avoids a jump when the behind timer restarts on play.
+        behindLiveSeconds = max(0, maxSecs - dvrPauseTimestamp)
         dvrBufferFull = true
-        streamBuffer?.stop()
-        streamBuffer?.cleanup()       // delete the WAV segment files ("cleared")
-        print("📼 DVR buffer full (\(Int(maxSecs / 60)) min) — recording stopped, awaiting go-live")
+        streamBuffer?.stop()          // idempotent: StreamBuffer already stopped itself via stopBeforeSegmentIndex
+        // Stop metadata + state polling (includes FLAC health check) — no longer needed.
+        stopMetadataPolling()
+        // Pause the live download channel for all formats to stop network activity.
+        // goLive() will do a full stream restart (restartStream()) when wasBufferFull is true.
+        #if os(macOS)
+        if streamHandle != 0 {
+            BASS_ChannelPause(streamHandle)
+        }
+        #endif
+        // Start a 15-minute window during which the user can press play to watch the buffer.
+        dvrBufferExpiryTimer?.invalidate()
+        dvrBufferExpiryTimer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: false) { [weak self] _ in
+            guard let self, self.dvrBufferFull else { return }
+            DispatchQueue.main.async { self.dvrBufferFullExpired = true }
+            print("📼 DVR buffer playback window expired — next play press will go live")
+        }
+        print("📼 DVR buffer full (\(Int(maxSecs / 60)) min) — recording stopped; 15-min playback window open")
     }
 
     private func startBehindTimer() {
@@ -1986,14 +2031,10 @@ enum PlaybackState {
             switch self.dvrState {
             case .paused:
                 // While paused, behind = how much has been recorded since the pause point.
+                // Buffer-full is signalled by StreamBuffer.setStopBeforeSegment callback —
+                // not detected here, so we just update the display.
                 let behind = max(0, buffer.bufferedDuration - self.dvrPauseTimestamp)
-                let maxSecs = Double(buffer.maxSegments) * buffer.segmentDuration
-                if behind >= maxSecs {
-                    // Buffer completely full — stop recording and await user action.
-                    self.handleDVRBufferFull(maxSecs: maxSecs)
-                } else {
-                    self.behindLiveSeconds = behind
-                }
+                self.behindLiveSeconds = behind
             case .playing where self.dvrPlaybackStream != 0:
                 // While playing, behind = live recording head minus DVR playback position.
                 // Both advance at ~1 s/s, so this value stays roughly constant.
