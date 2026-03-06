@@ -291,7 +291,7 @@ struct HistoryListView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
                         ForEach(buildFlattenedSections(collapsedPeriods: collapsedPeriods), id: \.id) { section in
                             Section {
                                 if section.isPeriodHeader {

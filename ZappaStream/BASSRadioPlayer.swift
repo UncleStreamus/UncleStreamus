@@ -1,4 +1,5 @@
 import Foundation
+import Network
 #if os(macOS)
 import Bass
 import BassFLAC
@@ -50,7 +51,7 @@ enum PlaybackState {
 
     private var streamHandle: DWORD = 0
     private var mixerHandle: DWORD = 0
-    private var preMixerHandle: DWORD = 0  // FLAC only: DECODE-mode pre-mixer; stutter buffer + click guard
+    private var preMixerHandle: DWORD = 0  // All formats: DECODE-mode pre-mixer; stutter buffer (3s FLAC, 0.3s others) + click guard
     var preBufferProgress: Double = 0.0    // 0.0–1.0 during FLAC pre-buffer; drives UI progress bar
     private var preBufferTimer: Timer?     // updates preBufferProgress every 100ms during FLAC pre-buffer wait
     private var stallSync: HSYNC = 0
@@ -70,11 +71,33 @@ enum PlaybackState {
     private var metadataTimer: Timer?
     private var stateTimer: Timer?
     private var fadeTimer: Timer?
+    private var fadeGeneration: Int = 0   // incremented by cancelFade(); guards stale async dispatches
     private let bassPollingQueue = DispatchQueue(label: "com.zappastream.bass-polling", qos: .utility)
     private let metaPollInterval: TimeInterval = 3.0
     private let statePollInterval: TimeInterval = 2.0
     private let fadeInDuration: TimeInterval = 0.5
     private let fadeOutDuration: TimeInterval = 0.4
+
+    // MARK: - Network Resilience
+
+    private var pathMonitor: NWPathMonitor?
+    private let networkMonitorQueue = DispatchQueue(label: "com.zappastream.network-monitor", qos: .utility)
+
+    /// True only while the user intends playback to be active.
+    /// Set true in switchQuality(); false only in stop() / stopWithFadeOut().
+    /// freeStream() and restartStream() must NOT touch this.
+    private(set) var isUserIntendedPlay: Bool = false
+
+    /// True while a reconnect attempt is scheduled or in-flight (drives UI).
+    private(set) var isReconnecting: Bool = false
+
+    /// Current attempt number (1-based). Reset to 0 on success or explicit stop.
+    private(set) var reconnectAttempt: Int = 0
+
+    private var reconnectTimer: DispatchSourceTimer?
+
+    // Backoff delays in seconds. Stays at 60s after the last index.
+    private let reconnectBackoffDelays: [TimeInterval] = [1, 2, 4, 8, 16, 30, 60]
     /// How long to run FLAC muted before unmuting, giving the mixer output buffer time to fill.
     /// FLAC fade-in is triggered by checkStreamStatus() when playback buffer is sufficiently filled,
     /// not by a fixed timer. This flag tracks whether we're waiting for that condition.
@@ -201,6 +224,7 @@ enum PlaybackState {
     private var recordingDSP:       DWORD          = 0
     private var dvrPlaybackStream:  DWORD          = 0
     private var dvrNextStream:      DWORD          = 0   // pre-loaded next segment (gapless)
+    private var dvrPausedStreams:   [DWORD]        = []  // streams kept alive during dvrPausePlayback() fade-out
     private var dvrPauseTimestamp:  Double         = 0
     private var dvrCurrentSegNum:   Int            = 0
     private var dvrNextSegNum:      Int            = 0
@@ -279,6 +303,7 @@ enum PlaybackState {
         }
         BASS_Start()
         print("✅  BASS initialised")
+        startNetworkMonitoring()
 
         // Try to register the FLAC plugin so BASS_StreamCreateURL auto-detects FLAC.
         // With static linking (Swift Package), BASS_PluginLoad may find the plugin in the
@@ -311,6 +336,10 @@ enum PlaybackState {
 
     /// Stop playback and reset state.
     func stop() {
+        isUserIntendedPlay = false
+        cancelReconnectTimer()
+        reconnectAttempt = 0
+        DispatchQueue.main.async { self.isReconnecting = false }
         freeStream()
         activeFormat = ""
         lastIcecastTitle = nil
@@ -325,11 +354,69 @@ enum PlaybackState {
 
     /// Stop playback with a fade-out effect (user-initiated stop only).
     func stopWithFadeOut() {
+        isUserIntendedPlay = false
+        cancelReconnectTimer()
+        reconnectAttempt = 0
+        DispatchQueue.main.async { self.isReconnecting = false }
         let ph = playbackHandle
         guard ph != 0 else { stop(); return }
         startFadeOut(mixer: ph) { [weak self] in
             self?.stop()
         }
+    }
+
+    // MARK: - Network Resilience
+
+    private func startNetworkMonitoring() {
+        let monitor = NWPathMonitor()
+        pathMonitor = monitor
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self = self else { return }
+            guard path.status == .satisfied,
+                  self.isUserIntendedPlay,
+                  !self.isStreamActive else { return }
+            print("🌐 Network restored — triggering immediate reconnect")
+            self.cancelReconnectTimer()
+            self.reconnectAttempt = 0
+            self.bassPollingQueue.async { self.restartStream() }
+        }
+        monitor.start(queue: networkMonitorQueue)
+    }
+
+    private func scheduleReconnect() {
+        guard isUserIntendedPlay else { return }
+        let delay = reconnectBackoffDelays[min(reconnectAttempt, reconnectBackoffDelays.count - 1)]
+        reconnectAttempt += 1
+        print("⏳ Reconnect attempt \(reconnectAttempt) scheduled in \(Int(delay))s")
+        DispatchQueue.main.async {
+            self.isReconnecting = true
+            self.playbackState = .connecting
+        }
+        cancelReconnectTimer()
+        let timer = DispatchSource.makeTimerSource(queue: bassPollingQueue)
+        timer.schedule(deadline: .now() + delay)
+        timer.setEventHandler { [weak self] in
+            guard let self = self, self.isUserIntendedPlay else { return }
+            self.restartStream()
+        }
+        timer.resume()
+        reconnectTimer = timer
+    }
+
+    private func cancelReconnectTimer() {
+        reconnectTimer?.cancel()
+        reconnectTimer = nil
+    }
+
+    /// Public entry point for ContentViews to request an immediate reconnect
+    /// (e.g., foreground resume, AVAudioSession interruption end, macOS wake).
+    func triggerImmediateReconnect() {
+        guard isUserIntendedPlay else { return }
+        print("🔄 triggerImmediateReconnect called")
+        cancelReconnectTimer()
+        reconnectAttempt = 0
+        DispatchQueue.main.async { self.isReconnecting = true }
+        bassPollingQueue.async { self.restartStream() }
     }
 
     // MARK: - Internal Playback
@@ -338,8 +425,15 @@ enum PlaybackState {
     /// All formats use the mixer, so this is always mixerHandle when playing.
     private var playbackHandle: DWORD { mixerHandle != 0 ? mixerHandle : streamHandle }
 
+    /// True when BASS has a valid stream set up (not torn down).
+    var isStreamActive: Bool { streamHandle != 0 && mixerHandle != 0 }
+
     private func switchQuality(_ format: String) {
         guard let entry = qualities.first(where: { $0.format == format }) else { return }
+        isUserIntendedPlay = true
+        cancelReconnectTimer()
+        reconnectAttempt = 0
+        DispatchQueue.main.async { self.isReconnecting = false }
         print("\n🔊 ── SWITCHING TO \(format) ──────────────────────────")
         print("   URL: \(entry.url)")
 
@@ -363,11 +457,8 @@ enum PlaybackState {
 
         if streamHandle == 0 {
             let err = BASS_ErrorGetCode()
-            print("❌  Stream creation failed (error \(err))")
-            DispatchQueue.main.async {
-                self.playbackState = .error(err)
-                self.isPlaying = false
-            }
+            print("❌  Stream creation failed (error \(err)) — scheduling reconnect")
+            scheduleReconnect()
             return
         }
 
@@ -383,10 +474,17 @@ enum PlaybackState {
             BASS_Mixer_StreamAddChannel(mixerHandle, preMixerHandle,
                 DWORD(BASS_MIXER_CHAN_BUFFER))
         } else {
+            // Two-mixer pipeline for all formats: stream → DECODE-mode pre-mixer (0.3s buffer)
+            // → FX output mixer (0.1s buffer). Uniform with FLAC; enables channel-vol fading
+            // for DVR pause/resume without BASS output-mixer vol unreliability.
+            preMixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+                DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE))
+            BASS_Mixer_StreamAddChannel(preMixerHandle, streamHandle,
+                DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN))
             mixerHandle = BASS_Mixer_StreamCreate(44100, 2,
                 DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
-            let addFlags = DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN)
-            BASS_Mixer_StreamAddChannel(mixerHandle, streamHandle, addFlags)
+            BASS_Mixer_StreamAddChannel(mixerHandle, preMixerHandle,
+                DWORD(BASS_MIXER_CHAN_BUFFER))
         }
 
         activeFormat = format
@@ -437,7 +535,7 @@ enum PlaybackState {
                 DispatchQueue.main.async { self.startMetadataPolling() }
             }
         } else {
-            print("   handle=\(streamHandle) mixer=\(mixerHandle) playback=\(ph) — calling BASS_ChannelPlay…")
+            print("   handle=\(streamHandle) preMix=\(preMixerHandle) mixer=\(mixerHandle) playback=\(ph) — calling BASS_ChannelPlay…")
             BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
             BASS_ChannelPlay(ph, 0)
             startFadeIn(mixer: ph)
@@ -470,6 +568,8 @@ enum PlaybackState {
             BASS_StreamFree(dvrNextStream)
             dvrNextStream = 0
         }
+        for s in dvrPausedStreams { BASS_StreamFree(s) }
+        dvrPausedStreams.removeAll()
 
         if mixerHandle != 0 {
             BASS_ChannelStop(mixerHandle)     // stops DSP callbacks including recordingDSP
@@ -533,28 +633,21 @@ enum PlaybackState {
         let netResume: Float = 25
         BASS_ChannelSetAttribute(handle, DWORD(BASS_ATTRIB_NET_RESUME), netResume)
 
-        // FLAC two-mixer: pre-mixer gets the large stutter-protection buffer (3.0s); the FX
-        // output mixer gets a tiny buffer (0.1s) so EQ/compressor changes are heard within ~100ms.
-        // Other formats use a single 0.5s mixer buffer (responsive FX, minimal latency).
+        // All formats use two-mixer pipeline: pre-mixer gets a stutter-protection buffer
+        // (3.0s for FLAC, 0.3s for others); the FX output mixer gets 0.1s so EQ/compressor
+        // changes are heard within ~100ms on all formats.
         if mixerHandle != 0 {
-            if format == "FLAC", preMixerHandle != 0 {
-                BASS_ChannelSetAttribute(preMixerHandle, DWORD(BASS_ATTRIB_BUFFER), 3.0)
-                BASS_ChannelSetAttribute(mixerHandle,    DWORD(BASS_ATTRIB_BUFFER), 0.1)
-                print("⚙️  configureStreamAttributes format=FLAC preMixBuf=3.0s fxMixBuf=0.1s")
-            } else {
-                BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_BUFFER), 0.5)
-                print("⚙️  configureStreamAttributes format=\(format) mixerBuf=0.5s")
-            }
+            let preMixBuf: Float = format == "FLAC" ? 3.0 : 0.3
+            BASS_ChannelSetAttribute(preMixerHandle, DWORD(BASS_ATTRIB_BUFFER), preMixBuf)
+            BASS_ChannelSetAttribute(mixerHandle,    DWORD(BASS_ATTRIB_BUFFER), 0.1)
+            print("⚙️  configureStreamAttributes format=\(format) preMixBuf=\(preMixBuf)s fxMixBuf=0.1s")
         } else {
             print("⚙️  configureStreamAttributes format=\(format) — no mixer (direct mode)")
         }
 
-        // FLAC: click guard on preMixerHandle (fires before the FX output mixer).
-        // OGG/non-FLAC: click guard on streamHandle so it:
-        //   (a) runs at priority -2, before the recording DSP at -3, giving click-clean recordings
-        //   (b) fires on the muted live source during DVR playback — no effect on DVR audio in mixerHandle
-        let cgHandle: DWORD? = preMixerHandle != 0 ? preMixerHandle : streamHandle
-        applyEffects(to: ph, clickGuardOn: cgHandle)
+        // Click guard always on preMixerHandle: fires before the FX output mixer,
+        // giving click-clean recordings since the recording DSP at priority -3 runs after.
+        applyEffects(to: ph, clickGuardOn: preMixerHandle)
     }
 
     // MARK: - Audio Effects
@@ -816,12 +909,11 @@ enum PlaybackState {
         attachRecordingDSP()
     }
 
-    /// Attach the recording DSP to the PRE-FX source, not the output mixer.
-    /// For FLAC: preMixerHandle (post-click-guard, pre-FX output chain).
-    /// For non-FLAC: streamHandle (raw decoded PCM before any processing).
-    /// This ensures the WAV ring buffer stores the original stream audio, independent
-    /// of whatever FX the user has dialled in. DSP callbacks receive audio before volume
-    /// scaling, so muting the source during DVR playback does not silence the recording.
+    /// Attach the recording DSP to the pre-mixer, not the output mixer.
+    /// preMixerHandle is always set for all formats (post-click-guard, pre-FX output chain).
+    /// The WAV ring buffer stores original stream audio independent of user FX settings.
+    /// DSP callbacks receive audio before volume scaling, so muting the pre-mixer during
+    /// DVR playback does not silence the recording.
     private func attachRecordingDSP() {
         let sourceHandle: DWORD = preMixerHandle != 0 ? preMixerHandle : streamHandle
         guard sourceHandle != 0 else { return }
@@ -1268,11 +1360,14 @@ enum PlaybackState {
     private func cancelFade() {
         fadeTimer?.invalidate()
         fadeTimer = nil
+        fadeGeneration &+= 1
     }
 
     private func startFadeIn(mixer: DWORD) {
+        let gen = fadeGeneration
         DispatchQueue.main.async { [weak self] in
-            self?.startFadeInOnMainThread(mixer: mixer)
+            guard let self, self.fadeGeneration == gen else { return }
+            self.startFadeInOnMainThread(mixer: mixer)
         }
     }
 
@@ -1302,8 +1397,10 @@ enum PlaybackState {
     }
 
     private func startFadeOut(mixer: DWORD, completion: @escaping () -> Void) {
+        let gen = fadeGeneration
         DispatchQueue.main.async { [weak self] in
-            self?.startFadeOutOnMainThread(mixer: mixer, completion: completion)
+            guard let self, self.fadeGeneration == gen else { return }
+            self.startFadeOutOnMainThread(mixer: mixer, completion: completion)
         }
     }
 
@@ -1427,6 +1524,7 @@ enum PlaybackState {
            status == BASS_ACTIVE_PLAYING,
            bufferedBytes == 0,
            bytes > 100000 {
+            guard !isReconnecting else { return }
             if dvrState == .live {
                 print("🔄 AAC buffer underrun detected (pos=\(String(format:"%.0f",secs)) buffered=0) — fast restart")
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.restartStream() }
@@ -1438,6 +1536,7 @@ enum PlaybackState {
         }
 
         if status == BASS_ACTIVE_STOPPED {
+            guard !isReconnecting else { return }
             if activeFormat == "OGG" || activeFormat == "FLAC" {
                 if !oggStopConfirmed {
                     oggStopConfirmed = true
@@ -1481,7 +1580,14 @@ enum PlaybackState {
             BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)
         }
 
-        guard newHandle != 0 else { return }
+        guard newHandle != 0 else {
+            let err = BASS_ErrorGetCode()
+            print("❌ restartStream: BASS_StreamCreateURL failed (err=\(err)) — scheduling reconnect")
+            scheduleReconnect()
+            return
+        }
+        reconnectAttempt = 0
+        DispatchQueue.main.async { self.isReconnecting = false }
 
         streamHandle = newHandle
         if current.format == "FLAC" {
@@ -1494,10 +1600,14 @@ enum PlaybackState {
             BASS_Mixer_StreamAddChannel(mixerHandle, preMixerHandle,
                 DWORD(BASS_MIXER_CHAN_BUFFER))
         } else {
+            preMixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+                DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE))
+            BASS_Mixer_StreamAddChannel(preMixerHandle, streamHandle,
+                DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN))
             mixerHandle = BASS_Mixer_StreamCreate(44100, 2,
                 DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
-            let restartAddFlags = DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN)
-            BASS_Mixer_StreamAddChannel(mixerHandle, streamHandle, restartAddFlags)
+            BASS_Mixer_StreamAddChannel(mixerHandle, preMixerHandle,
+                DWORD(BASS_MIXER_CHAN_BUFFER))
         }
 
         // Recreate StreamBuffer so recording resumes after restart (freeStream() cleared it).
@@ -1541,7 +1651,7 @@ enum PlaybackState {
             }
         } else {
             BASS_ChannelPlay(ph, 0)
-            print("✅ Restarted handle=\(newHandle) mixer=\(mixerHandle) playback=\(ph)")
+            print("✅ Restarted handle=\(newHandle) preMix=\(preMixerHandle) mixer=\(mixerHandle) playback=\(ph)")
             DispatchQueue.main.async {
                 self.playbackState = .playing
                 self.startMetadataPolling()
@@ -1681,16 +1791,20 @@ enum PlaybackState {
     /// Saves the current recording timestamp so `dvrResume()` plays from here.
     func dvrPause() {
         guard dvrState == .live else { return }
-        let ph = mixerHandle != 0 ? mixerHandle : streamHandle
-        guard ph != 0 else { return }
+        guard mixerHandle != 0, preMixerHandle != 0 else { return }
 
         dvrPauseTimestamp = streamBuffer?.currentTimestamp ?? 0
         dvrState = .paused
         startBehindTimer()   // begin counting up how far behind live the user is
 
-        startFadeOut(mixer: ph) {
-            // Mute after fade; stream and recording DSP remain active.
-            BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
+        // Fade the live source channel vol to 0; the output mixer vol stays at 1.0.
+        // This avoids BASS output-mixer buffer smoothing that caused a double fade-in
+        // when the user paused and quickly resumed (mid-fade mixer vol + DVR stream
+        // ch-vol fade = two simultaneous fade-ins on non-FLAC's old 0.5s single mixer).
+        let liveSource = preMixerHandle
+        startFadeOut(mixer: liveSource) {
+            // Ensure fully muted; stream and recording DSP remain active.
+            BASS_ChannelSetAttribute(liveSource, DWORD(BASS_ATTRIB_VOL), 0)
         }
         print("⏸️ DVR paused at t=\(String(format: "%.2f", dvrPauseTimestamp))s")
     }
@@ -1704,19 +1818,29 @@ enum PlaybackState {
         let posSecs  = BASS_ChannelBytes2Seconds(dvrPlaybackStream, posBytes)
         let currentRecordingTime = Double(dvrCurrentSegNum) * buffer.segmentDuration + posSecs
 
-        BASS_StreamFree(dvrPlaybackStream)
+        // Stash the live BASS handles in dvrPausedStreams so they stay active during
+        // the fade-out (the mixer needs an audio source to fade). They are freed in the
+        // fade completion callback, or by dvrResume()/goLive()/freeStream() if the user
+        // acts before the fade finishes.
+        dvrPausedStreams = [dvrPlaybackStream, dvrNextStream].filter { $0 != 0 }
         dvrPlaybackStream = 0
-        if dvrNextStream != 0 {
-            BASS_StreamFree(dvrNextStream)
-            dvrNextStream = 0
-        }
+        dvrNextStream = 0
         dvrMetadataTimer?.invalidate()
         dvrMetadataTimer = nil
 
         dvrPauseTimestamp = currentRecordingTime
-        dvrState = .paused
-        startBehindTimer()   // keep counting up from current behind position
-        print("⏸️ DVR playback paused at recording t=\(String(format: "%.2f", dvrPauseTimestamp))s")
+        dvrState = .paused   // prevents handleDVRStreamEndMixtime from advancing the segment
+        startBehindTimer()
+
+        // Fade out the mixer, then free the streams and zero the mixer in the completion.
+        let ph = mixerHandle
+        startFadeOut(mixer: ph) { [weak self] in
+            guard let self else { return }
+            for s in self.dvrPausedStreams { BASS_StreamFree(s) }
+            self.dvrPausedStreams.removeAll()
+            BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
+        }
+        print("⏸️ DVR playback paused at recording t=\(String(format: "%.2f", currentRecordingTime))s")
     }
 
     /// Start DVR playback from the saved pause timestamp.
@@ -1743,13 +1867,32 @@ enum PlaybackState {
         // The recording DSP is on the pre-FX source (streamHandle/preMixerHandle), so it
         // continues capturing the live stream without picking up the DVR audio.
         // Silence the live source channel so only DVR audio is heard through the mixer.
+        //
+        // Free any streams that dvrPausePlayback() kept alive for its fade-out, in case
+        // the user resumed before the fade completed (which cancels the completion callback).
+        for s in dvrPausedStreams { BASS_StreamFree(s) }
+        dvrPausedStreams.removeAll()
+        //
+        // Cancel any in-progress fade, then silence the live source so it doesn't
+        // bleed through when the mixer comes back up.
+        cancelFade()
         let liveSource: DWORD = preMixerHandle != 0 ? preMixerHandle : streamHandle
         if liveSource != 0 {
             BASS_ChannelSetAttribute(liveSource, DWORD(BASS_ATTRIB_VOL), 0.0)
         }
+        // Add DVR stream and immediately silence its channel volume within the mixer.
+        // We fade the STREAM's channel volume (not the mixer's output volume) because
+        // BASS_ATTRIB_VOL on the mixer becomes unreliable after dvrPausePlayback()'s
+        // fade-out on non-FLAC streams. Fading the channel vol is the robust alternative.
         BASS_Mixer_StreamAddChannel(mixerHandle, stream,
                                     DWORD(BASS_MIXER_CHAN_BUFFER | BASS_MIXER_CHAN_NORAMPIN))
-        startFadeIn(mixer: mixerHandle)
+        BASS_ChannelSetAttribute(stream, DWORD(BASS_ATTRIB_VOL), 0)
+        // Ensure the mixer itself is at full output — both sources are at ch_vol=0 so
+        // there is no burst. If the mixer was stopped (BASS_MIXER_END), restart it.
+        BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_VOL), 1.0)
+        BASS_ChannelPlay(mixerHandle, 0)
+        // Fade the DVR stream's channel volume from 0→1 directly on the main thread.
+        startFadeInOnMainThread(mixer: stream)
         dvrState = .playing
         startBehindTimer()
         startDVRMetadataPolling()
@@ -1770,6 +1913,9 @@ enum PlaybackState {
             BASS_StreamFree(dvrNextStream)
             dvrNextStream = 0
         }
+        // Free any streams kept alive for a dvrPausePlayback() fade-out that was cancelled.
+        for s in dvrPausedStreams { BASS_StreamFree(s) }
+        dvrPausedStreams.removeAll()
         // Restore live source volume (was silenced when DVR playback started).
         let liveSource: DWORD = preMixerHandle != 0 ? preMixerHandle : streamHandle
         if liveSource != 0 {
@@ -1805,9 +1951,9 @@ enum PlaybackState {
 
         // Non-FLAC: the live stream kept buffering while muted; just unmute with a fade-in.
         bassPollingQueue.async { [weak self] in self?.pollMetadata() }
-        let ph = mixerHandle != 0 ? mixerHandle : streamHandle
-        if ph != 0 {
-            startFadeIn(mixer: ph)
+        if preMixerHandle != 0 {
+            cancelFade()                       // cancel any DVR stream ch-vol fade; advance generation
+            startFadeIn(mixer: preMixerHandle) // fade live source ch-vol from 0→1
         }
         print("📡 DVR → LIVE")
     }
@@ -1976,8 +2122,9 @@ enum PlaybackState {
         oggStopConfirmed = false
 
         // Free only live BASS channels. BASS_ChannelFree removes all DSPs from the channel.
-        if mixerHandle != 0 { BASS_ChannelFree(mixerHandle); mixerHandle = 0 }
-        if streamHandle != 0 { BASS_StreamFree(streamHandle); streamHandle = 0 }
+        if mixerHandle    != 0 { BASS_ChannelFree(mixerHandle);    mixerHandle    = 0 }
+        if preMixerHandle != 0 { BASS_ChannelFree(preMixerHandle); preMixerHandle = 0 }
+        if streamHandle   != 0 { BASS_StreamFree(streamHandle);    streamHandle   = 0 }
         stallSync = 0; endSync = 0; oggChangeSync = 0
         recordingDSP = 0; clickGuardDSP = 0; cgFadeBuffersRemaining = 0
 
@@ -1985,22 +2132,32 @@ enum PlaybackState {
         let streamFlags = DWORD(BASS_STREAM_STATUS) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE)
         let newHandle = BASS_StreamCreateURL(cURL, 0, streamFlags, nil, nil)
         guard newHandle != 0 else {
-            print("❌ DVR partial restart: stream creation failed (err=\(BASS_ErrorGetCode()))")
+            let err = BASS_ErrorGetCode()
+            print("❌ DVR partial restart: BASS_StreamCreateURL failed (err=\(err)) — scheduling reconnect")
+            scheduleReconnect()
             return
         }
+        reconnectAttempt = 0
+        DispatchQueue.main.async { self.isReconnecting = false }
 
         streamHandle = newHandle
-        mixerHandle = BASS_Mixer_StreamCreate(44100, 2, DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
-        BASS_Mixer_StreamAddChannel(mixerHandle, streamHandle,
+        preMixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+            DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE))
+        BASS_Mixer_StreamAddChannel(preMixerHandle, streamHandle,
             DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN))
+        mixerHandle = BASS_Mixer_StreamCreate(44100, 2, DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
+        BASS_Mixer_StreamAddChannel(mixerHandle, preMixerHandle,
+            DWORD(BASS_MIXER_CHAN_BUFFER))
 
         // applyEffects inside configureStreamAttributes re-attaches the recording DSP.
         // self.streamBuffer is still alive, so recording continues without interruption.
         configureStreamAttributes(format: current.format, handle: streamHandle)
         setupSyncs(for: streamHandle)
 
-        // Start muted — DVR state controls the volume.
-        BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_VOL), 0)
+        // Start live source muted — DVR state controls when it unmutes.
+        // Output mixer vol stays at 1.0 so any DVR stream still in the mixer plays through.
+        BASS_ChannelSetAttribute(preMixerHandle, DWORD(BASS_ATTRIB_VOL), 0)
+        BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_VOL), 1.0)
         BASS_ChannelPlay(mixerHandle, 0)
 
         DispatchQueue.main.async {

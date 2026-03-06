@@ -282,6 +282,7 @@ struct ContentView_iOS: View {
                 selectedStream = streams.first { $0.format == lastStreamFormat } ?? streams.first
             }
             setupPlayer()
+            setupInterruptionHandler()
 
             // Auto-play if was playing when app quit (and auto-resume is enabled)
             let wasPlaying = UserDefaults.standard.bool(forKey: "wasPlayingOnQuit")
@@ -295,6 +296,11 @@ struct ContentView_iOS: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background || newPhase == .inactive {
                 UserDefaults.standard.set(isPlaying, forKey: "wasPlayingOnQuit")
+            }
+            if newPhase == .active {
+                if bassPlayer.isUserIntendedPlay && !bassPlayer.isStreamActive {
+                    bassPlayer.triggerImmediateReconnect()
+                }
             }
         }
         .onChange(of: dvrBufferMinutes) { _, _ in
@@ -417,6 +423,16 @@ struct ContentView_iOS: View {
             // Stream status notes (above controls)
             if isPlaying, let stream = selectedStream {
                 VStack(spacing: 2) {
+                    if bassPlayer.isReconnecting {
+                        HStack(spacing: 6) {
+                            ProgressView().progressViewStyle(.circular).scaleEffect(0.7)
+                            Text(bassPlayer.reconnectAttempt > 1
+                                 ? "Reconnecting (attempt \(bassPlayer.reconnectAttempt))..."
+                                 : "Reconnecting...")
+                                .font(.caption2).foregroundStyle(.secondary)
+                        }
+                        .transition(.opacity)
+                    } else {
                     let isBuffering = stream.format == "FLAC" && bassPlayer.preBufferProgress > 0
                     Text("\(isBuffering ? "Buffering" : "Streaming") \(stream.name)")
                         .font(.caption2)
@@ -439,8 +455,10 @@ struct ContentView_iOS: View {
                             .italic()
                             .transition(.move(edge: .top).combined(with: .opacity))
                     }
+                    } // end else (!isReconnecting)
                 }
                 .animation(.easeInOut(duration: 0.3), value: showDelayWarning)
+                .animation(.easeInOut(duration: 0.3), value: bassPlayer.isReconnecting)
                 .padding(.top, 4)
             }
 
@@ -929,6 +947,28 @@ struct ContentView_iOS: View {
 
     func formatSong(_ song: String, acronyms: [(short: String, full: String)]) -> Text {
         SongFormatter.format(song, acronyms: acronyms)
+    }
+
+    // MARK: - Audio Session Interruption Handler
+
+    private func setupInterruptionHandler() {
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak bassPlayer] notification in
+            guard let bassPlayer = bassPlayer,
+                  let typeValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+            if type == .ended {
+                let opts = AVAudioSession.InterruptionOptions(
+                    rawValue: notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0)
+                if opts.contains(.shouldResume) && bassPlayer.isUserIntendedPlay {
+                    configureAudioSession()
+                    bassPlayer.triggerImmediateReconnect()
+                }
+            }
+        }
     }
 
     // MARK: - Audio Session Setup

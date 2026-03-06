@@ -47,8 +47,8 @@ struct ContentView: View {
 
     private let sidebarWidth: CGFloat = 280
     private let dividerWidth: CGFloat = 1  // Width of the visible divider line
-    private let mainContentMinWidth: CGFloat = 370  // Min width for main content area
-    private let mainContentMaxWidth: CGFloat = 619  // Max width for main content area
+    private let mainContentMinWidth: CGFloat = 385  // Min width for main content area
+    private let mainContentMaxWidth: CGFloat = 618  // Max width for main content area
 
     /// Minimum height when setlist is expanded, scales with text size
     private var expandedMinHeight: CGFloat {
@@ -483,30 +483,42 @@ struct ContentView: View {
                 // Stream status
                 if isPlaying, let stream = selectedStream {
                     VStack(spacing: 2) {
-                        let isBuffering = stream.format == "FLAC" && bassPlayer.preBufferProgress > 0
-                        Text("\(isBuffering ? "Buffering" : "Streaming") \(stream.name)")
-                            .scaledFont(.caption2)
-                            .foregroundColor(.secondary)
-
-                        // FLAC pre-buffer loading bar: fills 0→100% over 7s then disappears
-                        if isBuffering {
-                            ProgressView(value: bassPlayer.preBufferProgress)
-                                .progressViewStyle(.linear)
-                                .tint(.secondary)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
-                                .animation(.easeInOut(duration: 0.3), value: isBuffering)
-                        }
-
-                        // Delay warning when using AAC stream - shows briefly then hides
-                        if stream.format == "AAC" && showDelayWarning {
-                            Text("Info can be up to 1min behind when using AAC...")
+                        if bassPlayer.isReconnecting {
+                            HStack(spacing: 6) {
+                                ProgressView().progressViewStyle(.circular).scaleEffect(0.7)
+                                Text(bassPlayer.reconnectAttempt > 1
+                                     ? "Reconnecting (attempt \(bassPlayer.reconnectAttempt))..."
+                                     : "Reconnecting...")
+                                    .scaledFont(.caption2).foregroundStyle(.secondary)
+                            }
+                            .transition(.opacity)
+                        } else {
+                            let isBuffering = stream.format == "FLAC" && bassPlayer.preBufferProgress > 0
+                            Text("\(isBuffering ? "Buffering" : "Streaming") \(stream.name)")
                                 .scaledFont(.caption2)
                                 .foregroundColor(.secondary)
-                                .italic()
-                                .transition(.move(edge: .top).combined(with: .opacity))
+
+                            // FLAC pre-buffer loading bar: fills 0→100% over 7s then disappears
+                            if isBuffering {
+                                ProgressView(value: bassPlayer.preBufferProgress)
+                                    .progressViewStyle(.linear)
+                                    .tint(.secondary)
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                                    .animation(.easeInOut(duration: 0.3), value: isBuffering)
+                            }
+
+                            // Delay warning when using AAC stream - shows briefly then hides
+                            if stream.format == "AAC" && showDelayWarning {
+                                Text("Info can be up to 1min behind when using AAC...")
+                                    .scaledFont(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .italic()
+                                    .transition(.move(edge: .top).combined(with: .opacity))
+                            }
                         }
                     }
                     .animation(.easeInOut(duration: 0.3), value: showDelayWarning)
+                    .animation(.easeInOut(duration: 0.3), value: bassPlayer.isReconnecting)
                 }
 
                 HStack(spacing: 8) {
@@ -1078,6 +1090,28 @@ struct ContentView: View {
             if let format = notification.userInfo?["format"] as? String,
                let stream = streams.first(where: { $0.format == format }) {
                 selectedStream = stream
+            }
+        }
+
+        // Reconnect when app becomes active (e.g. after switch away and back)
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak bassPlayer] _ in
+            if bassPlayer?.isUserIntendedPlay == true && bassPlayer?.isStreamActive == false {
+                bassPlayer?.triggerImmediateReconnect()
+            }
+        }
+
+        // Reconnect after system wakes from sleep
+        NotificationCenter.default.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: NSWorkspace.shared,
+            queue: .main
+        ) { [weak bassPlayer] _ in
+            if bassPlayer?.isUserIntendedPlay == true && bassPlayer?.isStreamActive == false {
+                bassPlayer?.triggerImmediateReconnect()
             }
         }
     }
