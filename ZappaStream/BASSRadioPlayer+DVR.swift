@@ -340,6 +340,15 @@ extension BASSRadioPlayer {
         let nextStream = dvrNextStream  // capture before any async work
         let nextSegNum = dvrNextSegNum
 
+        // Capture the exact recording-time position where this stream ended (audio thread).
+        // Used in the fallback path so we seek to the precise continuation point rather than
+        // a segment-boundary estimate — this handles partial-segment files and keeps DVR
+        // playback alive indefinitely when the user is close to the live edge.
+        let endPosBytes = BASS_ChannelGetPosition(oldStream, DWORD(BASS_POS_BYTE))
+        let endPosSecs  = BASS_ChannelBytes2Seconds(oldStream, endPosBytes)
+        let segDur      = streamBuffer?.segmentDuration ?? 60.0
+        let endedAt     = Double(dvrCurrentSegNum) * segDur + endPosSecs
+
         if nextStream != 0 {
             // Sample-accurate: add next stream NOW, in the mixing thread.
             // BASS_Mixer_StreamAddChannel is safe to call from MIXTIME callbacks.
@@ -366,28 +375,51 @@ extension BASSRadioPlayer {
                 self.preloadDVRNextSegment()
                 print("⏭️  DVR → segment \(nextSegNum)")
             } else {
-                // Fallback: preload was skipped (segment wasn't buffered yet at resume time).
-                // Re-check now — the live recording may have caught up since then.
-                let fallbackSeg = self.dvrCurrentSegNum + 1
-                let fallbackTs  = Double(fallbackSeg) * (self.streamBuffer?.segmentDuration ?? 60.0)
-                if let buffer = self.streamBuffer,
-                   fallbackTs < buffer.bufferedDuration,
-                   let lateStream = Optional(buffer.createPlaybackStream(from: fallbackTs)),
-                   lateStream != 0 {
-                    // Not sample-accurate (tiny gap possible), but far better than going live.
-                    BASS_Mixer_StreamAddChannel(self.mixerHandle, lateStream,
-                                                DWORD(BASS_MIXER_CHAN_BUFFER | BASS_MIXER_CHAN_NORAMPIN))
-                    self.dvrPlaybackStream = lateStream
-                    self.dvrCurrentSegNum  = fallbackSeg
-                    self.dvrNextStream     = 0
-                    self.registerDVREndSync(on: lateStream)
-                    self.preloadDVRNextSegment()
-                    print("⏭️  DVR → segment \(fallbackSeg) (late-open)")
-                } else {
-                    print("📡 DVR end-of-buffer reached — going live")
-                    self.goLive()
-                }
+                // Fallback: preload was skipped or the preloaded segment had only partial data.
+                // Continue from endedAt (the exact recording time where playback stopped) rather
+                // than jumping to the next segment boundary. This keeps DVR alive indefinitely:
+                // each re-open seeks past the already-played portion, so the user stays behind
+                // live by a constant amount as long as bufferedDuration keeps growing.
+                self.continueDVRFrom(recordingTime: endedAt)
             }
+        }
+    }
+
+    /// Continue DVR playback from `recordingTime` seconds into the recording.
+    /// Creates a new BASS file stream seeked to the right offset and adds it to the mixer.
+    /// If the segment file is temporarily absent (mid-rotation race), retries after 100 ms.
+    /// Only goes live when the recording has genuinely caught up to the playback position.
+    private func continueDVRFrom(recordingTime: Double, isRetry: Bool = false) {
+        guard dvrState == .playing, let buffer = streamBuffer else { return }
+
+        // 0.5 s guard: if we are within half a second of the live recording head the file
+        // has almost no unread data; treat it as live rather than spinning in tight loops.
+        guard recordingTime < buffer.bufferedDuration - 0.5 else {
+            print("📡 DVR end-of-buffer reached — going live")
+            goLive()
+            return
+        }
+
+        let stream = buffer.createPlaybackStream(from: recordingTime)
+        if stream != 0 {
+            BASS_Mixer_StreamAddChannel(mixerHandle, stream,
+                                        DWORD(BASS_MIXER_CHAN_BUFFER | BASS_MIXER_CHAN_NORAMPIN))
+            dvrPlaybackStream = stream
+            dvrCurrentSegNum  = Int(recordingTime / buffer.segmentDuration)
+            dvrNextStream     = 0
+            registerDVREndSync(on: stream)
+            preloadDVRNextSegment()
+            print("⏭️  DVR continue from t=\(String(format: "%.1f", recordingTime))s (seg \(dvrCurrentSegNum))")
+        } else if !isRetry {
+            // Segment file may be transiently absent while the ring buffer rotates
+            // (removeItem + createFile window). Retry once after 100 ms.
+            print("⚠️  DVR segment not ready at t=\(String(format: "%.1f", recordingTime))s — retrying")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.continueDVRFrom(recordingTime: recordingTime, isRetry: true)
+            }
+        } else {
+            print("📡 DVR end-of-buffer reached — going live")
+            goLive()
         }
     }
 
