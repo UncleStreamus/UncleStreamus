@@ -114,6 +114,18 @@ extension BASSRadioPlayer {
         dvrState = .paused   // prevents handleDVRStreamEndMixtime from advancing the segment
         startBehindTimer()
 
+        // Protect the pause segment so the ring buffer stops before overwriting it —
+        // same logic as dvrPause(). Without this the ring rolls freely and behindLiveSeconds
+        // grows without bound. dvrResume() calls clearStopBeforeSegment() to lift protection.
+        let segDur      = buffer.segmentDuration
+        let maxSegs     = buffer.maxSegments
+        let pauseSegIdx = Int(dvrPauseTimestamp / segDur) % maxSegs
+        let maxSecs     = Double(maxSegs) * segDur
+        buffer.setStopBeforeSegment(index: pauseSegIdx) { [weak self] in
+            guard let self, self.dvrState == .paused else { return }
+            self.handleDVRBufferFull(maxSecs: maxSecs)
+        }
+
         // Fade out the mixer, then free the streams and zero the mixer in the completion.
         let ph = mixerHandle
         startFadeOut(mixer: ph) { [weak self] in
@@ -280,11 +292,13 @@ extension BASSRadioPlayer {
     func handleDVRBufferFull(maxSecs: Double) {
         dvrBehindTimer?.invalidate()
         dvrBehindTimer = nil
-        // Freeze at actual playable content from the pause point. bufferedDuration is now
-        // a clean segment boundary (overshoot removed by StreamBuffer). dvrPauseTimestamp
-        // may be nonzero if the user paused partway into the first recorded segment, giving
-        // slightly less than maxSecs; this avoids a jump when the behind timer restarts on play.
-        behindLiveSeconds = max(0, maxSecs - dvrPauseTimestamp)
+        // Freeze at actual playable content from the pause point. StreamBuffer has already
+        // adjusted totalSamplesWritten to a clean segment boundary (overshoot removed), so
+        // bufferedDuration - dvrPauseTimestamp is the exact playable window from the pause
+        // point. Using bufferedDuration (not maxSecs - dvrPauseTimestamp) is correct for
+        // both dvrPause() (small timestamp, e.g. 9s) and dvrPausePlayback() (large
+        // absolute timestamp, e.g. 1399s) where the old formula gave a negative result.
+        behindLiveSeconds = max(0, (streamBuffer?.bufferedDuration ?? 0) - dvrPauseTimestamp)
         dvrBufferFull = true
         streamBuffer?.stop()          // idempotent: StreamBuffer already stopped itself via stopBeforeSegmentIndex
         // Stop metadata + state polling (includes FLAC health check) — no longer needed.
