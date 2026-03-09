@@ -6,6 +6,18 @@ import BassMix
 
 // MARK: - DVR Ring Buffer Playback (macOS only)
 
+/// Captures the recording-time origin of a DVR segment at sync registration time.
+/// Passed as the BASS `user` pointer so the MIXTIME callback can compute `endedAt`
+/// race-free — no shared mutable state from the audio thread.
+private class DVREndSyncContext {
+    weak var player: BASSRadioPlayer?
+    let segOriginTime: Double   // recording seconds at the start of the segment file
+    init(_ player: BASSRadioPlayer, segOriginTime: Double) {
+        self.player = player
+        self.segOriginTime = segOriginTime
+    }
+}
+
 extension BASSRadioPlayer {
 
     // MARK: - DVR Public Interface
@@ -106,7 +118,10 @@ extension BASSRadioPlayer {
         let ph = mixerHandle
         startFadeOut(mixer: ph) { [weak self] in
             guard let self else { return }
-            for s in self.dvrPausedStreams { BASS_StreamFree(s) }
+            for s in self.dvrPausedStreams {
+                self.dvrSyncContexts.removeValue(forKey: s)
+                BASS_StreamFree(s)
+            }
             self.dvrPausedStreams.removeAll()
             BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
         }
@@ -130,8 +145,23 @@ extension BASSRadioPlayer {
         dvrCurrentSegNum  = Int(dvrPauseTimestamp / buffer.segmentDuration)
 
         // Register gapless end-sync and pre-load the following segment.
-        registerDVREndSync(on: stream)
+        // segOriginTime is the recording-time start of the segment file — captured here
+        // so the MIXTIME callback never needs to read dvrCurrentSegNum from the audio thread.
+        let segOriginTime = Double(dvrCurrentSegNum) * buffer.segmentDuration
+        registerDVREndSync(on: stream, segOriginTime: segOriginTime)
         preloadDVRNextSegment()
+
+        // Now that playback is starting, lift the ring-buffer stop-before protection.
+        // The protection was set at pause time to preserve the pause-point segment in case
+        // the ring filled while the user was paused. Once playback is rolling, old segments
+        // behind the playback head can be safely overwritten, so the ring should keep
+        // rolling freely — this lets DVR stay behind live indefinitely rather than halting
+        // after one full buffer's worth of content.
+        // Do not clear for the buffer-full case: recording has already stopped and the user
+        // is playing through a fixed snapshot of the ring.
+        if !dvrBufferFull {
+            buffer.clearStopBeforeSegment()
+        }
 
         // Route DVR audio through the FX output mixer so EQ/compressor/stereo/limiter apply.
         // The recording DSP is on the pre-FX source (streamHandle/preMixerHandle), so it
@@ -140,7 +170,10 @@ extension BASSRadioPlayer {
         //
         // Free any streams that dvrPausePlayback() kept alive for its fade-out, in case
         // the user resumed before the fade completed (which cancels the completion callback).
-        for s in dvrPausedStreams { BASS_StreamFree(s) }
+        for s in dvrPausedStreams {
+            dvrSyncContexts.removeValue(forKey: s)
+            BASS_StreamFree(s)
+        }
         dvrPausedStreams.removeAll()
         //
         // Cancel any in-progress fade, then silence the live source so it doesn't
@@ -176,15 +209,20 @@ extension BASSRadioPlayer {
 
         // Stop DVR playback (freeing the stream auto-removes it from mixerHandle).
         if dvrPlaybackStream != 0 {
+            dvrSyncContexts.removeValue(forKey: dvrPlaybackStream)
             BASS_StreamFree(dvrPlaybackStream)
             dvrPlaybackStream = 0
         }
         if dvrNextStream != 0 {
+            dvrSyncContexts.removeValue(forKey: dvrNextStream)
             BASS_StreamFree(dvrNextStream)
             dvrNextStream = 0
         }
         // Free any streams kept alive for a dvrPausePlayback() fade-out that was cancelled.
-        for s in dvrPausedStreams { BASS_StreamFree(s) }
+        for s in dvrPausedStreams {
+            dvrSyncContexts.removeValue(forKey: s)
+            BASS_StreamFree(s)
+        }
         dvrPausedStreams.removeAll()
         // Restore live source volume (was silenced when DVR playback started).
         let liveSource: DWORD = preMixerHandle != 0 ? preMixerHandle : streamHandle
@@ -304,12 +342,19 @@ extension BASSRadioPlayer {
     /// Register a MIXTIME END sync on a DVR playback stream.
     /// BASS_SYNC_MIXTIME fires in the mixing thread at the exact sample boundary,
     /// enabling gapless segment transitions via handleDVRStreamEndMixtime.
-    func registerDVREndSync(on stream: DWORD) {
-        let userData = Unmanaged.passUnretained(self).toOpaque()
+    ///
+    /// `segOriginTime` is the recording-time offset (seconds) at the start of `stream`'s
+    /// segment file. It is captured in a DVREndSyncContext so the MIXTIME callback can
+    /// compute `endedAt` without touching `dvrCurrentSegNum` — which is written on the
+    /// main thread and would otherwise be a data race.
+    func registerDVREndSync(on stream: DWORD, segOriginTime: Double) {
+        let ctx = DVREndSyncContext(self, segOriginTime: segOriginTime)
+        dvrSyncContexts[stream] = ctx
+        let userData = Unmanaged.passUnretained(ctx).toOpaque()
         BASS_ChannelSetSync(stream, DWORD(BASS_SYNC_END | BASS_SYNC_MIXTIME), 0, { _, ch, _, user in
             guard let user = user else { return }
-            let player = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
-            player.handleDVRStreamEndMixtime(oldStream: ch)
+            let ctx = Unmanaged<DVREndSyncContext>.fromOpaque(user).takeUnretainedValue()
+            ctx.player?.handleDVRStreamEndMixtime(oldStream: ch, segOriginTime: ctx.segOriginTime)
         }, userData)
     }
 
@@ -323,7 +368,10 @@ extension BASSRadioPlayer {
         guard let buffer = streamBuffer else { return }
         let nextSeg = dvrCurrentSegNum + 1
         let nextTs  = Double(nextSeg) * buffer.segmentDuration
-        guard nextTs < buffer.bufferedDuration else { return }
+        // Require at least 2 s of data in the next segment before preloading.
+        // Opening a near-empty file produces a stream that fires EOF in milliseconds,
+        // which causes rapid cycling and can starve the mixer — leading to a false go-live.
+        guard buffer.bufferedDuration - nextTs >= 2.0 else { return }
         let s = buffer.createPlaybackStream(from: nextTs)
         if s != 0 {
             dvrNextStream = s
@@ -334,20 +382,26 @@ extension BASSRadioPlayer {
     /// Called from the BASS mixing thread (MIXTIME sync) when a DVR segment stream hits EOF.
     /// Adds the pre-loaded next segment to the mixer at the exact sample boundary (no gap),
     /// then dispatches state cleanup and next-segment pre-loading to the main thread.
-    func handleDVRStreamEndMixtime(oldStream: DWORD) {
+    ///
+    /// `segOriginTime` is captured race-free from the DVREndSyncContext at registration time
+    /// and represents the recording-time start of `oldStream`'s segment file. It must NOT
+    /// read `dvrCurrentSegNum` here — that property is written on the main thread and reading
+    /// it from the BASS audio thread is a data race.
+    func handleDVRStreamEndMixtime(oldStream: DWORD, segOriginTime: Double) {
         guard dvrState == .playing else { return }
 
-        let nextStream = dvrNextStream  // capture before any async work
-        let nextSegNum = dvrNextSegNum
+        // Only capture dvrNextStream on the audio thread — it must be added to the mixer
+        // here, at the exact sample boundary, for gapless playback.
+        // dvrNextSegNum is intentionally NOT read here: it is written on the main thread
+        // and reading it from the BASS audio thread is a data race that can produce stale
+        // segment numbers, corrupting dvrCurrentSegNum and causing premature go-live.
+        let nextStream = dvrNextStream
 
-        // Capture the exact recording-time position where this stream ended (audio thread).
-        // Used in the fallback path so we seek to the precise continuation point rather than
-        // a segment-boundary estimate — this handles partial-segment files and keeps DVR
-        // playback alive indefinitely when the user is close to the live edge.
+        // Compute the exact recording-time position where this stream ended.
+        // segOriginTime was captured at registerDVREndSync() call time — race-free.
         let endPosBytes = BASS_ChannelGetPosition(oldStream, DWORD(BASS_POS_BYTE))
         let endPosSecs  = BASS_ChannelBytes2Seconds(oldStream, endPosBytes)
-        let segDur      = streamBuffer?.segmentDuration ?? 60.0
-        let endedAt     = Double(dvrCurrentSegNum) * segDur + endPosSecs
+        let endedAt     = segOriginTime + endPosSecs
 
         if nextStream != 0 {
             // Sample-accurate: add next stream NOW, in the mixing thread.
@@ -355,6 +409,12 @@ extension BASSRadioPlayer {
             BASS_Mixer_StreamAddChannel(mixerHandle, nextStream,
                                         DWORD(BASS_MIXER_CHAN_BUFFER | BASS_MIXER_CHAN_NORAMPIN))
         }
+        // Always restart the mixer here — whether or not a next stream was ready.
+        // If nextStream == 0, the main thread will run continueDVRFrom; the mixer must stay
+        // alive during that window so preMixerHandle keeps being processed and the recording
+        // DSP keeps firing (preventing bufferedDuration from freezing during retries).
+        // BASS_ChannelPlay is a no-op when the channel is already playing.
+        BASS_ChannelPlay(mixerHandle, 0)
 
         // Non-time-critical cleanup and pre-loading on main thread.
         DispatchQueue.main.async { [weak self] in
@@ -364,6 +424,12 @@ extension BASSRadioPlayer {
                 return
             }
 
+            // Read dvrNextSegNum here on the main thread — race-free. At this point
+            // it holds the value written by the most recent preloadDVRNextSegment() call.
+            let nextSegNum = self.dvrNextSegNum
+
+            // Remove the old stream's context before freeing — prevents dangling dict entries.
+            self.dvrSyncContexts.removeValue(forKey: oldStream)
             BASS_StreamFree(oldStream)
 
             if nextStream != 0 {
@@ -371,7 +437,8 @@ extension BASSRadioPlayer {
                 self.dvrPlaybackStream = nextStream
                 self.dvrCurrentSegNum  = nextSegNum
                 self.dvrNextStream     = 0
-                self.registerDVREndSync(on: nextStream)
+                let nextOrigin = Double(nextSegNum) * (self.streamBuffer?.segmentDuration ?? 60.0)
+                self.registerDVREndSync(on: nextStream, segOriginTime: nextOrigin)
                 self.preloadDVRNextSegment()
                 print("⏭️  DVR → segment \(nextSegNum)")
             } else {
@@ -387,16 +454,35 @@ extension BASSRadioPlayer {
 
     /// Continue DVR playback from `recordingTime` seconds into the recording.
     /// Creates a new BASS file stream seeked to the right offset and adds it to the mixer.
-    /// If the segment file is temporarily absent (mid-rotation race), retries after 100 ms.
-    /// Only goes live when the recording has genuinely caught up to the playback position.
-    private func continueDVRFrom(recordingTime: Double, isRetry: Bool = false) {
+    ///
+    /// When DVR is at the live edge (close to the recording head) this retries with
+    /// exponential backoff instead of immediately going live. This keeps the user
+    /// indefinitely behind live as long as the ring buffer keeps accumulating new data.
+    /// Goes live only after exhausting retries, which means recording genuinely stopped.
+    private func continueDVRFrom(recordingTime: Double, retryCount: Int = 0) {
         guard dvrState == .playing, let buffer = streamBuffer else { return }
 
-        // 0.5 s guard: if we are within half a second of the live recording head the file
-        // has almost no unread data; treat it as live rather than spinning in tight loops.
-        guard recordingTime < buffer.bufferedDuration - 0.5 else {
-            print("📡 DVR end-of-buffer reached — going live")
-            goLive()
+        // If we are at or ahead of the recording head, wait for more data before retrying.
+        // This handles the live-edge case: DVR is close to live but should stay behind
+        // indefinitely. Retry with increasing delays; give up and go live after ~10 s total.
+        if recordingTime >= buffer.bufferedDuration - 0.5 {
+            guard retryCount < 15 else {
+                print("📡 DVR end-of-buffer reached — going live")
+                goLive()
+                return
+            }
+            // Keep the output mixer running while we wait for more data.
+            // If BASS_MIXER_END stopped the mixer (because the DVR stream ended and
+            // preMixerHandle briefly had no audio), recording would freeze and
+            // bufferedDuration would stop growing — causing all 15 retries to fail.
+            // BASS_ChannelPlay is a no-op if the mixer is already playing.
+            if mixerHandle != 0 { BASS_ChannelPlay(mixerHandle, 0) }
+            // Short waits first (100–200 ms), then 500 ms, so we catch up quickly when
+            // only a tiny amount of new data is needed to resume seamlessly.
+            let delay: TimeInterval = retryCount < 5 ? 0.2 : 0.5
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.continueDVRFrom(recordingTime: recordingTime, retryCount: retryCount + 1)
+            }
             return
         }
 
@@ -404,18 +490,21 @@ extension BASSRadioPlayer {
         if stream != 0 {
             BASS_Mixer_StreamAddChannel(mixerHandle, stream,
                                         DWORD(BASS_MIXER_CHAN_BUFFER | BASS_MIXER_CHAN_NORAMPIN))
+            // Restart the mixer if BASS_MIXER_END stopped it while no DVR source was active.
+            BASS_ChannelPlay(mixerHandle, 0)
             dvrPlaybackStream = stream
             dvrCurrentSegNum  = Int(recordingTime / buffer.segmentDuration)
             dvrNextStream     = 0
-            registerDVREndSync(on: stream)
+            let segOriginTime = Double(dvrCurrentSegNum) * buffer.segmentDuration
+            registerDVREndSync(on: stream, segOriginTime: segOriginTime)
             preloadDVRNextSegment()
             print("⏭️  DVR continue from t=\(String(format: "%.1f", recordingTime))s (seg \(dvrCurrentSegNum))")
-        } else if !isRetry {
+        } else if retryCount < 3 {
             // Segment file may be transiently absent while the ring buffer rotates
-            // (removeItem + createFile window). Retry once after 100 ms.
-            print("⚠️  DVR segment not ready at t=\(String(format: "%.1f", recordingTime))s — retrying")
+            // (removeItem + createFile window). Retry up to 3 times with 100 ms gaps.
+            print("⚠️  DVR segment not ready at t=\(String(format: "%.1f", recordingTime))s — retrying (\(retryCount + 1))")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                self?.continueDVRFrom(recordingTime: recordingTime, isRetry: true)
+                self?.continueDVRFrom(recordingTime: recordingTime, retryCount: retryCount + 1)
             }
         } else {
             print("📡 DVR end-of-buffer reached — going live")
@@ -480,6 +569,18 @@ extension BASSRadioPlayer {
         // Output mixer vol stays at 1.0 so any DVR stream still in the mixer plays through.
         BASS_ChannelSetAttribute(preMixerHandle, DWORD(BASS_ATTRIB_VOL), 0)
         BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_VOL), 1.0)
+
+        // Re-attach the DVR playback stream to the new mixer if DVR is actively playing.
+        // When BASS_ChannelFree freed the old mixer above, it removed all source channels
+        // from it (without freeing them). dvrPlaybackStream is still a valid BASS handle
+        // but is no longer in any mixer. DECODE-mode streams don't advance when orphaned,
+        // so re-adding here resumes audio from exactly where it was — no audio is skipped.
+        if dvrState == .playing && dvrPlaybackStream != 0 {
+            BASS_Mixer_StreamAddChannel(mixerHandle, dvrPlaybackStream,
+                                        DWORD(BASS_MIXER_CHAN_BUFFER | BASS_MIXER_CHAN_NORAMPIN))
+            print("🔄 DVR playback stream re-attached to new mixer (seg=\(dvrCurrentSegNum))")
+        }
+
         BASS_ChannelPlay(mixerHandle, 0)
 
         DispatchQueue.main.async {
