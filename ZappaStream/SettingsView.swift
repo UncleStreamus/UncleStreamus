@@ -208,7 +208,7 @@ struct SyncSettingsView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                Text("Coming soon - requires app to be published to the App Store.")
+                Text("Coming soon")
                     .font(.caption)
                     .foregroundColor(.orange)
             }

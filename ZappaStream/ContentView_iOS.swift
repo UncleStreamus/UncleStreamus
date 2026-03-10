@@ -14,6 +14,7 @@ import MediaPlayer
 struct ContentView_iOS: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
     @State private var showDataManager: ShowDataManager?
     @State private var safariURL: IdentifiableURL?
 
@@ -298,7 +299,12 @@ struct ContentView_iOS: View {
                 UserDefaults.standard.set(isPlaying, forKey: "wasPlayingOnQuit")
             }
             if newPhase == .active {
-                if bassPlayer.isUserIntendedPlay && !bassPlayer.isStreamActive {
+                // Reconnect whenever the user intended to play but the stream isn't
+                // healthy — covers both zero handles (app was suspended during reconnect
+                // backoff) and stalled/stopped handles (BASS timed out but handles
+                // weren't cleared before suspension). triggerImmediateReconnect() guards
+                // internally against disrupting a legitimately playing stream.
+                if bassPlayer.isUserIntendedPlay {
                     bassPlayer.triggerImmediateReconnect()
                 }
             }
@@ -442,7 +448,7 @@ struct ContentView_iOS: View {
                     if isBuffering {
                         ProgressView(value: bassPlayer.preBufferProgress)
                             .progressViewStyle(.linear)
-                            .tint(.secondary)
+                            .tint(colorScheme == .dark ? .secondary : .blue)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                             .animation(.easeInOut(duration: 0.3), value: isBuffering)
                     }
@@ -1048,8 +1054,12 @@ struct ContentView_iOS: View {
 
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { _ in
-            if !isPlaying {
-                DispatchQueue.main.async { self.playStream() }
+            DispatchQueue.main.async {
+                if self.bassPlayer.dvrState == .paused {
+                    self.bassPlayer.dvrResume()
+                } else if !self.isPlaying {
+                    self.playStream()
+                }
             }
             return .success
         }
@@ -1057,7 +1067,16 @@ struct ContentView_iOS: View {
         commandCenter.pauseCommand.isEnabled = true
         commandCenter.pauseCommand.addTarget { _ in
             if isPlaying {
-                DispatchQueue.main.async { self.stopStream() }
+                DispatchQueue.main.async {
+                    switch self.bassPlayer.dvrState {
+                    case .live:
+                        if self.dvrEnabled { self.bassPlayer.dvrPause() } else { self.stopStream() }
+                    case .paused:
+                        break  // already paused
+                    case .playing:
+                        self.bassPlayer.dvrPausePlayback()
+                    }
+                }
             }
             return .success
         }
@@ -1065,7 +1084,16 @@ struct ContentView_iOS: View {
         commandCenter.togglePlayPauseCommand.isEnabled = true
         commandCenter.togglePlayPauseCommand.addTarget { _ in
             DispatchQueue.main.async {
-                if self.isPlaying { self.stopStream() } else { self.playStream() }
+                switch (self.isPlaying, self.bassPlayer.dvrState) {
+                case (false, _):
+                    self.playStream()
+                case (true, .live):
+                    if self.dvrEnabled { self.bassPlayer.dvrPause() } else { self.stopStream() }
+                case (true, .paused):
+                    self.bassPlayer.dvrResume()
+                case (true, .playing):
+                    self.bassPlayer.dvrPausePlayback()
+                }
             }
             return .success
         }

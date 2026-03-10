@@ -137,15 +137,39 @@ enum PlaybackState {
     // MARK: - FLAC Download Buffer Refill Pause
     // When dlBuf falls below a threshold at a track boundary, briefly mute the mixer
     // for ~1s to let the ring buffer refill, then fade back in.
-    let bufferRefillThreshold: Double   = 3.0   // dlBuf% below which to trigger
-    let bufferRefillTrackInterval: Int  = 5     // minimum track changes between pauses
-    let bufferRefillDuration: TimeInterval = 3.0
+    let bufferRefillThreshold: Double   = 4.0   // dlBuf% below which to trigger
+    let bufferRefillTrackInterval: Int  = 3     // minimum track changes between pauses
+    let bufferRefillDuration: TimeInterval = 4.0
     var trackChangeCount: Int           = 0
     var isRefillPausing: Bool           = false
+
+    // MARK: - FLAC Network Recovery
+    // When dlBuf drops below 20% while playing FLAC, a recovery stream is pre-created
+    // so it can start downloading while the old buffer plays out. When the old stream
+    // goes STOPPED, the recovery stream is activated in-place (no 10s pre-buffer).
+    var recoveryStreamHandle: DWORD = 0
+    var isAttemptingRecovery: Bool  = false
+    var recoveryStartTime: Date?    = nil
 
     var eqLowGain:  Float = 0
     var eqMidGain:  Float = 0
     var eqHighGain: Float = 0
+
+    // MARK: - Master Volume
+
+    var masterVolume: Float = {
+        guard UserDefaults.standard.object(forKey: "masterVolume") != nil else { return 1.0 }
+        return UserDefaults.standard.float(forKey: "masterVolume")
+    }()
+
+    func setMasterVolume(_ volume: Float) {
+        masterVolume = max(0.0, min(1.0, volume))
+        UserDefaults.standard.set(masterVolume, forKey: "masterVolume")
+        BASS_SetConfig(DWORD(BASS_CONFIG_GVOL_STREAM), DWORD(masterVolume * 10000))
+    }
+
+    func volumeUp() { setMasterVolume(masterVolume + 0.1) }
+    func volumeDown() { setMasterVolume(masterVolume - 0.1) }
 
     var compressorOn:     Bool  = false
     var compressorAmount: Float = 0.25
@@ -241,6 +265,11 @@ enum PlaybackState {
     var dvrBufferFullExpired: Bool = false // set after 15-min playback window elapses
     var dvrBufferExpiryTimer: Timer? = nil
 
+    // Keeps DVREndSyncContext objects alive while BASS holds raw pointers to them.
+    // Keys are DVR stream handles; values are the context objects. Entries removed
+    // when the corresponding stream is freed (so objects outlive their BASS channels).
+    var dvrSyncContexts: [DWORD: AnyObject] = [:]
+
     // MARK: - FX Blend (smooth on/off transitions)
     // Ramp blend 0→1 (passthrough→active) over ~83ms when toggling compressor/EQ or master bypass.
     // Prevents clicks/pops caused by abrupt compressor state jumps or filter coefficient changes.
@@ -304,6 +333,7 @@ enum PlaybackState {
             return
         }
         BASS_Start()
+        BASS_SetConfig(DWORD(BASS_CONFIG_GVOL_STREAM), DWORD(masterVolume * 10000))
         print("✅  BASS initialised")
         startNetworkMonitoring()
 
@@ -375,7 +405,17 @@ enum PlaybackState {
         cancelReconnectTimer()
         reconnectAttempt = 0
         DispatchQueue.main.async { self.isReconnecting = true }
-        bassPollingQueue.async { self.restartStream() }
+        bassPollingQueue.async { [weak self] in
+            guard let self = self else { return }
+            // Skip if stream is already active and playing — avoids disrupting a healthy
+            // stream or double-restarting when both scenePhase and NWPathMonitor fire together.
+            if self.isStreamActive && BASS_ChannelIsActive(self.streamHandle) == DWORD(BASS_ACTIVE_PLAYING) {
+                print("🔄 triggerImmediateReconnect: stream already playing — skipping")
+                DispatchQueue.main.async { self.isReconnecting = false }
+                return
+            }
+            self.restartStream()
+        }
     }
 
     // MARK: - Internal Helpers

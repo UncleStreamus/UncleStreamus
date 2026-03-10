@@ -250,7 +250,47 @@ class FZShowsFetcher {
         }.resume()
     }
 
-    private static func parseShowFromHTML(html: String, filename: String, searchDate: String, originalDate: String,
+    /// Splits a setlist text string on commas, respecting parentheses and brackets.
+    /// Entries with 2 or fewer characters are filtered out.
+    static func parseSetlist(_ text: String) -> [String] {
+        var songs: [String] = []
+        var currentSong = ""
+        var parenDepth = 0
+        var bracketDepth = 0
+
+        for char in text {
+            if char == "(" {
+                parenDepth += 1
+                currentSong.append(char)
+            } else if char == ")" {
+                parenDepth -= 1
+                currentSong.append(char)
+            } else if char == "[" {
+                bracketDepth += 1
+                currentSong.append(char)
+            } else if char == "]" {
+                bracketDepth = 0
+                currentSong.append(char)
+            } else if char == "," && parenDepth == 0 && bracketDepth == 0 {
+                let trimmed = currentSong.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty && trimmed.count > 2 {
+                    songs.append(trimmed)
+                }
+                currentSong = ""
+            } else {
+                currentSong.append(char)
+            }
+        }
+
+        let trimmed = currentSong.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty && trimmed.count > 2 {
+            songs.append(trimmed)
+        }
+
+        return songs
+    }
+
+    static func parseShowFromHTML(html: String, filename: String, searchDate: String, originalDate: String,
                                           showTime: ShowTime, sectionKeywords: [String]?,
                                           url: String) -> FZShow? {
         // Find the date inside an <h4> tag (not in notes or other places)
@@ -455,47 +495,7 @@ class FZShowsFetcher {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
 
             // Split on commas, but not commas inside parentheses or brackets
-            var songs: [String] = []
-            var currentSong = ""
-            var parenDepth = 0
-            var bracketDepth = 0
-
-            for char in setlistText {
-                if char == "(" {
-                    parenDepth += 1
-                    currentSong.append(char)
-                } else if char == ")" {
-                    parenDepth -= 1
-                    currentSong.append(char)
-                } else if char == "[" {
-                    bracketDepth += 1
-                    currentSong.append(char)
-                } else if char == "]" {
-                    // Reset bracket depth to 0 on any "]" — FZShows uses nested
-                    // brackets for annotations (e.g. "[parts in ZA, [FZPTMOFZ]")
-                    // which are semantically one annotation block. Decrementing
-                    // depth would leave it at 1 after the inner close, swallowing
-                    // all subsequent songs into the same entry.
-                    bracketDepth = 0
-                    currentSong.append(char)
-                } else if char == "," && parenDepth == 0 && bracketDepth == 0 {
-                    let trimmed = currentSong.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty && trimmed.count > 2 {
-                        songs.append(trimmed)
-                    }
-                    currentSong = ""
-                } else {
-                    currentSong.append(char)
-                }
-            }
-
-            // Don't forget the last song
-            let trimmed = currentSong.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty && trimmed.count > 2 {
-                songs.append(trimmed)
-            }
-
-            setlist = songs
+            setlist = parseSetlist(setlistText)
         }
 
         // Build final show info with show type

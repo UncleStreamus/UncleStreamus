@@ -91,6 +91,18 @@ struct ZappaStreamApp: App {
         .modelContainer(sharedModelContainer)
         .defaultSize(width: 350, height: 520)
         .commands {
+            CommandMenu("Audio") {
+                Button("Volume Up") {
+                    NotificationCenter.default.post(name: .volumeUp, object: nil)
+                }
+                .keyboardShortcut("=", modifiers: [.command, .shift])
+
+                Button("Volume Down") {
+                    NotificationCenter.default.post(name: .volumeDown, object: nil)
+                }
+                .keyboardShortcut("-", modifiers: [.command, .shift])
+            }
+
             CommandGroup(after: .toolbar) {
                 Divider()
 
@@ -155,6 +167,45 @@ extension Notification.Name {
     static let streamSelectionChanged = Notification.Name("streamSelectionChanged")
     static let togglePlayback = Notification.Name("togglePlayback")
     static let selectStream = Notification.Name("selectStream")
+    static let volumeUp = Notification.Name("volumeUp")
+    static let volumeDown = Notification.Name("volumeDown")
+    static let setVolume = Notification.Name("setVolume")
+}
+
+private class VolumeSliderView: NSView {
+    private let slider: NSSlider
+
+    init() {
+        slider = NSSlider()
+        super.init(frame: NSRect(x: 0, y: 0, width: 200, height: 30))
+
+        let currentVolume = UserDefaults.standard.object(forKey: "masterVolume") != nil
+            ? UserDefaults.standard.float(forKey: "masterVolume") : 1.0
+
+        let icon = NSImageView(frame: NSRect(x: 10, y: 8, width: 14, height: 14))
+        icon.image = NSImage(systemSymbolName: "speaker.wave.2.fill", accessibilityDescription: "Volume")
+        icon.contentTintColor = .secondaryLabelColor
+        addSubview(icon)
+
+        slider.frame = NSRect(x: 30, y: 7, width: 158, height: 16)
+        slider.minValue = 0.0
+        slider.maxValue = 1.0
+        slider.doubleValue = Double(currentVolume)
+        slider.isContinuous = true
+        slider.target = self
+        slider.action = #selector(sliderChanged)
+        addSubview(slider)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    @objc private func sliderChanged() {
+        NotificationCenter.default.post(
+            name: .setVolume,
+            object: nil,
+            userInfo: ["volume": Float(slider.doubleValue)]
+        )
+    }
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
@@ -270,6 +321,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         streamItem.submenu = streamSubmenu
         menu.addItem(streamItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        // Audio submenu
+        let audioItem = NSMenuItem(title: "Audio", action: nil, keyEquivalent: "")
+        let audioSubmenu = NSMenu()
+
+        let sliderItem = NSMenuItem()
+        sliderItem.view = VolumeSliderView()
+        audioSubmenu.addItem(sliderItem)
+
+        audioSubmenu.addItem(NSMenuItem.separator())
+
+        let volUpItem = NSMenuItem(title: "Volume Up", action: #selector(handleVolumeUp), keyEquivalent: "=")
+        volUpItem.keyEquivalentModifierMask = [.command, .shift]
+        audioSubmenu.addItem(volUpItem)
+
+        let volDownItem = NSMenuItem(title: "Volume Down", action: #selector(handleVolumeDown), keyEquivalent: "-")
+        volDownItem.keyEquivalentModifierMask = [.command, .shift]
+        audioSubmenu.addItem(volDownItem)
+
+        audioItem.submenu = audioSubmenu
+        menu.addItem(audioItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -459,6 +533,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func largestText() {
         UserDefaults.standard.set(1.3, forKey: "textScale")
+    }
+
+    // MARK: - Volume Actions
+
+    @objc private func handleVolumeUp() {
+        NotificationCenter.default.post(name: .volumeUp, object: nil)
+    }
+
+    @objc private func handleVolumeDown() {
+        NotificationCenter.default.post(name: .volumeDown, object: nil)
     }
 
     @objc private func openSettings() {

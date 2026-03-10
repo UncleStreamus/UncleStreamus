@@ -34,6 +34,16 @@ xcodebuild -scheme ZappaStream -configuration Debug
 xcodebuild -scheme ZappaStream-iOS -configuration Debug
 ```
 
+**Run unit tests (macOS only):**
+```bash
+xcodebuild test -scheme ZappaStream -destination 'platform=macOS'
+```
+
+**Run a single test class:**
+```bash
+xcodebuild test -scheme ZappaStream -destination 'platform=macOS' -only-testing:ZappaStreamTests/ParsedTrackInfoTests
+```
+
 **Run on macOS (from Xcode):**
 - Select `ZappaStream` scheme, then Cmd+R
 - Menubar icon appears in top-right corner; click to open popover
@@ -309,7 +319,11 @@ Platform-Specific:
 
 | File | Purpose |
 |------|---------|
-| `BASSRadioPlayer.swift` | Audio playback engine, all 4 codecs, metadata polling, DSP effects — stream state machine, FLAC pre-buffering, fade-in/out, adaptive compressor, stereo smoothing, metadata callback |
+| `BASSRadioPlayer.swift` | Core `@Observable` class: state properties, BASS handles, `PlaybackState` enum, `init` (global BASS config), `deinit`, `play()`, `stop()`, `stopWithFadeOut()`, stream quality list |
+| `BASSRadioPlayer+Playback.swift` | Stream lifecycle — `switchQuality()`, `freeStream()`, `restartStream()`, FLAC two-mixer pipeline, pre-buffer sequence, auto-restart, network resilience, fade-in/out timers |
+| `BASSRadioPlayer+Metadata.swift` | Metadata polling — `startMetadataPolling()`, `pollMetadata()`, `fetchIcecastMetadata()`, `publishTitle()`, state polling, stall detection |
+| `BASSRadioPlayer+AudioFX.swift` | DSP effects pipeline — `applyEffects()`, 3-band EQ, adaptive compressor, stereo width (M/S + freq-dependent spreading + mono synthesis), soft limiter, click guard, `flushEffects()`, `masterBypassEnabled` |
+| `BASSRadioPlayer+DVR.swift` | DVR ring buffer playback (macOS only) — `dvrPause()`, `dvrResume()`, `goLive()`, `handleDVRStreamEnd()`, `behindLiveSeconds`, `updateDVRBufferSize()`, recording DSP |
 | `ParsedTrackInfo.swift` | Metadata parsing (4 formats), date/location/track extraction — regex-based extraction from ICY/Vorbis/Icecast/fallback formats |
 | `FZShowsFetcher.swift` | HTML scraping for zappateers.com setlists, exceptions handling — NSRegularExpression, tour period mapping, fallback to rehearsals.html |
 | `ShowDataManager.swift` | SwiftData persistence wrapper, history/favorites operations — @Observable singleton managing saves, queries, bulk operations |
@@ -323,7 +337,7 @@ Platform-Specific:
 | `TourPeriods.swift` | `GeoData` struct with tour periods and location data — maps years to zappateers.com filenames; US states, Canadian provinces, countries |
 | `ZappaStreamApp.swift` | App entry point, SwiftData setup, menubar (macOS), app delegate — ModelContainer setup, NSStatusBar registration, NotificationCenter comms |
 | `MarqueeText.swift` | Animated scrolling text for long track titles |
-| Shared utilities | `Acronym.swift`, `Stream.swift`, `PlatformHelpers.swift`, `SongFormatter.swift` — platform helpers (email, SafariView, system colors); lightweight data models |
+| Shared utilities | `Acronym.swift`, `Stream.swift`, `PlatformHelpers.swift`, `SongFormatter.swift`, `ScaledFont.swift` — platform helpers (email, SafariView, system colors), lightweight data models, font scaling helper |
 | iOS-only | `BASSBridgingHeader.h` — makes BASS C symbols globally available to Swift; set via SWIFT_OBJC_BRIDGING_HEADER |
 
 ## Development Notes
@@ -396,7 +410,19 @@ The project uses persistent memory files to track architectural decisions and on
 
 ### Testing Strategy
 
-No test suite — manual testing only. After audio playback changes, verify all 4 stream formats (MP3 128k, AAC 192k, OGG 256k, FLAC 750k) transition to `.playing` and metadata updates every 3s. After UI changes, test on both macOS (menubar + window) and iOS (simulator + iPad landscape). After parsing changes, test with shows from different eras (pre-2000, 2000s, recent) since metadata formats vary.
+**Unit test suite** (`ZappaStreamTests/`, macOS only, 188 tests as of Mar 2026):
+- `ParsedTrackInfoTests` — 4 metadata formats, `tracksMatch`, `normalizeTrackName`
+- `TourMappingTests` — tour boundaries, `GeoData.parseLocation`, `GeoData.periodName`
+- `ShowTimeFetcherTests` — `ShowTime` enum, exceptions dict, `parseSetlist`, `parseShowFromHTML` with mock HTML
+- `SavedShowTests` — `SavedShow.from()`, computed properties, corrupt-data fallbacks, `toFZShow()` round-trip
+- `StreamBufferTests` — init clamping, `bufferedDuration` formula, WAV header, `updateMaxSegments`
+
+All tests cover pure/stateless business logic. `BASSRadioPlayer` itself has no unit tests (requires BASS audio hardware); verify it manually after audio changes.
+
+**Manual verification checklist:**
+- After audio playback changes: verify all 4 stream formats (MP3 128k, AAC 192k, OGG 256k, FLAC 750k) transition to `.playing` and metadata updates every 3s
+- After UI changes: test on macOS (menubar + window) and iOS (simulator + iPad landscape)
+- After parsing changes: test with shows from different eras (pre-2000, 2000s, recent) since metadata formats vary
 
 ### Troubleshooting
 

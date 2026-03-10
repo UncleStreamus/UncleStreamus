@@ -125,6 +125,10 @@ extension BASSRadioPlayer {
                     self?.startFadeIn(mixer: ph)
                 }
             }
+
+            // Recovery is triggered reactively when the stream goes STOPPED (see below),
+            // not proactively on dlBuf level — dlBuf naturally sits at 17–20% during
+            // normal operation, making threshold-based triggering unreliable.
         }
 
         if activeFormat == "AAC",
@@ -148,10 +152,31 @@ extension BASSRadioPlayer {
                 if !oggStopConfirmed {
                     oggStopConfirmed = true
                     print("⏸️  \(activeFormat) STOPPED detected — confirming in next poll…")
+                    // FLAC: if recovery hasn't started yet (dlBuf was already < 20% when the
+                    // network dropped, bypassing the health-check trigger), start it now.
+                    // The 2s confirmation window gives the recovery stream time to connect.
+                    if activeFormat == "FLAC", !isAttemptingRecovery, recoveryStreamHandle == 0 {
+                        isAttemptingRecovery = true
+                        recoveryStartTime = Date()
+                        bassPollingQueue.async { [weak self] in self?.startFlacRecovery() }
+                    }
                     return
                 }
                 oggStopConfirmed = false
             }
+
+            // FLAC recovery: if a recovery stream was pre-created while dlBuf was draining,
+            // activate it now instead of doing a full 10s restart.
+            if activeFormat == "FLAC", recoveryStreamHandle != 0 {
+                let rh = recoveryStreamHandle
+                let elapsed = recoveryStartTime.map { Date().timeIntervalSince($0) } ?? 0
+                recoveryStreamHandle = 0
+                isAttemptingRecovery = false
+                print("🔄 FLAC recovery: old stream STOPPED — activating recovery stream \(rh) (downloaded \(String(format:"%.1f", elapsed))s)")
+                bassPollingQueue.async { [weak self] in self?.activateRecoveryStream(handle: rh) }
+                return
+            }
+
             let err = BASS_ErrorGetCode()
             if dvrState == .live {
                 print("🔄 Stream STOPPED (err=\(err)) — fast auto restart")

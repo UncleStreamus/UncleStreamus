@@ -157,6 +157,7 @@ extension BASSRadioPlayer {
         }
         for s in dvrPausedStreams { BASS_StreamFree(s) }
         dvrPausedStreams.removeAll()
+        dvrSyncContexts.removeAll()
 
         if mixerHandle != 0 {
             BASS_ChannelStop(mixerHandle)     // stops DSP callbacks including recordingDSP
@@ -196,6 +197,14 @@ extension BASSRadioPlayer {
         cgFadeBuffersRemaining = 0
         cgLastGuardTime = 0
         flacPendingFadeIn = false
+
+        if recoveryStreamHandle != 0 {
+            BASS_Mixer_ChannelRemove(recoveryStreamHandle)
+            BASS_StreamFree(recoveryStreamHandle)
+            recoveryStreamHandle = 0
+        }
+        isAttemptingRecovery = false
+        recoveryStartTime = nil
 
         // Channels are now stopped — safe to tear down StreamBuffer.
         recordingDSP = 0
@@ -361,6 +370,85 @@ extension BASSRadioPlayer {
         }
     }
 
+    // MARK: - FLAC Network Recovery
+
+    /// Called when dlBuf drops below 20% during FLAC playback. Creates a new HTTP stream
+    /// and adds it muted to the existing pre-mixer so it can download in the background
+    /// while the old buffer plays out. Called on bassPollingQueue.
+    func startFlacRecovery() {
+        guard activeFormat == "FLAC",
+              streamHandle != 0,
+              preMixerHandle != 0,
+              let current = qualities.first(where: { $0.format == "FLAC" }),
+              let cURL = current.url.cString(using: .utf8) else {
+            isAttemptingRecovery = false
+            recoveryStartTime = nil
+            return
+        }
+
+        print("🔄 FLAC recovery: dlBuf < 20% — pre-creating recovery stream")
+
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 30000)
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)
+        let streamFlags = DWORD(BASS_STREAM_STATUS) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE)
+        let newHandle = BASS_StreamCreateURL(cURL, 0, streamFlags, nil, nil)
+        let streamErr = BASS_ErrorGetCode()  // capture before SetConfig overwrites it
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 25000)
+
+        guard newHandle != 0 else {
+            print("❌ FLAC recovery: stream creation failed (err=\(streamErr)) — will fall back to normal restart")
+            isAttemptingRecovery = false
+            recoveryStartTime = nil
+            return
+        }
+
+        // Add to pre-mixer muted — it downloads in background while old stream plays out.
+        BASS_Mixer_StreamAddChannel(preMixerHandle, newHandle,
+            DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN))
+        BASS_ChannelSetAttribute(newHandle, DWORD(BASS_ATTRIB_VOL), 0)
+
+        recoveryStreamHandle = newHandle
+        print("🔄 FLAC recovery: stream \(newHandle) added to pre-mixer (muted) — downloading…")
+    }
+
+    /// Swaps the pre-created recovery stream in place of the exhausted old stream.
+    /// Avoids the full 10s pre-buffer restart. Called on bassPollingQueue.
+    func activateRecoveryStream(handle: DWORD) {
+        let elapsed = recoveryStartTime.map { Date().timeIntervalSince($0) } ?? 0
+        recoveryStartTime = nil
+        print("🔄 FLAC recovery: activating stream \(handle) (downloaded \(String(format:"%.1f", elapsed))s)")
+
+        // Remove and free the exhausted old stream from the pre-mixer.
+        let oldHandle = streamHandle
+        if oldHandle != 0 {
+            BASS_Mixer_ChannelRemove(oldHandle)
+            BASS_ChannelStop(oldHandle)
+            BASS_StreamFree(oldHandle)
+            print("🔄 FLAC recovery: old stream \(oldHandle) freed")
+        }
+
+        // Swap in the recovery stream.
+        streamHandle = handle
+
+        // Re-register syncs on the new stream handle (old syncs auto-removed when stream was freed).
+        setupSyncs(for: handle)
+
+        // Reset metadata dedup so the new stream's first track fires a callback.
+        lastFlacTitle = nil
+        lastIcecastTitle = nil
+
+        // Unmute recovery stream in the pre-mixer, then mute FX output and wait for
+        // buffer to fill (same fade-in trigger as initial FLAC play).
+        BASS_ChannelSetAttribute(handle, DWORD(BASS_ATTRIB_VOL), 1.0)
+        BASS_ChannelSetAttribute(playbackHandle, DWORD(BASS_ATTRIB_VOL), 0)
+        flacPendingFadeIn = true
+
+        DispatchQueue.main.async { [weak self] in
+            self?.playbackState = .playing
+        }
+        print("✅ FLAC recovery: stream \(handle) active — fade-in pending buffer fill")
+    }
+
     // MARK: - Stream Restart
 
     func restartStream() {
@@ -498,6 +586,12 @@ extension BASSRadioPlayer {
         timer.schedule(deadline: .now() + delay)
         timer.setEventHandler { [weak self] in
             guard let self = self, self.isUserIntendedPlay else { return }
+            // Skip if a concurrent source (e.g. triggerImmediateReconnect) already
+            // created a new stream while this timer was waiting in the queue.
+            guard !self.isStreamActive else {
+                print("⏩ Reconnect timer fired but stream already active — skipping")
+                return
+            }
             self.restartStream()
         }
         timer.resume()

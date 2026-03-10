@@ -7,6 +7,7 @@ import MediaPlayer
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.colorScheme) private var colorScheme
     @State private var showDataManager: ShowDataManager?
 
     @State private var isPlaying = false
@@ -504,7 +505,7 @@ struct ContentView: View {
                             if isBuffering {
                                 ProgressView(value: bassPlayer.preBufferProgress)
                                     .progressViewStyle(.linear)
-                                    .tint(.secondary)
+                                    .tint(colorScheme == .dark ? .secondary : .blue)
                                     .transition(.opacity.combined(with: .move(edge: .top)))
                                     .animation(.easeInOut(duration: 0.3), value: isBuffering)
                             }
@@ -1076,10 +1077,15 @@ struct ContentView: View {
             object: nil,
             queue: .main
         ) { [self] _ in
-            if isPlaying {
-                stopStream()
-            } else {
+            switch (isPlaying, bassPlayer.dvrState) {
+            case (false, _):
                 playStream()
+            case (true, .live):
+                if dvrEnabled { bassPlayer.dvrPause() } else { stopStream() }
+            case (true, .paused):
+                bassPlayer.dvrResume()
+            case (true, .playing):
+                bassPlayer.dvrPausePlayback()
             }
         }
 
@@ -1092,6 +1098,33 @@ struct ContentView: View {
             if let format = notification.userInfo?["format"] as? String,
                let stream = streams.first(where: { $0.format == format }) {
                 selectedStream = stream
+            }
+        }
+
+        // Listen for volume controls from menu / keyboard shortcut
+        NotificationCenter.default.addObserver(
+            forName: .volumeUp,
+            object: nil,
+            queue: .main
+        ) { [weak bassPlayer] _ in
+            bassPlayer?.volumeUp()
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: .volumeDown,
+            object: nil,
+            queue: .main
+        ) { [weak bassPlayer] _ in
+            bassPlayer?.volumeDown()
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: .setVolume,
+            object: nil,
+            queue: .main
+        ) { [weak bassPlayer] notification in
+            if let volume = notification.userInfo?["volume"] as? Float {
+                bassPlayer?.setMasterVolume(volume)
             }
         }
 
@@ -1220,8 +1253,10 @@ struct ContentView: View {
         // Play command
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { [self] _ in
-            if !isPlaying {
-                DispatchQueue.main.async {
+            DispatchQueue.main.async {
+                if self.bassPlayer.dvrState == .paused {
+                    self.bassPlayer.dvrResume()
+                } else if !self.isPlaying {
                     self.playStream()
                 }
             }
@@ -1233,7 +1268,14 @@ struct ContentView: View {
         commandCenter.pauseCommand.addTarget { [self] _ in
             if isPlaying {
                 DispatchQueue.main.async {
-                    self.stopStream()
+                    switch self.bassPlayer.dvrState {
+                    case .live:
+                        if self.dvrEnabled { self.bassPlayer.dvrPause() } else { self.stopStream() }
+                    case .paused:
+                        break  // already paused
+                    case .playing:
+                        self.bassPlayer.dvrPausePlayback()
+                    }
                 }
             }
             return .success
@@ -1243,10 +1285,15 @@ struct ContentView: View {
         commandCenter.togglePlayPauseCommand.isEnabled = true
         commandCenter.togglePlayPauseCommand.addTarget { [self] _ in
             DispatchQueue.main.async {
-                if self.isPlaying {
-                    self.stopStream()
-                } else {
+                switch (self.isPlaying, self.bassPlayer.dvrState) {
+                case (false, _):
                     self.playStream()
+                case (true, .live):
+                    if self.dvrEnabled { self.bassPlayer.dvrPause() } else { self.stopStream() }
+                case (true, .paused):
+                    self.bassPlayer.dvrResume()
+                case (true, .playing):
+                    self.bassPlayer.dvrPausePlayback()
                 }
             }
             return .success
