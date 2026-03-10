@@ -224,7 +224,7 @@ struct EQBandView: View {
     @Binding var gain: Float
     let onUpdate: () -> Void
 
-    private let trackHeight: CGFloat = 90
+    private let trackHeight: CGFloat = 80
 
     var body: some View {
         VStack(spacing: 4) {
@@ -488,7 +488,7 @@ struct AudioFXView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
 
                 // — Master Bypass + Reset All —
                 HStack {
@@ -512,10 +512,10 @@ struct AudioFXView: View {
 
                 Divider()
 
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
 
                     // — 3-Band EQ —
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 5) {
                         HStack {
                             Text("EQ")
                                 .font(.subheadline)
@@ -527,7 +527,7 @@ struct AudioFXView: View {
                                 .onChange(of: player.eqEnabled) { player.updateEQ() }
                         }
 
-                        HStack(spacing: 12) {
+                        HStack(spacing: 10) {
                             EQBandView(label: "Low",   gain: $player.eqLowGain,  onUpdate: player.updateEQ)
                             EQBandView(label: "Mid",  gain: $player.eqMidGain,  onUpdate: player.updateEQ)
                             EQBandView(label: "High", gain: $player.eqHighGain, onUpdate: player.updateEQ)
@@ -539,7 +539,7 @@ struct AudioFXView: View {
                     Divider()
 
                     // — Compressor —
-                    VStack(spacing: 6) {
+                    VStack(spacing: 5) {
                         HStack {
                             Text("Compressor")
                                 .font(.subheadline)
@@ -562,7 +562,7 @@ struct AudioFXView: View {
                     Divider()
 
                     // — Stereo Width + Pan —
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 5) {
                         HStack {
                             Text("Stereo Width")
                                 .font(.subheadline)
@@ -580,7 +580,7 @@ struct AudioFXView: View {
                         Text("Stereo Pan")
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                            .padding(.top, 4)
+                            .padding(.top, 3)
                         StereoPanSlider(value: $player.stereoPan)
                             .opacity(player.stereoWidthEnabled ? 1.0 : 0.4)
                             .onChange(of: player.stereoPan) { player.updateStereo() }
