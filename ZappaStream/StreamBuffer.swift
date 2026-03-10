@@ -47,7 +47,7 @@ final class StreamBuffer {
     private(set) var totalSamplesWritten:  Int64 = 0  // cumulative, never reset
 
     private var fileHandle: FileHandle?
-    private let writeQueue = DispatchQueue(label: "com.zappastream.dvr", qos: .background)
+    private let writeQueue = DispatchQueue(label: "com.zappastream.dvr", qos: .utility)
     private var isRunning  = false
 
     private let tempDir: URL
@@ -65,6 +65,16 @@ final class StreamBuffer {
         writeQueue.async { [weak self] in
             self?.stopBeforeSegmentIndex = index
             self?.onBufferFull = onFull
+        }
+    }
+
+    /// Remove the stop-before protection so the ring rolls freely.
+    /// Call when DVR playback resumes: the pause-point content no longer needs protecting
+    /// because the user is now advancing past it, and old segments can be safely overwritten.
+    func clearStopBeforeSegment() {
+        writeQueue.async { [weak self] in
+            self?.stopBeforeSegmentIndex = nil
+            self?.onBufferFull = nil
         }
     }
 

@@ -70,6 +70,19 @@
 		D7AD703B5B1743C183C698F7 /* AudioFXView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */; };
 		F62804A5EF88994291433F17 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
 		FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752DBEE239607630EF9BE524 /* SongFormatter.swift */; };
+		AAAA00112FAA001100AA0011 /* ParsedTrackInfoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00012FAA000100AA0001 /* ParsedTrackInfoTests.swift */; };
+		AAAA00122FAA001200AA0012 /* TourMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00022FAA000200AA0002 /* TourMappingTests.swift */; };
+		AAAA00132FAA001300AA0013 /* ShowTimeFetcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00032FAA000300AA0003 /* ShowTimeFetcherTests.swift */; };
+		AAAA00142FAA001400AA0014 /* SavedShowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00042FAA000400AA0004 /* SavedShowTests.swift */; };
+		AAAA00152FAA001500AA0015 /* StreamBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00052FAA000500AA0005 /* StreamBufferTests.swift */; };
+		BBBB00012FBB000100BB0001 /* BASSRadioPlayer+Playback.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBB00052FBB000500BB0005 /* BASSRadioPlayer+Playback.swift */; };
+		BBBB00022FBB000200BB0002 /* BASSRadioPlayer+Playback.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBB00052FBB000500BB0005 /* BASSRadioPlayer+Playback.swift */; };
+		BBBB00032FBB000300BB0003 /* BASSRadioPlayer+AudioFX.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBB00062FBB000600BB0006 /* BASSRadioPlayer+AudioFX.swift */; };
+		BBBB00042FBB000400BB0004 /* BASSRadioPlayer+AudioFX.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBB00062FBB000600BB0006 /* BASSRadioPlayer+AudioFX.swift */; };
+		BBBB00072FBB000700BB0007 /* BASSRadioPlayer+Metadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBB00092FBB000900BB0009 /* BASSRadioPlayer+Metadata.swift */; };
+		BBBB00082FBB000800BB0008 /* BASSRadioPlayer+Metadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBB00092FBB000900BB0009 /* BASSRadioPlayer+Metadata.swift */; };
+		BBBB000A2FBB000A00BB000A /* BASSRadioPlayer+DVR.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBB000C2FBB000C00BB000C /* BASSRadioPlayer+DVR.swift */; };
+		BBBB000B2FBB000B00BB000B /* BASSRadioPlayer+DVR.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBB000C2FBB000C00BB000C /* BASSRadioPlayer+DVR.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -105,6 +118,10 @@
 		BE024DCD2F4A659300B2C079 /* tags.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = tags.xcframework; path = Frameworks/iOS/tags.xcframework; sourceTree = SOURCE_ROOT; };
 		BE024DE12F4A67D800B2C079 /* BASSBridgingHeader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BASSBridgingHeader.h; sourceTree = "<group>"; };
 		BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASSRadioPlayer.swift; sourceTree = "<group>"; };
+		BBBB00052FBB000500BB0005 /* BASSRadioPlayer+Playback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BASSRadioPlayer+Playback.swift"; sourceTree = "<group>"; };
+		BBBB00062FBB000600BB0006 /* BASSRadioPlayer+AudioFX.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BASSRadioPlayer+AudioFX.swift"; sourceTree = "<group>"; };
+		BBBB00092FBB000900BB0009 /* BASSRadioPlayer+Metadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BASSRadioPlayer+Metadata.swift"; sourceTree = "<group>"; };
+		BBBB000C2FBB000C00BB000C /* BASSRadioPlayer+DVR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BASSRadioPlayer+DVR.swift"; sourceTree = "<group>"; };
 		BE1A341B2F30C6D600647B01 /* ZappaStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZappaStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZappaStreamApp.swift; sourceTree = "<group>"; };
 		BE1A34202F30C6D600647B01 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -129,6 +146,12 @@
 		BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MarqueeText.swift; sourceTree = "<group>"; };
 		C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamBuffer.swift; sourceTree = "<group>"; };
 		DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FilterView.swift; sourceTree = "<group>"; };
+		AAAA00012FAA000100AA0001 /* ParsedTrackInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfoTests.swift; sourceTree = "<group>"; };
+		AAAA00022FAA000200AA0002 /* TourMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TourMappingTests.swift; sourceTree = "<group>"; };
+		AAAA00032FAA000300AA0003 /* ShowTimeFetcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowTimeFetcherTests.swift; sourceTree = "<group>"; };
+		AAAA00042FAA000400AA0004 /* SavedShowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedShowTests.swift; sourceTree = "<group>"; };
+		AAAA00052FAA000500AA0005 /* StreamBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamBufferTests.swift; sourceTree = "<group>"; };
+		AAAA00062FAA000600AA0006 /* ZappaStreamTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ZappaStreamTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -158,7 +181,32 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AAAA00222FAA002200AA0022 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXContainerItemProxy section */
+		AAAA00712FAA007100AA0071 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BE1A34132F30C6D600647B01 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BE1A341A2F30C6D600647B01;
+			remoteInfo = ZappaStream;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		AAAA00702FAA007000AA0070 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BE1A341A2F30C6D600647B01 /* ZappaStream */;
+			targetProxy = AAAA00712FAA007100AA0071 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXGroup section */
 		B7EB114D716DB2355761DC19 /* Frameworks */ = {
@@ -174,6 +222,7 @@
 			children = (
 				BE1A341D2F30C6D600647B01 /* ZappaStream */,
 				BE2FCA572F3CB6F60038E706 /* ZappaStream-iOS */,
+				AAAA00602FAA006000AA0060 /* ZappaStreamTests */,
 				BE1A341C2F30C6D600647B01 /* Products */,
 				B7EB114D716DB2355761DC19 /* Frameworks */,
 			);
@@ -184,6 +233,7 @@
 			children = (
 				BE1A341B2F30C6D600647B01 /* ZappaStream.app */,
 				BE2FCA562F3CB6F60038E706 /* ZappaStream-iOS.app */,
+				AAAA00062FAA000600AA0006 /* ZappaStreamTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -215,6 +265,10 @@
 				5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */,
 				BE024DE12F4A67D800B2C079 /* BASSBridgingHeader.h */,
 				BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */,
+				BBBB00052FBB000500BB0005 /* BASSRadioPlayer+Playback.swift */,
+				BBBB00062FBB000600BB0006 /* BASSRadioPlayer+AudioFX.swift */,
+				BBBB00092FBB000900BB0009 /* BASSRadioPlayer+Metadata.swift */,
+				BBBB000C2FBB000C00BB000C /* BASSRadioPlayer+DVR.swift */,
 				C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */,
 			);
 			path = ZappaStream;
@@ -250,6 +304,18 @@
 				BE2FCA612F3CB6F70038E706 /* Preview Assets.xcassets */,
 			);
 			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		AAAA00602FAA006000AA0060 /* ZappaStreamTests */ = {
+			isa = PBXGroup;
+			children = (
+				AAAA00012FAA000100AA0001 /* ParsedTrackInfoTests.swift */,
+				AAAA00022FAA000200AA0002 /* TourMappingTests.swift */,
+				AAAA00032FAA000300AA0003 /* ShowTimeFetcherTests.swift */,
+				AAAA00042FAA000400AA0004 /* SavedShowTests.swift */,
+				AAAA00052FAA000500AA0005 /* StreamBufferTests.swift */,
+			);
+			path = ZappaStreamTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -290,6 +356,23 @@
 			productReference = BE2FCA562F3CB6F60038E706 /* ZappaStream-iOS.app */;
 			productType = "com.apple.product-type.application";
 		};
+		AAAA00302FAA003000AA0030 /* ZappaStreamTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AAAA00502FAA005000AA0050 /* Build configuration list for PBXNativeTarget "ZappaStreamTests" */;
+			buildPhases = (
+				AAAA00212FAA002100AA0021 /* Sources */,
+				AAAA00222FAA002200AA0022 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AAAA00702FAA007000AA0070 /* PBXTargetDependency */,
+			);
+			name = ZappaStreamTests;
+			productName = ZappaStreamTests;
+			productReference = AAAA00062FAA000600AA0006 /* ZappaStreamTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -305,6 +388,10 @@
 					};
 					BE2FCA552F3CB6F60038E706 = {
 						CreatedOnToolsVersion = 15.4;
+					};
+					AAAA00302FAA003000AA0030 = {
+						CreatedOnToolsVersion = 15.4;
+						TestTargetID = BE1A341A2F30C6D600647B01;
 					};
 				};
 			};
@@ -326,6 +413,7 @@
 			targets = (
 				BE1A341A2F30C6D600647B01 /* ZappaStream */,
 				BE2FCA552F3CB6F60038E706 /* ZappaStream-iOS */,
+				AAAA00302FAA003000AA0030 /* ZappaStreamTests */,
 			);
 		};
 /* End PBXProject section */
@@ -375,6 +463,10 @@
 				F62804A5EF88994291433F17 /* FilterView.swift in Sources */,
 				FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */,
 				BE024DE32F4A67D800B2C079 /* BASSRadioPlayer.swift in Sources */,
+				BBBB00012FBB000100BB0001 /* BASSRadioPlayer+Playback.swift in Sources */,
+				BBBB00032FBB000300BB0003 /* BASSRadioPlayer+AudioFX.swift in Sources */,
+				BBBB00072FBB000700BB0007 /* BASSRadioPlayer+Metadata.swift in Sources */,
+				BBBB000A2FBB000A00BB000A /* BASSRadioPlayer+DVR.swift in Sources */,
 				9D924559343B4593F5DE1323 /* SettingsView.swift in Sources */,
 				C3A1F8B52F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */,
 			);
@@ -400,10 +492,26 @@
 				BE2FCA7A2F3CBBCA0038E706 /* SongFormatter.swift in Sources */,
 				BE2FCA7B2F3CBBCA0038E706 /* SavedShow.swift in Sources */,
 				BE024DE42F4A67F600B2C079 /* BASSRadioPlayer.swift in Sources */,
+				BBBB00022FBB000200BB0002 /* BASSRadioPlayer+Playback.swift in Sources */,
+				BBBB00042FBB000400BB0004 /* BASSRadioPlayer+AudioFX.swift in Sources */,
+				BBBB00082FBB000800BB0008 /* BASSRadioPlayer+Metadata.swift in Sources */,
+				BBBB000B2FBB000B00BB000B /* BASSRadioPlayer+DVR.swift in Sources */,
 				BE2FCA7C2F3CBBCA0038E706 /* MarqueeText.swift in Sources */,
 				BE2FCA6B2F3CBB520038E706 /* ContentView_iOS.swift in Sources */,
 				D7AD703B5B1743C183C698F7 /* AudioFXView.swift in Sources */,
 				C3A1F8B62F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AAAA00212FAA002100AA0021 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AAAA00112FAA001100AA0011 /* ParsedTrackInfoTests.swift in Sources */,
+				AAAA00122FAA001200AA0012 /* TourMappingTests.swift in Sources */,
+				AAAA00132FAA001300AA0013 /* ShowTimeFetcherTests.swift in Sources */,
+				AAAA00142FAA001400AA0014 /* SavedShowTests.swift in Sources */,
+				AAAA00152FAA001500AA0015 /* StreamBufferTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -414,6 +522,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -475,6 +584,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -553,8 +663,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.9.1;
+				MARKETING_VERSION = 0.9.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.datisit.ZappaStream;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -594,8 +703,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.9.1;
+				MARKETING_VERSION = 0.9.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.datisit.ZappaStream;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -681,6 +789,40 @@
 			};
 			name = Release;
 		};
+		AAAA00402FAA004000AA0040 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UZA73C6M3L;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.datisit.ZappaStreamTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ZappaStream.app/Contents/MacOS/ZappaStream";
+			};
+			name = Debug;
+		};
+		AAAA00412FAA004100AA0041 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UZA73C6M3L;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.datisit.ZappaStreamTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ZappaStream.app/Contents/MacOS/ZappaStream";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -707,6 +849,15 @@
 			buildConfigurations = (
 				BE2FCA632F3CB6F70038E706 /* Debug */,
 				BE2FCA642F3CB6F70038E706 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AAAA00502FAA005000AA0050 /* Build configuration list for PBXNativeTarget "ZappaStreamTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AAAA00402FAA004000AA0040 /* Debug */,
+				AAAA00412FAA004100AA0041 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

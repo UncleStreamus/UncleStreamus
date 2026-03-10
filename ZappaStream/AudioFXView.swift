@@ -517,7 +517,7 @@ struct AudioFXView: View {
                     // — 3-Band EQ —
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("3-Band EQ")
+                            Text("EQ")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                             Spacer()
