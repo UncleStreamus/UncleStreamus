@@ -1089,6 +1089,15 @@ struct ContentView: View {
             }
         }
 
+        // Listen for stop from menubar
+        NotificationCenter.default.addObserver(
+            forName: .stopPlayback,
+            object: nil,
+            queue: .main
+        ) { [self] _ in
+            if isPlaying { stopStream() }
+        }
+
         // Listen for stream selection from menubar
         NotificationCenter.default.addObserver(
             forName: .selectStream,

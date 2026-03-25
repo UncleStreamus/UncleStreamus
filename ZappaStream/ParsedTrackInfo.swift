@@ -29,6 +29,8 @@ struct ParsedTrackInfo {
     static let trackNameExceptions: [String: String] = [
         "Pound For A Brown": "A Pound For a Brown",
         "More Trouble Every Day": "Trouble Every Day",
+        "Eric Dolphy Memorial Barbecue": "The Eric Dolphy Memorial Barbecue",
+        "The Eric Dolphy Memorial Barbecue": "The Eric Dolphy Memorial Barbecue",
     ]
 
     /// Groups of track names that are considered synonymous with each other.
@@ -39,6 +41,7 @@ struct ParsedTrackInfo {
         ["A Pound For a Brown", "Pound For A Brown", "The String Quartet", "String Quartet"],
         ["The String Quartet", "String Quartet", "Sleeping In a Jar"],
         ["Trouble Every Day", "More Trouble Every Day"],
+        ["Eric Dolphy Memorial Barbecue", "The Eric Dolphy Memorial Barbecue"],
     ]
 
     /// Normalizes a track name for display purposes

@@ -166,6 +166,7 @@ extension Notification.Name {
     static let playbackStateChanged = Notification.Name("playbackStateChanged")
     static let streamSelectionChanged = Notification.Name("streamSelectionChanged")
     static let togglePlayback = Notification.Name("togglePlayback")
+    static let stopPlayback = Notification.Name("stopPlayback")
     static let selectStream = Notification.Name("selectStream")
     static let volumeUp = Notification.Name("volumeUp")
     static let volumeDown = Notification.Name("volumeDown")
@@ -307,6 +308,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let playPauseTitle = isPlaying ? "Pause" : "Play"
         let playPauseItem = NSMenuItem(title: playPauseTitle, action: #selector(togglePlayPause), keyEquivalent: "")
         menu.addItem(playPauseItem)
+
+        // Stop button
+        let stopItem = NSMenuItem(title: "Stop", action: #selector(stopPlayback), keyEquivalent: "")
+        stopItem.isEnabled = isPlaying
+        menu.addItem(stopItem)
 
         // Stream picker submenu
         let streamItem = NSMenuItem(title: "Stream", action: nil, keyEquivalent: "")
@@ -454,6 +460,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NotificationCenter.default.post(name: .togglePlayback, object: nil)
     }
 
+    @objc private func stopPlayback() {
+        NotificationCenter.default.post(name: .stopPlayback, object: nil)
+    }
+
     @objc private func selectStreamFormat(_ sender: NSMenuItem) {
         guard let format = sender.representedObject as? String else { return }
         NotificationCenter.default.post(
@@ -484,14 +494,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             $0.identifier?.rawValue == "main" || $0.title.contains("Zappa")
         }) {
             if window.isVisible && window.isKeyWindow {
-                // Window is visible and focused - close it
+                // Window is visible and focused on current space — close it
                 window.close()
-            } else if window.isVisible {
-                // Window is visible but not focused - bring to front
+            } else if window.isVisible && window.isOnActiveSpace {
+                // Visible on current space but not focused — bring to front
                 window.makeKeyAndOrderFront(nil)
                 NSApplication.shared.activate(ignoringOtherApps: true)
             } else {
-                // Window exists but is hidden - show it
+                // Window is on a different space (or hidden).
+                // orderOut detaches it from its current space so that the
+                // subsequent makeKeyAndOrderFront opens it on the active space
+                // instead of causing macOS to switch spaces.
+                if !window.isOnActiveSpace {
+                    window.orderOut(nil)
+                }
                 window.makeKeyAndOrderFront(nil)
                 NSApplication.shared.activate(ignoringOtherApps: true)
             }
