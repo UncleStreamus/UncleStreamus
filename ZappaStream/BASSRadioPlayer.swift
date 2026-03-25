@@ -57,6 +57,7 @@ enum PlaybackState {
     var stallSync: HSYNC = 0
     var endSync: HSYNC = 0
     var oggChangeSync: HSYNC = 0
+    var metaChangeSync: HSYNC = 0
 
     // MARK: - Metadata State
 
@@ -123,23 +124,40 @@ enum PlaybackState {
     var limiterDSP: HDSP = 0
     var clickGuardDSP: HDSP = 0
 
-    // MARK: - Click Guard (OGG/FLAC only)
-    // BASS_SYNC_OGG_CHANGE (MIXTIME) fires at bitstream boundaries. OGG fires 2 events per
-    // track change (~0.4s apart); FLAC may fire 1 or 2. Timestamp-based debounce (1.5s window)
-    // handles both: first event arms the guard, second is ignored. The guard silences 1 buffer
-    // (~20ms) then fades in over 2 buffers (~40ms) for a ~60ms total gap.
-    // MP3/AAC: no bitstream boundaries; no click guard needed.
-    let cgFadeBufferCount      = 2    // fade-in buffers (~40ms)
-    let cgSilenceBufferCount   = 1    // silent buffers (~20ms)
-    var cgFadeBuffersRemaining: Int   = 0  // total guard buffers left (silence + fade-in)
-    var cgLastGuardTime: Double       = 0  // ProcessInfo.processInfo.systemUptime of last armed guard
+    // MARK: - Click Guard (OGG/FLAC/MP3)
+    // OGG/FLAC: BASS_SYNC_OGG_CHANGE (MIXTIME) fires at bitstream boundaries — sample-accurate.
+    //   Guard = silence (1 buf ~20ms) + fade-in (2 bufs ~40ms) = ~60ms total.
+    // MP3: BASS_SYNC_META (MIXTIME) fires on ICY metadata change — NOT sample-accurate.
+    //   Two-phase guard:
+    //   Phase 1 — Immediate gate: 1 silence buf + 2 fade-in bufs (~60ms total) fires the moment
+    //     SYNC triggers, covering subtle artifacts (MDCT overlap, DC step) near the metadata
+    //     position. These produce spikes ≤2.0 and can't be reliably detected; the unconditional
+    //     gate is the only safe approach (same strategy as OGG/FLAC).
+    //   Phase 2 — Post-gate scan: after the initial gate completes, a 600ms scan window watches
+    //     for late-arriving detectable artifacts (spike > 4.0 via max|d2|/RMS). When one is
+    //     found, a second identical gate fires. If nothing is found, scan expires silently.
+    //   Together these cover both immediate-position artifacts and late-arriving MDCT splices.
+    // AAC: no click guard.
+    var lastMetaSyncTitle: String?    // tracks last ICY title seen by BASS_SYNC_META callback
+    let cgFadeBufferCount    = 1      // OGG/FLAC/MP3 fade-in buffers (~20ms)
+    let cgSilenceBufferCount = 1      // OGG/FLAC/MP3 silent buffers: buf 1 = fade-out (~20ms); no hard-zero (scan catches late splices)
+    var cgFadeBuffersRemaining: Int = 0   // gate buffers remaining (OGG/FLAC/MP3 shared)
+    var cgMP3ScanActive: Bool       = false
+    var cgMP3ScanEnd:    Double     = 0   // systemUptime when scan expires
+    var cgMP3ScanEMA:    Float      = 0   // EMA of D2 spike values (primed at 1.0 on arm)
+    var cgMP3ScanRMSEMA: Float      = 0   // EMA of per-buffer RMS (primed at 1.0 on arm)
+    var cgScanPrevL:     Float      = 0   // last L sample of previous scan buffer (cross-buffer d2)
+    var cgScanPrevPrevL: Float      = 0   // second-to-last L sample (cross-buffer d2)
+    var cgMP3SpikeCount: Int        = 0   // consecutive scan buffers with spike > 1.0 (sustained detector)
+    var cgSyncTime:      Double     = 0   // systemUptime when SYNC fired (for logging)
+    var cgLastGuardTime: Double     = 0   // debounce: systemUptime of last armed guard
 
     // MARK: - FLAC Download Buffer Refill Pause
-    // When dlBuf falls below a threshold at a track boundary, briefly mute the mixer
-    // for ~1s to let the ring buffer refill, then fade back in.
+    // When dlBuf falls below a threshold at a track boundary, freeze the stream channel
+    // inside the pre-mixer so the download buffer can refill without interrupting recording.
     let bufferRefillThreshold: Double   = 4.0   // dlBuf% below which to trigger
     let bufferRefillTrackInterval: Int  = 3     // minimum track changes between pauses
-    let bufferRefillDuration: TimeInterval = 4.0
+    let bufferRefillDuration: TimeInterval = 2.5 // must stay < 3.0s (FLAC pre-mixer buffer) to avoid recording gaps
     var trackChangeCount: Int           = 0
     var isRefillPausing: Bool           = false
 
@@ -197,13 +215,15 @@ enum PlaybackState {
     var smoothedStereoCoeff: Float = 1.0   // Tracks stereoWidthCoeff
     var smoothedPanOffset:   Float = 0.0   // Tracks (stereoPan - 0.5) * 2.0
 
-    // MARK: - Frequency-Dependent Stereo Processing (400 Hz crossover)
-    var centerSpreadLPFState: Float = 0.0  // Low-pass filter state for mono center channel
-    var sideChannelLPFState:  Float = 0.0  // Low-pass filter state for stereo side channel
+    // MARK: - Frequency-Dependent Stereo Processing (400 Hz and 3.5 kHz crossovers)
+    var centerSpreadLPFState:  Float = 0.0  // Low-pass filter state for mono center channel
+    var sideChannelLPFState:   Float = 0.0  // Low-pass filter state for side channel (low/mid crossover ~400 Hz)
+    var sideChannelMidLPFState: Float = 0.0 // Low-pass filter state for side channel (mid/high crossover ~3.5 kHz)
     let centerSpreadCrossoverHz: Float = 400.0
-    // Precomputed filter coefficient for 400 Hz @ 44.1 kHz (1st-order butterworth)
     // alpha = 2*pi*f / (2*pi*f + sr) ≈ 0.0556 for 400 Hz @ 44.1 kHz
     let centerSpreadLPFAlpha: Float = 0.0556
+    // alpha = 2*pi*3500 / (2*pi*3500 + 44100) ≈ 0.333 for 3.5 kHz @ 44.1 kHz
+    let sideChannelMidLPFAlpha: Float = 0.333
 
     // MARK: - Mono Stereo Synthesis (2-stage APF cascade for broad phase coverage)
     // Two APF stages in series (both g = -0.75) double the phase accumulation,

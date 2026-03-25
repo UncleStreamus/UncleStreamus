@@ -140,6 +140,7 @@ extension BASSRadioPlayer {
         isRefillPausing  = false
         lastFlacTitle = nil
         lastIcecastTitle = nil
+        lastMetaSyncTitle = nil
 
         // Stop DVR playback and timers before freeing channels.
         // Ordering: stop timer → free DVR stream → stop BASS channels (stops DSP) → cleanup buffer.
@@ -195,6 +196,14 @@ extension BASSRadioPlayer {
         lastAppliedThreshold = 0
         clickGuardDSP = 0
         cgFadeBuffersRemaining = 0
+        cgMP3ScanActive = false
+        cgMP3ScanEnd = 0
+        cgMP3ScanEMA    = 0
+        cgMP3ScanRMSEMA = 0
+        cgScanPrevL     = 0
+        cgScanPrevPrevL = 0
+        cgMP3SpikeCount = 0
+        cgSyncTime = 0
         cgLastGuardTime = 0
         flacPendingFadeIn = false
 
@@ -293,8 +302,23 @@ extension BASSRadioPlayer {
                 userData
             )
             print("🔗 Syncs registered — stall=\(stallSync) end=\(endSync) oggChange=\(oggChangeSync) (mixer, mixtime)")
+        } else if activeFormat == "MP3" {
+            // MP3: use BASS_SYNC_META to detect ICY metadata changes as a proxy
+            // for track boundaries. Arms the same click guard DSP used by OGG/FLAC.
+            metaChangeSync = BASS_Mixer_ChannelSetSync(
+                handle,
+                DWORD(BASS_SYNC_META) | DWORD(BASS_SYNC_MIXTIME),
+                0,
+                { _, channel, _, user in
+                    guard let user = user else { return }
+                    let player = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
+                    player.handleMetaChangeSync(channel: channel)
+                },
+                userData
+            )
+            print("🔗 Syncs registered — stall=\(stallSync) end=\(endSync) metaChange=\(metaChangeSync) (mixer, mixtime)")
         } else {
-            // MP3/AAC: no bitstream boundaries; no click guard needed.
+            // AAC: no bitstream boundaries or ICY metadata; no click guard.
             print("🔗 Syncs registered — stall=\(stallSync) end=\(endSync)")
         }
     }
@@ -328,6 +352,37 @@ extension BASSRadioPlayer {
         }
     }
 
+    func handleMetaChangeSync(channel: DWORD) {
+        guard channel == streamHandle, streamHandle != 0 else { return }
+
+        // Read current ICY metadata from the stream
+        guard let ptr = BASS_ChannelGetTags(channel, DWORD(BASS_TAG_META)) else { return }
+        guard let title = parseICYTitle(String(cString: ptr)), !title.isEmpty else { return }
+
+        // Only arm guard when title actually changes
+        guard title != lastMetaSyncTitle else { return }
+        lastMetaSyncTitle = title
+
+        // Debounce (same 1.5s window as OGG/FLAC)
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - cgLastGuardTime < 1.5 { return }
+        cgLastGuardTime = now
+
+        // Phase 1: immediate gate covers subtle/undetectable artifacts at the SYNC position.
+        // Phase 2: post-gate scan watches for late detectable artifacts (absolute spike > 4.0
+        //   OR relative spike > 3× EMA — catches local outliers like a 2.0 spike vs 0.4 baseline).
+        cgFadeBuffersRemaining = cgSilenceBufferCount + cgFadeBufferCount  // immediate ~60ms gate
+        cgMP3ScanActive = true
+        cgMP3ScanEnd = now + 1.2   // 1200ms scan window (covers ~650ms observed metadata-to-splice lead)
+        cgMP3ScanEMA    = 1.0       // primed high to prevent false trigger on very first buffer
+        cgMP3ScanRMSEMA = 1.0       // primed high to prevent false trigger on very first buffer
+        cgScanPrevL     = 0         // reset cross-buffer d2 state; gate's last fade-in will overwrite
+        cgScanPrevPrevL = 0
+        cgMP3SpikeCount = 0
+        cgSyncTime = now
+        print("🛡️  MP3 guard armed (60ms + scan) — title: \(title)")
+    }
+
     func handleOggChangeSync(channel: DWORD) {
         guard channel == streamHandle, streamHandle != 0 else { return }
 
@@ -358,14 +413,23 @@ extension BASSRadioPlayer {
     func performRefillPause() {
         guard activeFormat == "FLAC", !isRefillPausing else { return }
         let ph = playbackHandle
-        guard ph != 0, case .playing = playbackState else { return }
+        let sh = streamHandle
+        guard ph != 0, sh != 0, case .playing = playbackState else { return }
         isRefillPausing = true
-        print("⏸️ FLAC dlBuf low — pausing \(bufferRefillDuration)s to refill")
+        print("⏸️ FLAC dlBuf low — freezing stream in pre-mixer \(bufferRefillDuration)s to refill")
+        // Mute the output mixer so the user hears silence.
         BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
+        // Freeze the stream channel inside the pre-mixer — BASS stops consuming the download
+        // buffer while the pre-mixer itself keeps running (recording DSP unaffected).
+        // The pre-mixer has a 3s buffer; bufferRefillDuration must stay < 3s to avoid silence
+        // reaching the recording DSP. We use 2.5s (0.5s safety margin).
+        BASS_Mixer_ChannelFlags(sh, DWORD(BASS_MIXER_CHAN_PAUSE), DWORD(BASS_MIXER_CHAN_PAUSE))
         DispatchQueue.main.asyncAfter(deadline: .now() + bufferRefillDuration) { [weak self] in
             guard let self = self else { return }
             self.isRefillPausing = false
-            guard case .playing = self.playbackState, self.playbackHandle == ph else { return }
+            guard case .playing = self.playbackState, self.playbackHandle == ph, self.streamHandle == sh else { return }
+            // Unfreeze the stream — resume consuming download buffer from where it left off.
+            BASS_Mixer_ChannelFlags(sh, 0, DWORD(BASS_MIXER_CHAN_PAUSE))
             self.startFadeIn(mixer: ph)
         }
     }

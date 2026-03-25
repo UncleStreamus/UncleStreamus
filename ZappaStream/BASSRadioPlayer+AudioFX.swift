@@ -138,17 +138,21 @@ extension BASSRadioPlayer {
                         let M = (L + R) * 0.5
                         let S = (L - R) * 0.5
 
-                        // Frequency-dependent side-channel scaling (400 Hz crossover).
-                        // Narrowing (coeff ≤ 1): sub-400Hz uses coeff² so bass collapses toward
-                        //   mono faster than high-freq content as the slider moves left.
-                        // Widening (coeff > 1): sub-400Hz gets only half the width boost of
-                        //   high-freq content, keeping bass centered and tight.
-                        // Both reach 0 (mono) at coeff=0 and 1 (unchanged) at coeff=1.
+                        // Frequency-dependent side-channel scaling (400 Hz and 3.5 kHz crossovers).
+                        // Three bands with different widening amounts when slider is right of centre:
+                        //   Low  (<400 Hz):       0.5× boost — bass stays centred and tight
+                        //   Mid  (400 Hz–3.5 kHz): 0.75× boost — moderate widening for body/presence
+                        //   High (>3.5 kHz):       full boost — air/brightness fully widened
+                        // For narrowing (coeff ≤ 1): low collapses fastest (coeff²), mid in between,
+                        //   high slowest (coeff). All reach 0 (mono) at coeff=0 and 1 at coeff=1.
                         let S_low  = player.lowPassFilterSide(S)
-                        let S_high = S - S_low
-                        let lowFreqCoeff: Float = coeff <= 1.0 ? coeff * coeff : 1.0 + (coeff - 1.0) * 0.5
-                        L = M + S_low * lowFreqCoeff + S_high * coeff
-                        R = M - S_low * lowFreqCoeff - S_high * coeff
+                        let S_aboveLow = S - S_low
+                        let S_mid  = player.lowPassFilterSideMid(S_aboveLow)
+                        let S_high = S_aboveLow - S_mid
+                        let lowFreqCoeff: Float = coeff <= 1.0 ? coeff * coeff               : 1.0 + (coeff - 1.0) * 0.5
+                        let midFreqCoeff: Float = coeff <= 1.0 ? (coeff + coeff * coeff) * 0.5 : 1.0 + (coeff - 1.0) * 0.75
+                        L = M + S_low * lowFreqCoeff + S_mid * midFreqCoeff + S_high * coeff
+                        R = M - S_low * lowFreqCoeff - S_mid * midFreqCoeff - S_high * coeff
 
                         // Frequency-Dependent Center Spreading (coeff > 1: spread high-freq mono)
                         // L gets in-phase M_highFreq; R gets APF-shifted M_highFreq so that
@@ -238,25 +242,157 @@ extension BASSRadioPlayer {
             { _, _, buffer, length, user in
                 guard let buffer = buffer, let user = user else { return }
                 let p = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
-                guard p.cgFadeBuffersRemaining > 0 else { return }
-
                 let samples = buffer.assumingMemoryBound(to: Float.self)
                 let count = Int(length) / MemoryLayout<Float>.size
+
+                // --- MP3 post-gate scan: watches for late detectable splices ---
+                // Runs ONLY after the initial gate has completed (cgFadeBuffersRemaining == 0).
+                // Uses second-difference spike detection: d2 = |s[i] - 2·s[i-1] + s[i-2]|.
+                // Normal music: spike (max d2 / rms) ≤ ~2. MDCT artifact: spike >> 4.
+                // On detection, arms a second gate. On timeout (with smart extension during silence),
+                // exits with no gate.
+                if p.cgMP3ScanActive && p.cgFadeBuffersRemaining == 0 {
+                    let now = ProcessInfo.processInfo.systemUptime
+                    let elapsed = (now - p.cgSyncTime) * 1000  // ms since SYNC
+
+                    // --- Compute metrics first (needed for smart expiry check) ---
+                    let frames = count / 2
+                    var maxD2: Float = 0
+                    var sumSq: Float = 0
+                    // Track cross-buffer d2: include boundary between this buffer and the previous
+                    // one. Splices at buffer boundaries have zero within-buffer signature but a
+                    // large cross-buffer discontinuity — missed if we start the loop at i=4.
+                    var prevL  = p.cgScanPrevL
+                    var prev2L = p.cgScanPrevPrevL
+                    for i in stride(from: 0, to: count, by: 2) {
+                        let s  = samples[i]
+                        let d2 = abs(s - 2 * prevL + prev2L)
+                        if d2 > maxD2 { maxD2 = d2 }
+                        sumSq += s * s
+                        prev2L = prevL
+                        prevL  = s
+                    }
+                    // Save last two L-channel samples for next buffer's cross-buffer d2
+                    p.cgScanPrevL     = count >= 4 ? samples[count - 2] : prevL
+                    p.cgScanPrevPrevL = count >= 4 ? samples[count - 4] : prev2L
+                    let rms   = sqrt(sumSq / Float(frames))
+                    let spike = rms > 0.005 ? maxD2 / rms : 0
+
+                    // Read EMAs before update so checks compare current values to past baseline.
+                    let ema    = p.cgMP3ScanEMA
+                    let rmsEMA = p.cgMP3ScanRMSEMA
+                    p.cgMP3ScanEMA    = 0.3 * spike + 0.7 * ema
+                    p.cgMP3ScanRMSEMA = 0.3 * rms   + 0.7 * rmsEMA
+
+                    // Sustained-spike counter: resets to 0 on any buffer with spike ≤ 1.0.
+                    let spikeCount = p.cgMP3SpikeCount
+                    if spike > 1.0 { p.cgMP3SpikeCount += 1 } else { p.cgMP3SpikeCount = 0 }
+
+                    // --- Expiry check (after metrics so smart extension can use updated rmsEMA) ---
+                    if now >= p.cgMP3ScanEnd {
+                        // Smart extension: if we're still in near-silence (inter-track gap), keep
+                        // watching. rmsEMA < 0.003 means no audible signal for several buffers.
+                        // Cap at 5000ms total to avoid scanning forever if stream goes quiet.
+                        let updatedRMSEMA = p.cgMP3ScanRMSEMA
+                        if updatedRMSEMA < 0.003 && elapsed < 5000 {
+                            p.cgMP3ScanEnd = now + 0.2   // extend by 200ms and keep watching
+                        } else {
+                            p.cgMP3ScanActive = false
+                            print("🛡️  MP3 scan expired — \(String(format: "%.0f", elapsed))ms rmsEMA=\(String(format: "%.4f", updatedRMSEMA))")
+                            return
+                        }
+                    }
+
+                    // --- Log only when there's something to see ---
+                    if spike > 0 || rms > 0.003 {
+                        print("🛡️  MP3 scan — \(String(format: "%.0f", elapsed))ms: spike=\(String(format: "%.1f", spike)) ema=\(String(format: "%.2f", ema)) rms=\(String(format: "%.3f", rms)) rmsEMA=\(String(format: "%.3f", rmsEMA)) sc=\(spikeCount)")
+                    }
+
+                    // --- Detectors ---
+                    // Absolute: large MDCT artifacts (spike > 7.3 observed for "Young Sophisticate").
+                    // Relative: moderate local outlier (e.g. spike=2.0 vs EMA=0.4 baseline → ratio 5×).
+                    //   Primed EMA=1.0 prevents false trigger before baseline stabilises (~5 buffers).
+                    // RMS jump: low-freq splice energy invisible to D2 (e.g. Montana: rms 0.055→0.137).
+                    //   rmsEMA guard (>0.02) prevents false trigger on near-silence.
+                    // Sustained: 3+ consecutive buffers with spike > 1.0 — catches gradual MDCT residual
+                    //   in near-silence (e.g. IEB ending → Audience Tuning: both near-silent at splice).
+                    // SilenceOnset: inter-track silence followed by new track starting abruptly
+                    //   (e.g. Inca Outro → Call Any Vegetable: rmsEMA ~0 for 1200ms then new track).
+                    //   rmsEMA < 0.003 confirms preceding silence; rms > 0.015 is the new track onset.
+                    let isAbsolute     = spike > 4.0
+                    // Guard lowered to 0.2 (from 0.3): once EMA has settled to signal baseline,
+                    // a late splice (at T > 600ms) can stand out at 3× even with small absolute values.
+                    let isRelative     = ema > 0.2 && spike > 3.0 * ema
+                    let isRMSJump      = rmsEMA > 0.02 && rms > 2.0 * rmsEMA
+                    let isSustained    = spikeCount >= 2 && spike > 1.0
+                    let isSilenceOnset = rmsEMA < 0.003 && rms > 0.015
+                    if isAbsolute || isRelative || isRMSJump || isSustained || isSilenceOnset {
+                        // Keep scan active: it pauses while the gate runs (cgFadeBuffersRemaining > 0)
+                        // and resumes after, catching any artifact that slips past the re-triggered gate.
+                        // Re-prime EMAs and counters to avoid an immediate double-trigger.
+                        p.cgMP3ScanEMA    = 1.0
+                        p.cgMP3ScanRMSEMA = 1.0
+                        p.cgMP3SpikeCount = 0
+                        p.cgMP3ScanEnd    = max(p.cgMP3ScanEnd, now + 0.3)
+                        p.cgFadeBuffersRemaining = p.cgSilenceBufferCount + p.cgFadeBufferCount
+                        let reason: String
+                        if isAbsolute        { reason = "absolute" }
+                        else if isRelative   { reason = "relative (\(String(format: "%.1f", spike)) > 3×\(String(format: "%.2f", ema)))" }
+                        else if isRMSJump    { reason = "rmsJump (\(String(format: "%.3f", rms)) > 2×\(String(format: "%.3f", rmsEMA)))" }
+                        else if isSustained  { reason = "sustained (\(spikeCount+1) bufs spike>\(String(format: "%.1f", spike)))" }
+                        else                 { reason = "silenceOnset (rmsEMA=\(String(format: "%.4f", rmsEMA)) rms=\(String(format: "%.3f", rms)))" }
+                        print("🛡️  MP3 late splice at \(String(format: "%.0f", elapsed))ms \(reason) → gate \(p.cgFadeBuffersRemaining) bufs")
+                        // Fall through to gate below.
+                    } else {
+                        return  // pass through
+                    }
+                }
+
+                // --- OGG/FLAC/MP3 click guard: buffer-count envelope ---
+                // MP3: runs for the immediate 60ms gate AND any secondary scan-detected gate.
+                guard p.cgFadeBuffersRemaining > 0 else { return }
+
                 let frames = count / 2
                 let remaining = p.cgFadeBuffersRemaining
                 p.cgFadeBuffersRemaining -= 1
                 let n = p.cgFadeBufferCount
 
                 if remaining > n {
-                    // Silence phase: zero out all samples.
-                    for i in 0 ..< count { samples[i] = 0 }
+                    if remaining == n + p.cgSilenceBufferCount {
+                        if p.cgMP3ScanActive {
+                            // MP3: smooth fade-out 1→0 (prevents gate-onset click when gate
+                            // starts during active audio — the artifact may be mid-buffer).
+                            // Using cubic smoothstep inverted: gain = 1 − t²(3−2t).
+                            for i in stride(from: 0, to: count - 1, by: 2) {
+                                let tFwd = Float(i / 2) / Float(frames)
+                                let gain = 1.0 - tFwd * tFwd * (3.0 - 2.0 * tFwd)
+                                samples[i] *= gain; samples[i + 1] *= gain
+                            }
+                        } else {
+                            // OGG/FLAC: hard-zero the entire buffer. The click is at the bitstream
+                            // boundary which can be at sample 0 of this buffer; a smooth fade-out
+                            // starts at gain=1.0 and would pass the artifact through at full amplitude.
+                            for i in 0 ..< count { samples[i] = 0 }
+                        }
+                    } else {
+                        // Subsequent silence buffers: hard zero to suppress any artifact.
+                        for i in 0 ..< count { samples[i] = 0 }
+                    }
                 } else {
-                    // Fade-in phase: ramp gain 0→1 over n buffers.
-                    let posInFade = n - remaining  // 0-based
+                    // Cubic smoothstep fade-in: t²(3−2t) — zero derivative at both ends,
+                    // avoiding the abrupt-onset "burst" feeling of a linear ramp.
+                    let posInFade = n - remaining
                     for i in stride(from: 0, to: count - 1, by: 2) {
-                        let gain = min(1.0, (Float(posInFade) + Float(i / 2) / Float(frames)) / Float(n))
+                        let t = min((Float(posInFade) + Float(i / 2) / Float(frames)) / Float(n), 1.0)
+                        let gain = t * t * (3.0 - 2.0 * t)
                         samples[i]     *= gain
                         samples[i + 1] *= gain
+                    }
+                    // Last fade-in buffer: seed cross-buffer d2 state so the first scan buffer
+                    // computes an accurate d2 at the gate→scan boundary.
+                    if remaining == 1 && p.cgMP3ScanActive && count >= 4 {
+                        p.cgScanPrevL     = samples[count - 2]
+                        p.cgScanPrevPrevL = samples[count - 4]
                     }
                 }
             },
@@ -583,6 +719,14 @@ extension BASSRadioPlayer {
     func lowPassFilterSide(_ input: Float) -> Float {
         let output = centerSpreadLPFAlpha * input + (1.0 - centerSpreadLPFAlpha) * sideChannelLPFState
         sideChannelLPFState = output
+        return output
+    }
+
+    /// 3.5 kHz low-pass filter applied to the above-400Hz side signal to extract the mid band.
+    /// Input is the output of the 400 Hz high-pass (S_aboveLow), so this yields 400 Hz–3.5 kHz.
+    func lowPassFilterSideMid(_ input: Float) -> Float {
+        let output = sideChannelMidLPFAlpha * input + (1.0 - sideChannelMidLPFAlpha) * sideChannelMidLPFState
+        sideChannelMidLPFState = output
         return output
     }
 }
