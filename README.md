@@ -100,7 +100,20 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 
 ### macOS
 
-Download the latest release from the [Releases](../../releases) page.
+Download the latest `.dmg` from the [Releases](../../releases) page, open it, and drag ZappaStream to your Applications folder.
+
+**First launch — macOS security warning**
+
+Because ZappaStream is not yet distributed through the Mac App Store, macOS will block it on first launch with a message like *"ZappaStream cannot be opened because the developer cannot be verified."* This is normal for apps downloaded outside the App Store. To open it:
+
+1. In Finder, navigate to your Applications folder
+2. **Right-click** (or Control-click) on ZappaStream
+3. Choose **Open** from the menu
+4. Click **Open** in the dialog that appears
+
+You only need to do this once. After that, ZappaStream opens normally like any other app.
+
+Alternatively, if you've already tried double-clicking and seen the warning, go to **System Settings → Privacy & Security** and scroll down to find an **"Open Anyway"** button next to the ZappaStream entry.
 
 Hopefully available in the App Store at some point.
 

@@ -385,13 +385,13 @@ Platform-Specific:
 
 The project uses persistent memory files to track architectural decisions and ongoing work across Claude Code sessions:
 
-**Memory Files:**
-- `/Users/Datisit/.claude/projects/-Users-Datisit-Developer-ZappaStream/memory/MEMORY.md` — Active plans, completed work, deferred features (concise reference)
-- `/Users/Datisit/.claude/projects/-Users-Datisit-Developer-ZappaStream/memory/audio_fx_ui_plan.md` — Audio FX panel UI design and implementation notes
-- `/Users/Datisit/.claude/projects/-Users-Datisit-Developer-ZappaStream/memory/fx_code_analysis.md` — FX code analysis comparing BASSTest vs ZappaStream
+**Memory Files** (stored in `.claude/projects/<project-path>/memory/` on your machine):
+- `MEMORY.md` — Active plans, completed work, deferred features (concise reference)
+- `audio_fx_ui_plan.md` — Audio FX panel UI design and implementation notes
+- `fx_code_analysis.md` — FX code analysis comparing BASSTest vs ZappaStream
 
-**Plan Files:**
-- `/Users/Datisit/.claude/plans/cosmic-twirling-pie.md` — Stereo Widener Extension full implementation plan (Approach 3: Frequency-Dependent Center Spreading)
+**Plan Files** (stored in `.claude/plans/` on your machine):
+- `cosmic-twirling-pie.md` — Stereo Widener Extension full implementation plan (Approach 3: Frequency-Dependent Center Spreading)
 
 **How to Use:**
 - When starting new work, check memory files to understand prior decisions and architectural patterns
