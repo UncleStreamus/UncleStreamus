@@ -135,4 +135,10 @@ This is a personal project. Feature suggestions are welcome via [Issues](../../i
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project's source code is licensed under the [MIT License](LICENSE).
+
+**Important — BASS audio library:**
+This app uses the [BASS audio library](https://www.un4seen.com/) by Un4seen Developments, which is included as pre-built binaries in this repository. BASS is free for non-commercial use only. If you fork or build upon this project for any commercial purpose, you must obtain a commercial BASS license from [un4seen.com](https://www.un4seen.com/). The MIT license on this repository applies to the source code only and does not grant any rights to use BASS commercially.
+
+**Setlist data:**
+Show and setlist data is fetched at runtime by scraping [zappateers.com](https://www.zappateers.com). This app is a fan project with no commercial intent. All setlist content belongs to its respective contributors at Zappateers.
