@@ -122,6 +122,8 @@ struct HistoryListView: View {
     @State private var collapsedPeriods: Set<HistoryTimePeriod> = [
         .oneWeekAgo, .twoWeeksAgo, .threeWeeksAgo, .fourWeeksAgo, .oneMonthAgo, .older
     ]
+    @State private var cachedSections: [HistorySection] = []
+    @State private var cachedFilteredIsEmpty: Bool = false
 
     @Query(filter: #Predicate<SavedShow> { $0.listenedAt != nil },
            sort: \SavedShow.listenedAt, order: .reverse)
@@ -131,12 +133,23 @@ struct HistoryListView: View {
         history.filtered(by: filterState)
     }
 
+    private func updateCache() {
+        let filtered = filteredHistory
+        cachedFilteredIsEmpty = filtered.isEmpty
+        cachedSections = filtered.isEmpty ? [] : buildFlattenedSections(collapsedPeriods: collapsedPeriods)
+    }
+
+    private static let historyDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        return f
+    }()
+
     // Group shows by time period, then by date within each period
     private var groupedByPeriod: [(HistoryTimePeriod, [(String, [SavedShow])])] {
         let calendar = Calendar.current
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .medium
-        dateFormatter.timeStyle = .none
+        let dateFormatter = Self.historyDateFormatter
 
         // First, group by period
         var periodGroups: [HistoryTimePeriod: [SavedShow]] = [:]
@@ -276,7 +289,7 @@ struct HistoryListView: View {
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
-            } else if filteredHistory.isEmpty {
+            } else if cachedFilteredIsEmpty {
                 VStack {
                     Spacer()
                     Text("No shows match filters")
@@ -292,7 +305,7 @@ struct HistoryListView: View {
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 8, pinnedViews: [.sectionHeaders]) {
-                        ForEach(buildFlattenedSections(collapsedPeriods: collapsedPeriods), id: \.id) { section in
+                        ForEach(cachedSections, id: \.id) { section in
                             Section {
                                 if section.isPeriodHeader {
                                     // Period section content: date groups with their shows
@@ -370,6 +383,15 @@ struct HistoryListView: View {
                 #endif
             }
         }
+        .onAppear { updateCache() }
+        .onChange(of: history) { _, _ in updateCache() }
+        .onChange(of: filterState.debouncedSearchText) { _, _ in updateCache() }
+        .onChange(of: filterState.selectedPeriod) { _, _ in updateCache() }
+        .onChange(of: filterState.selectedTour) { _, _ in updateCache() }
+        .onChange(of: filterState.selectedCountry) { _, _ in updateCache() }
+        .onChange(of: filterState.selectedState) { _, _ in updateCache() }
+        .onChange(of: filterState.selectedCity) { _, _ in updateCache() }
+        .onChange(of: collapsedPeriods) { _, _ in updateCache() }
     }
 }
 

@@ -177,7 +177,7 @@ struct PlaybackSettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Text("By default, all FX are reset when a new show starts. Enable this to keep your settings.")
+                Text("By default, all FX are reset when a new show starts. Enable this to keep your settings — though consider that the same settings will probably not work for different shows.")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(.bottom, 6)

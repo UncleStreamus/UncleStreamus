@@ -9,6 +9,9 @@ class FilterState: ObservableObject {
     @Published var selectedState: String? = nil
     @Published var selectedCountry: String? = nil
     @Published var searchText: String = ""
+    /// Debounced version of searchText used for actual filtering (updated 250ms after typing stops)
+    @Published private(set) var debouncedSearchText: String = ""
+    private var debounceTask: Task<Void, Never>?
 
     var isActive: Bool {
         selectedPeriod != nil || selectedTour != nil ||
@@ -17,6 +20,17 @@ class FilterState: ObservableObject {
 
     var isSearching: Bool {
         !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// Call when searchText changes to schedule a debounced update to debouncedSearchText.
+    func scheduleDebounce() {
+        let text = searchText
+        debounceTask?.cancel()
+        debounceTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 250_000_000) // 250ms
+            guard !Task.isCancelled else { return }
+            self.debouncedSearchText = text
+        }
     }
 
     func clear() {
@@ -28,7 +42,9 @@ class FilterState: ObservableObject {
     }
 
     func clearSearch() {
+        debounceTask?.cancel()
         searchText = ""
+        debouncedSearchText = ""
     }
 
     func clearAll() {
@@ -293,6 +309,9 @@ struct FilterBar: View {
                         .textFieldStyle(.plain)
                         .scaledFont(.caption)
                         .focused($isSearchFocused)
+                        .onChange(of: filterState.searchText) { _, _ in
+                            filterState.scheduleDebounce()
+                        }
                     if filterState.isSearching {
                         Button(action: { filterState.clearSearch() }) {
                             Image(systemName: "xmark.circle.fill")
@@ -468,9 +487,9 @@ extension Array where Element == SavedShow {
     func filtered(by filterState: FilterState) -> [SavedShow] {
         var result = self
 
-        // Apply search filter first
-        if filterState.isSearching {
-            result = result.filter { $0.matches(searchText: filterState.searchText) }
+        // Apply search filter using debounced text (avoids per-keystroke JSON decoding of all shows)
+        if !filterState.debouncedSearchText.trimmingCharacters(in: .whitespaces).isEmpty {
+            result = result.filter { $0.matches(searchText: filterState.debouncedSearchText) }
         }
 
         // Apply dropdown filters
