@@ -170,6 +170,10 @@ enum PlaybackState {
     var recoveryStreamHandle: DWORD = 0
     var isAttemptingRecovery: Bool  = false
     var recoveryStartTime: Date?    = nil
+    /// True while the recovery stream's download ring buffer is filling back up after a network
+    /// drop. The recovery stream is paused (BASS_MIXER_CHAN_PAUSE) in the pre-mixer so no data
+    /// is consumed until the buffer reaches the target threshold, matching initial-connect behaviour.
+    var flacRebufferingAfterRecovery = false
 
     var eqLowGain:  Float = 0
     var eqMidGain:  Float = 0
@@ -432,7 +436,28 @@ enum PlaybackState {
             // Skip if stream is already active and playing — avoids disrupting a healthy
             // stream or double-restarting when both scenePhase and NWPathMonitor fire together.
             if self.isStreamActive && BASS_ChannelIsActive(self.streamHandle) == DWORD(BASS_ACTIVE_PLAYING) {
-                print("🔄 triggerImmediateReconnect: stream already playing — skipping")
+                // For FLAC: use the network-change signal as the earliest possible trigger to
+                // pre-create a recovery stream in the background. This gives it the full remaining
+                // download-buffer lifetime (e.g. ~8s at dlBuf=32%) to refill before we need it,
+                // minimising the rebuffer wait after the old stream drains.
+                if self.activeFormat == "FLAC", !self.isAttemptingRecovery, self.recoveryStreamHandle == 0,
+                   !self.flacRebufferingAfterRecovery {
+                    print("🔄 triggerImmediateReconnect: FLAC stream playing — pre-starting recovery stream")
+                    self.isAttemptingRecovery = true
+                    self.recoveryStartTime = Date()
+                    self.startFlacRecovery()
+                } else {
+                    print("🔄 triggerImmediateReconnect: stream already playing — skipping")
+                }
+                DispatchQueue.main.async { self.isReconnecting = false }
+                return
+            }
+            // If FLAC recovery is already in progress (stream stalled/stopped while recovery
+            // stream is downloading or rebuffering), don't disrupt it with a full restart —
+            // the STOPPED handler and rebuffer logic will complete the handoff.
+            if self.activeFormat == "FLAC",
+               self.isAttemptingRecovery || self.recoveryStreamHandle != 0 || self.flacRebufferingAfterRecovery {
+                print("🔄 triggerImmediateReconnect: FLAC recovery in progress — skipping restart")
                 DispatchQueue.main.async { self.isReconnecting = false }
                 return
             }

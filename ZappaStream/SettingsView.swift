@@ -2,7 +2,7 @@
 //  SettingsView.swift
 //  ZappaStream
 //
-//  Created by Darcy Taranto on 10/02/2026.
+//  Created by Datisit on 10/02/2026.
 //
 
 import SwiftUI
@@ -119,7 +119,10 @@ struct PlaybackSettingsView: View {
             SettingsSectionHeader(title: "Stream", systemImage: "play.circle")
 
             SettingsSectionBox {
-                Toggle("Resume playback on launch", isOn: $autoResumeOnLaunch)
+                Toggle(isOn: $autoResumeOnLaunch) {
+                    Text("Resume playback on launch")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 Text("Automatically continue playing when the app launches, if it was playing when you last quit.")
                     .font(.caption)
@@ -128,7 +131,10 @@ struct PlaybackSettingsView: View {
                 Divider()
                     .padding(.vertical, 4)
 
-                Toggle("Continue buffering while paused", isOn: $dvrEnabled)
+                Toggle(isOn: $dvrEnabled) {
+                    Text("Continue buffering while paused")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 Text("Keep the stream buffering when paused so you can resume from where you left off.")
                     .font(.caption)

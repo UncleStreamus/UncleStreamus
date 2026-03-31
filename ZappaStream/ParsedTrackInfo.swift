@@ -2,7 +2,7 @@
 //  ParsedTrackInfo.swift
 //  ZappaStream
 //
-//  Created by Darcy Taranto on 04/02/2026.
+//  Created by Datisit on 04/02/2026.
 //
 
 import Foundation

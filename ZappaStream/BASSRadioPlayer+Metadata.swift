@@ -92,12 +92,43 @@ extension BASSRadioPlayer {
         let bufferedBytes = BASS_StreamGetFilePosition(streamHandle, DWORD(5))
 
         DispatchQueue.main.async { [weak self] in
+            guard let self, !self.flacRebufferingAfterRecovery else { return }
             switch Int32(status) {
-            case 1:  self?.playbackState = .playing
-            case 3:  self?.playbackState = .stalled
-            case 0:  self?.playbackState = .stopped
-            default: self?.playbackState = .connecting
+            case 1:  self.playbackState = .playing
+            case 3:  self.playbackState = .stalled
+            case 0:  self.playbackState = .stopped
+            default: self.playbackState = .connecting
             }
+        }
+
+        // FLAC rebuffering after recovery: stream is active and downloading but the channel
+        // is paused in the pre-mixer (BASS_MIXER_CHAN_PAUSE) so no data is consumed until the
+        // download ring buffer reaches the target threshold, matching initial-connect behaviour.
+        if activeFormat == "FLAC", flacRebufferingAfterRecovery {
+            let dlBufFill = BASS_StreamGetFilePosition(streamHandle, DWORD(5))
+            let dlBufSize = BASS_StreamGetFilePosition(streamHandle, DWORD(BASS_FILEPOS_END))
+            let dlPct = dlBufSize > 0 ? Double(dlBufFill) / Double(dlBufSize) * 100 : 100
+
+            let threshold: Double = 40  // ~10s at 900 kbps in a 25s ring buffer (matches initial connect ~10s wait)
+            print("⏳ FLAC rebuffer: \(String(format:"%.0f",dlPct))% / \(Int(threshold))%")
+            DispatchQueue.main.async { [weak self] in
+                self?.preBufferProgress = min(dlPct / threshold, 1.0)
+            }
+
+            if dlPct >= threshold {
+                flacRebufferingAfterRecovery = false
+                // Unpause the recovery stream so the pre-mixer starts decoding audio.
+                BASS_Mixer_ChannelFlags(streamHandle, 0, DWORD(BASS_MIXER_CHAN_PAUSE))
+                BASS_ChannelSetAttribute(streamHandle, DWORD(BASS_ATTRIB_VOL), 1.0)
+                // Ensure the output mixer is running (might have stopped in the rebuild path
+                // while waiting; the proactive path already has it running with silence).
+                let ph = playbackHandle
+                if BASS_ChannelIsActive(ph) == 0 { BASS_ChannelPlay(ph, 0) }
+                flacPendingFadeIn = true
+                DispatchQueue.main.async { [weak self] in self?.preBufferProgress = 0.0 }
+                print("🔊 FLAC rebuffer complete (\(String(format:"%.0f",dlPct))%) — unpausing stream, fade-in pending")
+            }
+            return  // Skip other health checks while rebuffering
         }
 
         // FLAC buffer health: log download buffer and FX output buffer levels.
@@ -111,7 +142,9 @@ extension BASSRadioPlayer {
             // FX output buffer: readable fill level on the playing post-mixer (0.1s target).
             let ph = playbackHandle
             let fxAvail = ph != 0 ? BASS_ChannelGetData(ph, nil, DWORD(BASS_DATA_AVAILABLE)) : 0
-            let fxBufMs = fxAvail > 0 ? Double(fxAvail) / (44100.0 * 2 * 4) * 1000 : 0
+            // BASS_ChannelGetData returns 0xFFFFFFFF (DWORD) on error (e.g. stopped mixer).
+            // Treat as signed so the error sentinel reads -1, not ~12 billion ms.
+            let fxBufMs = Int32(bitPattern: fxAvail) > 0 ? Double(fxAvail) / (44100.0 * 2 * 4) * 1000 : 0
 
             print("📊 FLAC health: pos=\(String(format:"%.1f",secs))s dlBuf=\(String(format:"%.0f",dlPct))% fxBuf=\(String(format:"%.0f",fxBufMs))ms")
 
@@ -127,9 +160,16 @@ extension BASSRadioPlayer {
                 }
             }
 
-            // Recovery is triggered reactively when the stream goes STOPPED (see below),
-            // not proactively on dlBuf level — dlBuf naturally sits at 17–20% during
-            // normal operation, making threshold-based triggering unreliable.
+            // Proactive recovery: pre-create a backup stream when dlBuf drops below 10%.
+            // Normal dlBuf sits at 17–20% during stable operation, so <10% reliably signals
+            // genuine network loss. Starting early keeps the pre-mixer alive (the muted
+            // recovery stream prevents BASS_MIXER_END from firing), enabling a seamless
+            // vol-swap when the old stream finally runs out.
+            if dlPct >= 0, dlPct < 10, !isAttemptingRecovery, recoveryStreamHandle == 0, !flacRebufferingAfterRecovery {
+                isAttemptingRecovery = true
+                recoveryStartTime = Date()
+                bassPollingQueue.async { [weak self] in self?.startFlacRecovery() }
+            }
         }
 
         if activeFormat == "AAC",

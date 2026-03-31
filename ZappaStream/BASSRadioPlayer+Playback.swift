@@ -207,6 +207,7 @@ extension BASSRadioPlayer {
         cgSyncTime = 0
         cgLastGuardTime = 0
         flacPendingFadeIn = false
+        flacRebufferingAfterRecovery = false
 
         if recoveryStreamHandle != 0 {
             BASS_Mixer_ChannelRemove(recoveryStreamHandle)
@@ -455,7 +456,7 @@ extension BASSRadioPlayer {
             return
         }
 
-        print("🔄 FLAC recovery: dlBuf < 20% — pre-creating recovery stream")
+        print("🔄 FLAC recovery: pre-creating recovery stream")
 
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 30000)
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)
@@ -471,9 +472,10 @@ extension BASSRadioPlayer {
             return
         }
 
-        // Add to pre-mixer muted — it downloads in background while old stream plays out.
+        // Add to pre-mixer paused — BASS_MIXER_CHAN_PAUSE prevents decoding so the download
+        // ring buffer accumulates without being consumed. Volume is also zeroed as a safety net.
         BASS_Mixer_StreamAddChannel(preMixerHandle, newHandle,
-            DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN))
+            DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN) | DWORD(BASS_MIXER_CHAN_PAUSE))
         BASS_ChannelSetAttribute(newHandle, DWORD(BASS_ATTRIB_VOL), 0)
 
         recoveryStreamHandle = newHandle
@@ -507,16 +509,54 @@ extension BASSRadioPlayer {
         lastOGGVorbisTitle = nil
         lastIcecastTitle = nil
 
-        // Unmute recovery stream in the pre-mixer, then mute FX output and wait for
-        // buffer to fill (same fade-in trigger as initial FLAC play).
-        BASS_ChannelSetAttribute(handle, DWORD(BASS_ATTRIB_VOL), 1.0)
-        BASS_ChannelSetAttribute(playbackHandle, DWORD(BASS_ATTRIB_VOL), 0)
-        flacPendingFadeIn = true
+        // If the output mixer has stopped (BASS_MIXER_END fired while the download buffer
+        // drained to 0%), a simple vol-swap won't work — the pre-mixer is also in an ended
+        // state and returning 0 bytes, so the output mixer would stop again immediately.
+        // Rebuild the full mixer pipeline around the recovery stream to restore playback.
+        if mixerHandle != 0, BASS_ChannelIsActive(mixerHandle) == 0 {
+            print("⚠️  FLAC recovery: output mixer stopped — rebuilding mixer pipeline")
+            // Detach recovery stream from the stopped pre-mixer before freeing it.
+            BASS_Mixer_ChannelRemove(handle)
+            BASS_StreamFree(mixerHandle)
+            BASS_StreamFree(preMixerHandle)
 
-        DispatchQueue.main.async { [weak self] in
-            self?.playbackState = .playing
+            let newPreMixer = BASS_Mixer_StreamCreate(44100, 2,
+                DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE))
+            BASS_Mixer_StreamAddChannel(newPreMixer, handle,
+                DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN) | DWORD(BASS_MIXER_CHAN_PAUSE))
+            let newMixer = BASS_Mixer_StreamCreate(44100, 2,
+                DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
+            BASS_Mixer_StreamAddChannel(newMixer, newPreMixer, DWORD(BASS_MIXER_CHAN_BUFFER))
+
+            preMixerHandle = newPreMixer
+            mixerHandle = newMixer
+
+            // configureStreamAttributes sets buffer sizes and re-attaches all DSP/FX.
+            // Recovery stream was added with PAUSE; the mixer runs but produces silence
+            // until checkStreamStatus unpauses it after the download buffer refills.
+            configureStreamAttributes(format: "FLAC", handle: handle)
+            BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_VOL), 0)
+            BASS_ChannelPlay(mixerHandle, 0)
+            flacRebufferingAfterRecovery = true
+            DispatchQueue.main.async { [weak self] in
+                self?.preBufferProgress = 0.0
+                self?.playbackState = .connecting
+            }
+            print("⏳ FLAC recovery (rebuilt mixers): stream \(handle) active — rebuffering")
+            return
         }
-        print("✅ FLAC recovery: stream \(handle) active — fade-in pending buffer fill")
+
+        // Normal case: mixers are still running (proactive recovery pre-created the stream
+        // while the old stream was alive, keeping BASS_MIXER_END from firing). The recovery
+        // stream is already paused in the pre-mixer (BASS_MIXER_CHAN_PAUSE set in startFlacRecovery).
+        // Mute output and wait for the download ring buffer to refill before starting audio.
+        BASS_ChannelSetAttribute(playbackHandle, DWORD(BASS_ATTRIB_VOL), 0)
+        flacRebufferingAfterRecovery = true
+        DispatchQueue.main.async { [weak self] in
+            self?.preBufferProgress = 0.0
+            self?.playbackState = .connecting
+        }
+        print("⏳ FLAC recovery: stream \(handle) active — rebuffering (channel paused in mixer)")
     }
 
     // MARK: - Stream Restart
