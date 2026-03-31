@@ -191,11 +191,11 @@ Platform-Specific:
 - `BASSRadioPlayer` polls metadata every 3 seconds via `Timer` (not a streaming callback, due to BASS architecture)
 - **Metadata Transport Sources:**
   1. **ICY** (`BASS_TAG_META`): `StreamTitle='...';` — MP3 only
-  2. **Vorbis Comments** (`BASS_TAG_OGG`): `TITLE=...` key-value list — OGG and FLAC bitstream tags; OGG tags are read but never published (routed to Icecast JSON instead); FLAC tags fire a short-title update immediately
+  2. **Vorbis Comments** (`BASS_TAG_OGG`): `TITLE=...` key-value list — OGG and FLAC bitstream tags; OGG tags are published immediately on change (fast per-track update for Format A); FLAC tags fire a short-title update immediately
   3. **Icecast JSON** (`https://shoutcast.norbert.de/status-json.xsl`): `{"icestats": {"source": {"title": "..."}}}` — used by OGG, FLAC, and AAC; always reads from the `.mp3` mountpoint which mirrors the ICY stream
 - **Format-Specific Handling:**
   - MP3: ICY metadata only (`BASS_TAG_META`); returns immediately on match
-  - OGG: Vorbis tags are read but **never published directly** — always routed to Icecast JSON instead. Vorbis Format B shows send static venue/date tags that never change per track, so ICY-mirrored Icecast JSON is the only reliable source for both formats.
+  - OGG: Vorbis tag checked; if changed, published immediately via `publishTitle()` for fast per-track update (Format A). Icecast JSON is then fetched and supersedes within the same poll cycle. `lastOGGVorbisTitle` deduplication avoids re-publishing unchanged tags. Format B shows send static Vorbis tags that never change per track, so the Icecast JSON result is always the authoritative source for both formats.
   - FLAC: Vorbis tag checked; if changed, short title fires immediately via `publishTitle()` so UI updates without waiting for Icecast. Then `fetchIcecastMetadata()` always runs in parallel to get the full metadata. The short title (bare track name) is superseded when the full Icecast response arrives.
   - AAC: No Vorbis tags; Icecast JSON fetched directly every poll cycle.
 - Single metadata callback (`onMetadataUpdate`) unifies all formats for downstream parsing via `ParsedTrackInfo.parse()`
@@ -223,7 +223,7 @@ Platform-Specific:
   - Width coefficient mapped from slider: 0.75 (original) → 1.0 (maximum width beyond default)
   - Pan uses sine/cosine angle blending for smooth stereo field positioning
   - **Parameter smoothing:** Per-buffer exponential smoothing (α=0.3) with linear interpolation within each buffer prevents pops/clicks from abrupt parameter jumps at buffer boundaries (~3–4 buffers to settle)
-  - Frequency-dependent center spreading — high-freq mono content spreads while bass stays centered (see memory files for implementation details)
+  - Frequency-dependent center spreading — high-freq mono content spreads while bass stays centered; mid-band boost at 0.5× (same as low-band, half of high-band) (see memory files for implementation details)
 - **Soft Limiter** (custom DSP callback, priority -1):
   - Soft knee starts at 0.85 amplitude (–1.4 dBFS); knee width 0.05; hard ceiling 0.891 (–1.0 dBFS)
   - Applied after all other effects; continuously active to protect output
@@ -259,7 +259,9 @@ Platform-Specific:
   - Pre-mixer buffer: **3.0s** (stutter protection; absorbs FLAC decode jitter)
   - FX output mixer buffer: **0.1s** (EQ/compressor changes audible within ~100ms)
   - All DSP/FX live on the output post-mixer; click guard attaches to the pre-mixer
-- **Non-FLAC single-mixer pipeline:** stream → output mixer → hardware (0.5s buffer)
+- **Non-FLAC two-mixer pipeline:** stream → DECODE-mode pre-mixer → FX output mixer → hardware
+  - OGG pre-mixer buffer: **1.5s** (absorbs ~0.4s decoder reinit gap at bitstream boundaries)
+  - Other non-FLAC pre-mixer buffer: **0.3s**; FX output mixer buffer: **0.1s**
 - **FLAC pre-buffer sequence:**
   1. `BASS_StreamCreateURL` called with 30s net buffer; config restored to 25s after creation
   2. Mixer starts muted (vol=0); `flacPendingFadeIn = true`
@@ -268,12 +270,13 @@ Platform-Specific:
   5. Fade-in begins when FX output buffer reaches ≥80ms — confirms audio is flowing end-to-end
   6. `preBufferProgress` (0→1 over 7s) drives the UI loading bar
 - **Channel flags:** All formats use `BASS_MIXER_CHAN_BUFFER` (pre-decode on background thread). Non-FLAC also uses `BASS_MIXER_CHAN_NORAMPIN` (no initial volume ramp; fade-in is explicit). FLAC stream→pre-mixer uses `BASS_MIXER_CHAN_NORAMPIN`; pre-mixer→output mixer uses only `BASS_MIXER_CHAN_BUFFER`.
-- **Metadata lag:** FLAC Vorbis tags lag one 3s poll cycle. FLAC fires short title immediately on Vorbis change, then fetches Icecast JSON for full metadata. OGG skips Vorbis titles entirely and always uses Icecast JSON.
-- **Buffer flush:** `flushEffects()` calls `BASS_ChannelUpdate(ph, 0)` on the output mixer after FX changes. Latency ≤ buffer size (0.1s for FLAC, 0.5s for others).
-- **Auto-restart behavior:**
-  - OGG/FLAC STOPPED: 2-poll confirmation before restart (avoids false positives from bitstream boundaries)
+- **Metadata lag:** FLAC Vorbis tags lag one 3s poll cycle. FLAC fires short title immediately on Vorbis change, then fetches Icecast JSON for full metadata. OGG fires Vorbis title immediately (Format A), then Icecast JSON supersedes; Format B uses Icecast JSON as the only reliable source.
+- **Buffer flush:** `flushEffects()` calls `BASS_ChannelUpdate(ph, 0)` on the output mixer after FX changes. Latency ≤ buffer size (0.1s).
+- **Auto-restart / recovery behavior:**
+  - OGG STOPPED: 2-poll confirmation before restart (avoids false positives from bitstream boundaries)
   - AAC: restarts immediately on buffer underrun (status=playing + bufferedBytes=0 + pos>100KB)
-  - FLAC restart: same 7s pre-buffer + fade-in sequence as initial play; no fade applied (fade-in only on pre-buffer completion)
+  - FLAC: **proactive recovery** — triggered early on network change or when download buffer drops below 10% (does not wait for STOPPED). Recovery stream created with `BASS_MIXER_CHAN_PAUSE`; download ring buffer fills silently until threshold is met, then unpaused. `flacRebufferingAfterRecovery` flag blocks state updates and shows progress bar during refill. If the output mixer stopped before recovery completed, the full pre-mixer → FX-mixer pipeline is rebuilt around the recovery stream. Same 7s pre-buffer + fade-in sequence as initial play on a clean restart.
+- **Reconnect:** Flat 5s retry interval; gives up after 12 attempts (~1 min) and sets state to `.stopped`. (Previously used exponential backoff with no cap.)
 
 **HTML Scraping:**
 - No external HTML parser; uses `NSRegularExpression` + string slicing
@@ -434,4 +437,4 @@ All tests cover pure/stateless business logic. `BASSRadioPlayer` itself has no u
 
 **FLAC won't play on iOS:** Verify all 6 BASS xcframeworks are in Build Phases → Embed Frameworks (especially `bassflac.xcframework`). Check BASS error code in logs from `BASSRadioPlayer`.
 
-**Stream keeps restarting:** AAC auto-restarts on buffer underrun; OGG/FLAC need 2 consecutive STOPPED polls. If restarting continuously, check network or server availability.
+**Stream keeps restarting:** AAC auto-restarts on buffer underrun; OGG needs 2 consecutive STOPPED polls; FLAC uses proactive recovery triggered by low download buffer or network change. If restarting continuously, check network or server availability. Reconnect gives up after 12 attempts (~1 min) and sets state to `.stopped`.
