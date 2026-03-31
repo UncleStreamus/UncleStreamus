@@ -63,6 +63,7 @@ enum PlaybackState {
 
     var activeFormat = ""
     var lastFlacTitle: String?
+    var lastOGGVorbisTitle: String?
     var lastIcecastTitle: String?
     var lastPublishedTitle: String?
     var oggStopConfirmed = false
@@ -97,8 +98,9 @@ enum PlaybackState {
 
     var reconnectTimer: DispatchSourceTimer?
 
-    // Backoff delays in seconds. Stays at 60s after the last index.
-    let reconnectBackoffDelays: [TimeInterval] = [1, 2, 4, 8, 16, 30, 60]
+    // Flat 5s retry interval, giving up after 12 attempts (~1 minute total).
+    let reconnectRetryInterval: TimeInterval = 5
+    let reconnectMaxAttempts: Int = 12
     /// How long to run FLAC muted before unmuting, giving the mixer output buffer time to fill.
     /// FLAC fade-in is triggered by checkStreamStatus() when playback buffer is sufficiently filled,
     /// not by a fixed timer. This flag tracks whether we're waiting for that condition.

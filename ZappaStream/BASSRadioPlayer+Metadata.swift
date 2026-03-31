@@ -62,14 +62,15 @@ extension BASSRadioPlayer {
                     // so we always query Icecast as well. If the Vorbis title did change,
                     // handleFlacTitleChange already fires its own Icecast request; the second
                     // concurrent request is harmless (dedup'd by lastIcecastTitle).
-                } else {
-                    // OGG: do NOT publish the Vorbis title directly — fall through to Icecast JSON.
-                    // Some shows send Format A (bracketed, per-track song name) but others send
-                    // Format B (show-level venue/date metadata with no individual song info).
-                    // Icecast JSON always mirrors the MP3 ICY stream which is always Format A,
-                    // so routing OGG through Icecast JSON gives correct per-track names for both
-                    // format variants without flashing wrong data for Format B shows.
-                    _ = title  // suppress unused warning; intentionally not published
+                } else if activeFormat == "OGG" {
+                    // OGG: publish Vorbis title immediately for fast per-track updates (Format A shows).
+                    // For Format B shows (static venue/date tag that never changes per track), this fires
+                    // once then is deduped by lastOGGVorbisTitle; the Icecast fetch below supersedes it
+                    // with the correct per-track title within one network round-trip.
+                    if title != lastOGGVorbisTitle {
+                        lastOGGVorbisTitle = title
+                        publishTitle(title)
+                    }
                 }
             }
         }

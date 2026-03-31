@@ -141,7 +141,7 @@ extension BASSRadioPlayer {
                         // Frequency-dependent side-channel scaling (400 Hz and 3.5 kHz crossovers).
                         // Three bands with different widening amounts when slider is right of centre:
                         //   Low  (<400 Hz):       0.5× boost — bass stays centred and tight
-                        //   Mid  (400 Hz–3.5 kHz): 0.75× boost — moderate widening for body/presence
+                        //   Mid  (400 Hz–3.5 kHz): 0.5× boost — body/presence matches low treatment
                         //   High (>3.5 kHz):       full boost — air/brightness fully widened
                         // For narrowing (coeff ≤ 1): low collapses fastest (coeff²), mid in between,
                         //   high slowest (coeff). All reach 0 (mono) at coeff=0 and 1 at coeff=1.
@@ -150,7 +150,7 @@ extension BASSRadioPlayer {
                         let S_mid  = player.lowPassFilterSideMid(S_aboveLow)
                         let S_high = S_aboveLow - S_mid
                         let lowFreqCoeff: Float = coeff <= 1.0 ? coeff * coeff               : 1.0 + (coeff - 1.0) * 0.5
-                        let midFreqCoeff: Float = coeff <= 1.0 ? (coeff + coeff * coeff) * 0.5 : 1.0 + (coeff - 1.0) * 0.75
+                        let midFreqCoeff: Float = coeff <= 1.0 ? (coeff + coeff * coeff) * 0.5 : 1.0 + (coeff - 1.0) * 0.5
                         L = M + S_low * lowFreqCoeff + S_mid * midFreqCoeff + S_high * coeff
                         R = M - S_low * lowFreqCoeff - S_mid * midFreqCoeff - S_high * coeff
 

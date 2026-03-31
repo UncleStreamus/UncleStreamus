@@ -139,6 +139,7 @@ extension BASSRadioPlayer {
         trackChangeCount = 0
         isRefillPausing  = false
         lastFlacTitle = nil
+        lastOGGVorbisTitle = nil
         lastIcecastTitle = nil
         lastMetaSyncTitle = nil
 
@@ -241,11 +242,15 @@ extension BASSRadioPlayer {
         let netResume: Float = 25
         BASS_ChannelSetAttribute(handle, DWORD(BASS_ATTRIB_NET_RESUME), netResume)
 
-        // All formats use two-mixer pipeline: pre-mixer gets a stutter-protection buffer
-        // (3.0s for FLAC, 0.3s for others); the FX output mixer gets 0.1s so EQ/compressor
-        // changes are heard within ~100ms on all formats.
+        // All formats use two-mixer pipeline: pre-mixer gets a stutter-protection buffer;
+        // the FX output mixer gets 0.1s so EQ/compressor changes are heard within ~100ms.
+        // FLAC: 3.0s — absorbs decode jitter from high-bitrate FLAC frames.
+        // OGG: 1.5s — OGG bitstream chain boundaries cause a ~0.4s decoder reinit gap
+        //   (BASS fires two OGG_CHANGE events ~0.4s apart while headers are processed).
+        //   0.3s was smaller than this gap, causing pre-mixer underruns → stutter.
+        // MP3/AAC: 0.3s — no bitstream boundaries; 0.3s is ample.
         if mixerHandle != 0 {
-            let preMixBuf: Float = format == "FLAC" ? 3.0 : 0.3
+            let preMixBuf: Float = format == "FLAC" ? 3.0 : (format == "OGG" ? 1.5 : 0.3)
             BASS_ChannelSetAttribute(preMixerHandle, DWORD(BASS_ATTRIB_BUFFER), preMixBuf)
             BASS_ChannelSetAttribute(mixerHandle,    DWORD(BASS_ATTRIB_BUFFER), 0.1)
             print("⚙️  configureStreamAttributes format=\(format) preMixBuf=\(preMixBuf)s fxMixBuf=0.1s")
@@ -499,6 +504,7 @@ extension BASSRadioPlayer {
 
         // Reset metadata dedup so the new stream's first track fires a callback.
         lastFlacTitle = nil
+        lastOGGVorbisTitle = nil
         lastIcecastTitle = nil
 
         // Unmute recovery stream in the pre-mixer, then mute FX output and wait for
@@ -638,9 +644,17 @@ extension BASSRadioPlayer {
 
     func scheduleReconnect() {
         guard isUserIntendedPlay else { return }
-        let delay = reconnectBackoffDelays[min(reconnectAttempt, reconnectBackoffDelays.count - 1)]
+        guard reconnectAttempt < reconnectMaxAttempts else {
+            print("❌ Reconnect giving up after \(reconnectMaxAttempts) attempts (~1 minute)")
+            DispatchQueue.main.async {
+                self.isReconnecting = false
+                self.playbackState = .stopped
+            }
+            return
+        }
+        let delay = reconnectRetryInterval
         reconnectAttempt += 1
-        print("⏳ Reconnect attempt \(reconnectAttempt) scheduled in \(Int(delay))s")
+        print("⏳ Reconnect attempt \(reconnectAttempt)/\(reconnectMaxAttempts) scheduled in \(Int(delay))s")
         DispatchQueue.main.async {
             self.isReconnecting = true
             self.playbackState = .connecting
