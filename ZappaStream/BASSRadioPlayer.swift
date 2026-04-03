@@ -5,6 +5,8 @@ import Bass
 import BassFLAC
 import BassFX
 import BassMix
+#else
+import UIKit
 #endif
 // On iOS: BASS symbols are globally available via BASSBridgingHeader.h
 
@@ -84,6 +86,12 @@ enum PlaybackState {
 
     var pathMonitor: NWPathMonitor?
     let networkMonitorQueue = DispatchQueue(label: "com.zappastream.network-monitor", qos: .utility)
+
+    /// Background task token used on iOS to keep the app alive during reconnect
+    /// after audio output stops (network loss while locked).
+    #if os(iOS)
+    var bgReconnectTask: UIBackgroundTaskIdentifier = .invalid
+    #endif
 
     /// True only while the user intends playback to be active.
     /// Set true in switchQuality(); false only in stop() / stopWithFadeOut().
@@ -398,6 +406,9 @@ enum PlaybackState {
         cancelReconnectTimer()
         reconnectAttempt = 0
         DispatchQueue.main.async { self.isReconnecting = false }
+        #if os(iOS)
+        endBackgroundReconnectTask()
+        #endif
         freeStream()
         activeFormat = ""
         lastIcecastTitle = nil

@@ -165,7 +165,9 @@ extension BASSRadioPlayer {
             // genuine network loss. Starting early keeps the pre-mixer alive (the muted
             // recovery stream prevents BASS_MIXER_END from firing), enabling a seamless
             // vol-swap when the old stream finally runs out.
-            if dlPct >= 0, dlPct < 10, !isAttemptingRecovery, recoveryStreamHandle == 0, !flacRebufferingAfterRecovery {
+            let isConnected = BASS_StreamGetFilePosition(streamHandle, DWORD(BASS_FILEPOS_CONNECTED)) != 0
+            if dlPct >= 0, dlPct < 10, !isConnected,
+               !isAttemptingRecovery, recoveryStreamHandle == 0, !flacRebufferingAfterRecovery {
                 isAttemptingRecovery = true
                 recoveryStartTime = Date()
                 bassPollingQueue.async { [weak self] in self?.startFlacRecovery() }

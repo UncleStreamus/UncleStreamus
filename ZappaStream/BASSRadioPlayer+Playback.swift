@@ -459,11 +459,14 @@ extension BASSRadioPlayer {
         print("🔄 FLAC recovery: pre-creating recovery stream")
 
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 30000)
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 0)    // return immediately after connect; fill in background
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 3000) // fail fast; 10s default blocks bassPollingQueue
         let streamFlags = DWORD(BASS_STREAM_STATUS) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE)
         let newHandle = BASS_StreamCreateURL(cURL, 0, streamFlags, nil, nil)
         let streamErr = BASS_ErrorGetCode()  // capture before SetConfig overwrites it
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 25000)
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)    // restore for normal stream creation
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 10000) // restore
 
         guard newHandle != 0 else {
             print("❌ FLAC recovery: stream creation failed (err=\(streamErr)) — will fall back to normal restart")
@@ -590,6 +593,11 @@ extension BASSRadioPlayer {
         }
         reconnectAttempt = 0
         DispatchQueue.main.async { self.isReconnecting = false }
+        #if os(iOS)
+        // Stream URL connected — audio will start rendering shortly, handing off
+        // background execution to the audio background mode. Safe to end the task.
+        endBackgroundReconnectTask()
+        #endif
 
         streamHandle = newHandle
         if current.format == "FLAC" {
@@ -663,6 +671,36 @@ extension BASSRadioPlayer {
 
     // MARK: - Network Resilience
 
+    #if os(iOS)
+    /// Requests background execution time so reconnect timers keep firing after audio output stops
+    /// (e.g. network lost while device is locked). Safe to call repeatedly — no-ops if task already active.
+    /// Must be called from any thread; UIApplication call is marshalled to main.
+    func beginBackgroundReconnectTaskIfNeeded() {
+        guard bgReconnectTask == .invalid else { return }
+        // UIApplication.beginBackgroundTask is callable from any thread per Apple docs,
+        // but dispatch to main to be safe and avoid races on bgReconnectTask.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.bgReconnectTask == .invalid else { return }
+            self.bgReconnectTask = UIApplication.shared.beginBackgroundTask(withName: "stream-reconnect") { [weak self] in
+                print("⚠️ iOS background reconnect task expired")
+                self?.endBackgroundReconnectTask()
+            }
+            print("📱 Background reconnect task started (id=\(self.bgReconnectTask.rawValue))")
+        }
+    }
+
+    /// Ends the background execution task. Safe to call when no task is active.
+    func endBackgroundReconnectTask() {
+        let task = bgReconnectTask
+        guard task != .invalid else { return }
+        bgReconnectTask = .invalid
+        DispatchQueue.main.async {
+            UIApplication.shared.endBackgroundTask(task)
+            print("📱 Background reconnect task ended")
+        }
+    }
+    #endif
+
     func startNetworkMonitoring() {
         let monitor = NWPathMonitor()
         pathMonitor = monitor
@@ -684,6 +722,11 @@ extension BASSRadioPlayer {
 
     func scheduleReconnect() {
         guard isUserIntendedPlay else { return }
+        #if os(iOS)
+        // Keep the app alive while audio output is absent (network loss while locked).
+        // Without this, iOS suspends the app and reconnect timers never fire.
+        beginBackgroundReconnectTaskIfNeeded()
+        #endif
         guard reconnectAttempt < reconnectMaxAttempts else {
             print("❌ Reconnect giving up after \(reconnectMaxAttempts) attempts (~1 minute)")
             DispatchQueue.main.async {
