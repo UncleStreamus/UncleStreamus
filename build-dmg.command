@@ -19,26 +19,33 @@ if [ -z "$APP_PATH" ]; then
   APP_PATH="${APP_PATH//\\ / }"
 fi
 
+# Trim any trailing whitespace/newline
+APP_PATH="${APP_PATH%"${APP_PATH##*[![:space:]]}"}"
+
 if [ ! -d "$APP_PATH" ]; then
   echo "Error: App not found at '$APP_PATH'"
   exit 1
 fi
 
-if ! command -v create-dmg &> /dev/null; then
-  echo "Error: create-dmg not found. Install with: brew install create-dmg"
-  exit 1
-fi
-
 VERSION=$(grep "MARKETING_VERSION" ZappaStream.xcodeproj/project.pbxproj | head -1 | sed 's/.*= //;s/;//;s/ //')
 OUTPUT="$(dirname "$APP_PATH")/ZappaStream-${VERSION}.dmg"
+STAGING=$(mktemp -d)
 
 echo "Building DMG for ZappaStream ${VERSION}..."
 
-create-dmg \
-  --volname "ZappaStream" \
-  --app-drop-link 0 0 \
-  "$OUTPUT" \
-  "$APP_PATH"
+# Stage the .app and an Applications symlink
+cp -R "$APP_PATH" "$STAGING/ZappaStream.app"
+ln -s /Applications "$STAGING/Applications"
+
+# Build compressed DMG directly with hdiutil — no AppleScript, no Finder
+hdiutil create \
+  -volname "ZappaStream" \
+  -srcfolder "$STAGING" \
+  -ov \
+  -format UDZO \
+  "$OUTPUT"
+
+rm -rf "$STAGING"
 
 echo ""
 echo "DMG created: $OUTPUT"
