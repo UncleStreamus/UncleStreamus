@@ -30,7 +30,7 @@ if ! command -v create-dmg &> /dev/null; then
 fi
 
 VERSION=$(grep "MARKETING_VERSION" ZappaStream.xcodeproj/project.pbxproj | head -1 | sed 's/.*= //;s/;//;s/ //')
-OUTPUT="$HOME/Desktop/ZappaStream-${VERSION}.dmg"
+OUTPUT="$(dirname "$APP_PATH")/ZappaStream-${VERSION}.dmg"
 
 echo "Building DMG for ZappaStream ${VERSION}..."
 
