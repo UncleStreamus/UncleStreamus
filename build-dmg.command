@@ -36,12 +36,7 @@ echo "Building DMG for ZappaStream ${VERSION}..."
 
 create-dmg \
   --volname "ZappaStream" \
-  --window-pos 200 120 \
-  --window-size 600 400 \
-  --icon-size 100 \
-  --icon "ZappaStream.app" 175 190 \
-  --hide-extension "ZappaStream.app" \
-  --app-drop-link 425 190 \
+  --app-drop-link 0 0 \
   "$OUTPUT" \
   "$APP_PATH"
 
