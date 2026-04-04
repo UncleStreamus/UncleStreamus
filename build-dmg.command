@@ -1,45 +1,37 @@
 #!/bin/bash
 # build-dmg.command — Create and upload a ZappaStream release DMG
-# Double-click to run. Prompts for the exported .app via a file picker.
+#
+# Usage: drag ZappaStream.app onto the Terminal window after the script path
+#   ./build-dmg.command /path/to/ZappaStream.app
 #
 # Before running:
 #   Xcode → Product → Archive → Distribute App → Copy App → save somewhere
 
 set -e
 
-# Change to the script's directory so we can read the project file
 cd "$(dirname "$0")"
 
-if ! command -v create-dmg &> /dev/null; then
-  osascript -e 'display alert "create-dmg not found" message "Install it with: brew install create-dmg" as critical'
-  exit 1
-fi
-
-# Prompt for the .app via file picker
-APP_PATH=$(osascript -e 'tell app "Finder" to POSIX path of (choose file of type "app" with prompt "Select the exported ZappaStream.app:")')
+APP_PATH="$1"
 
 if [ -z "$APP_PATH" ]; then
-  echo "No file selected."
+  echo "Usage: $0 <path-to-ZappaStream.app>"
   exit 1
 fi
-
-# Trim any trailing newline/whitespace
-APP_PATH="${APP_PATH%$'\n'}"
 
 if [ ! -d "$APP_PATH" ]; then
-  osascript -e "display alert \"App not found\" message \"Could not find: $APP_PATH\" as critical"
+  echo "Error: App not found at '$APP_PATH'"
   exit 1
 fi
 
-# Read version from project file
+if ! command -v create-dmg &> /dev/null; then
+  echo "Error: create-dmg not found. Install with: brew install create-dmg"
+  exit 1
+fi
+
 VERSION=$(grep "MARKETING_VERSION" ZappaStream.xcodeproj/project.pbxproj | head -1 | sed 's/.*= //;s/;//;s/ //')
-DMG_NAME="ZappaStream-${VERSION}.dmg"
-OUTPUT="$HOME/Desktop/${DMG_NAME}"
+OUTPUT="$HOME/Desktop/ZappaStream-${VERSION}.dmg"
 
 echo "Building DMG for ZappaStream ${VERSION}..."
-echo "Source: $APP_PATH"
-echo "Output: $OUTPUT"
-echo ""
 
 create-dmg \
   --volname "ZappaStream" \
@@ -55,8 +47,5 @@ create-dmg \
 echo ""
 echo "DMG created: $OUTPUT"
 echo ""
-echo "To upload to the GitHub release, run:"
+echo "To upload to the GitHub release:"
 echo "  gh release upload v${VERSION} \"$OUTPUT\""
-echo ""
-
-osascript -e "display notification \"ZappaStream-${VERSION}.dmg saved to Desktop\" with title \"DMG Ready\""
