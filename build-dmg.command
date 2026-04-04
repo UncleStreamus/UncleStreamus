@@ -14,8 +14,8 @@ cd "$(dirname "$0")"
 APP_PATH="$1"
 
 if [ -z "$APP_PATH" ]; then
-  echo "Usage: $0 <path-to-ZappaStream.app>"
-  exit 1
+  echo "Drag ZappaStream.app into this window and press Enter:"
+  read -r APP_PATH
 fi
 
 if [ ! -d "$APP_PATH" ]; then
