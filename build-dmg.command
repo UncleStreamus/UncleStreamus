@@ -27,7 +27,7 @@ if [ ! -d "$APP_PATH" ]; then
   exit 1
 fi
 
-VERSION=$(grep "MARKETING_VERSION" ZappaStream.xcodeproj/project.pbxproj | head -1 | sed 's/.*= //;s/;//;s/ //')
+VERSION=$(defaults read "$APP_PATH/Contents/Info.plist" CFBundleShortVersionString)
 OUTPUT="$(dirname "$APP_PATH")/ZappaStream-${VERSION}.dmg"
 STAGING=$(mktemp -d)
 
