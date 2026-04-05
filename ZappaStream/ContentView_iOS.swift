@@ -982,7 +982,7 @@ struct ContentView_iOS: View {
     private func configureAudioSession() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetooth, .allowBluetoothA2DP])
+            try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetoothA2DP])
             // Request a larger hardware IO buffer to reduce scheduling pressure and micro-stutters.
             // 0.5s means CoreAudio calls BASS 2×/sec instead of 10×/sec, giving the FLAC decoder
             // far more time per callback. Fine for a radio app where output latency doesn't matter.

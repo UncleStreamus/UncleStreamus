@@ -306,7 +306,7 @@ class FZShowsFetcher {
         var venue = "Unknown Venue"
         var showInfo = "No show info"
         var note: String? = nil
-        var soundcheck: String? = nil
+        let soundcheck: String? = nil
         var setlist: [String] = ["No setlist available"]
         var acronyms: [(short: String, full: String)] = []
         var detectedShowType: ShowTime = .none
@@ -467,35 +467,52 @@ class FZShowsFetcher {
         // Find setlist in this section
         // Need to find the setlist that belongs to the target show (Early or Late)
         // If showTime is specified, find the setlist AFTER the corresponding h5
-        if let setlistStart = targetSection.range(of: "<p class=\"setlist\">"),
-           let setlistEnd = targetSection.range(of: "</p>", range: setlistStart.upperBound..<targetSection.endIndex) {
+        if let setlistStart = targetSection.range(of: "<p class=\"setlist\">") {
+            let searchFrom = setlistStart.upperBound
 
-            let rawSetlistText = String(targetSection[setlistStart.upperBound..<setlistEnd.lowerBound])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // Extract acronym mappings from raw HTML before stripping tags
-            let acronymRegex = try! NSRegularExpression(pattern: #"<acronym title="([^"]+)">([^<]+)</acronym>"#)
-            let nsRange = NSRange(rawSetlistText.startIndex..<rawSetlistText.endIndex, in: rawSetlistText)
-            let matches = acronymRegex.matches(in: rawSetlistText, range: nsRange)
-
-            for match in matches {
-                if let fullRange = Range(match.range(at: 1), in: rawSetlistText),
-                   let shortRange = Range(match.range(at: 2), in: rawSetlistText) {
-                    let full = String(rawSetlistText[fullRange])
-                    let short = String(rawSetlistText[shortRange])
-                    acronyms.append((short: short, full: full))
+            // Find the end of the setlist content: either </p> or the next <h5>/<h4> section
+            // heading, whichever comes first. Some shows have unclosed <p class="setlist"> tags
+            // (e.g. 1973-11-23 Early show) where the next <h5> starts a sibling section.
+            var setlistEndIndex: String.Index?
+            if let pEnd = targetSection.range(of: "</p>", range: searchFrom..<targetSection.endIndex) {
+                setlistEndIndex = pEnd.lowerBound
+            }
+            for heading in ["<h5>", "<h4>"] {
+                if let hRange = targetSection.range(of: heading, range: searchFrom..<targetSection.endIndex) {
+                    if setlistEndIndex == nil || hRange.lowerBound < setlistEndIndex! {
+                        setlistEndIndex = hRange.lowerBound
+                    }
                 }
             }
 
-            // Now strip HTML, decode entities, and parse songs
-            let setlistText = rawSetlistText
-                .replacingOccurrences(of: #"<acronym title="([^"]+)">([^<]+)</acronym>"#, with: "$2", options: .regularExpression)
-                .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-                .decodeHTMLEntities()
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let setlistEndIndex = setlistEndIndex {
+                let rawSetlistText = String(targetSection[setlistStart.upperBound..<setlistEndIndex])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
 
-            // Split on commas, but not commas inside parentheses or brackets
-            setlist = parseSetlist(setlistText)
+                // Extract acronym mappings from raw HTML before stripping tags
+                let acronymRegex = try! NSRegularExpression(pattern: #"<acronym title="([^"]+)">([^<]+)</acronym>"#)
+                let nsRange = NSRange(rawSetlistText.startIndex..<rawSetlistText.endIndex, in: rawSetlistText)
+                let matches = acronymRegex.matches(in: rawSetlistText, range: nsRange)
+
+                for match in matches {
+                    if let fullRange = Range(match.range(at: 1), in: rawSetlistText),
+                       let shortRange = Range(match.range(at: 2), in: rawSetlistText) {
+                        let full = String(rawSetlistText[fullRange])
+                        let short = String(rawSetlistText[shortRange])
+                        acronyms.append((short: short, full: full))
+                    }
+                }
+
+                // Now strip HTML, decode entities, and parse songs
+                let setlistText = rawSetlistText
+                    .replacingOccurrences(of: #"<acronym title="([^"]+)">([^<]+)</acronym>"#, with: "$2", options: .regularExpression)
+                    .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                    .decodeHTMLEntities()
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                // Split on commas, but not commas inside parentheses or brackets
+                setlist = parseSetlist(setlistText)
+            }
         }
 
         // Build final show info with show type

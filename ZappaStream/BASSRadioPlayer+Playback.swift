@@ -5,6 +5,8 @@ import Bass
 import BassFLAC
 import BassFX
 import BassMix
+#elseif os(iOS)
+import UIKit
 #endif
 
 // MARK: - Stream Lifecycle, Network Resilience & Fade
