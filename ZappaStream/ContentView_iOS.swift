@@ -119,8 +119,8 @@ struct ContentView_iOS: View {
                             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                         }
                     )
-                    .navigationTitle("ZappaStream")
-                    .navigationBarTitleDisplayMode(.large)
+                    .navigationTitle("")
+                    .navigationBarTitleDisplayMode(.inline)
                     .navigationDestination(isPresented: $sidebarNavigationActive) {
                         if let manager = showDataManager {
                             SidebarView(showDataManager: manager, selectedTab: $selectedSidebarTab)
@@ -129,6 +129,10 @@ struct ContentView_iOS: View {
                         }
                     }
                     .toolbar {
+                        ToolbarItem(placement: .principal) {
+                            Text("ZappaStream")
+                                .font(.system(size: 30, weight: .semibold))
+                        }
                         ToolbarItem(placement: .topBarLeading) {
                             Button {
                                 withAnimation(.easeInOut(duration: 0.25)) {
