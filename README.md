@@ -3,7 +3,8 @@
 A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted by [norbert.de](https://www.norbert.de/index.php/frank-zappa/).
 
 <img alt="Screenshot 2026-03-05 at 11 58 42" src="https://github.com/user-attachments/assets/a05120be-c558-4e9e-9733-702aebc8539b" />
-<img width="559" height="1062" alt="Screenshot 2026-03-31 at 14 12 57" src="https://github.com/user-attachments/assets/5075e00e-3deb-49e6-b59c-14960503bc6c" />
+<img width="564" height="1062" alt="Screenshot 2026-04-07 at 13 01 17" src="https://github.com/user-attachments/assets/9cbed6b0-058a-4d8a-81de-409ef3c5f46a" />
+
 
 
 ## Features
