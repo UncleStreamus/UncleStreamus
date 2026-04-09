@@ -47,6 +47,7 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 - Landscape mode on iPad
 - Adaptive layout for all screen sizes
 
+
 ### Planned Features
 
 **iCloud Sync across all Apple devices**
@@ -55,6 +56,7 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 
 **Customisable section headers for the Favourites tab:**
 - Not just by year, but also period, tour, band member, location etc.
+
 
 ### Current issues & Feedback options
 
