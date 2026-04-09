@@ -21,9 +21,8 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 - **Smart duplicate handling** — Correctly identifies repeated songs (hopefully) (e.g., multiple "Improvisations")
 - **Acronym glossary** — Explains setlist abbreviations
 - **Band lineup** — Scraped alongside the setlist, shows who was in the band for the current show
-- **Track lookup** — Tap a setlist track to look it up on [donlope.net](https://www.donlope.net) in a built-in styled viewer
-- **Full FZShows page** — Tap the show header to open the FZShows setlist page in a built-in viewer, auto-scrolled to the current show
-- **Early/Late show support** — Early and late shows on the same date are tracked as separate entries
+- **Track lookup** — Button to look up currently playing track on [donlope.net](https://www.donlope.net) in a built-in styled viewer
+- **Full FZShows page** — Button to open the FZShows setlist page in a built-in viewer, auto-scrolled to the current show
 
 ### History & Favorites
 - **Listening history** — Automatically tracks shows you've heard
@@ -51,6 +50,8 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 ### Planned Features
 
 **iCloud Sync across all Apple devices**
+
+**More inline data about the period, tour, band etc:**
 
 **Customisable section headers for the Favourites tab:**
 - Not just by year, but also period, tour, band member, location etc.
