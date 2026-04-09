@@ -42,6 +42,9 @@ struct FZShow {
     // Period and tour fields
     let period: String?
     let tour: String?
+
+    // Band info: "{h3 title}\n{members}" or nil
+    let bandInfo: String?
 }
 
 /// Represents Early/Late show designation
@@ -159,8 +162,13 @@ class FZShowsFetcher {
     // MARK: - Public API
 
     static func fetchShowInfo(date: String, showTime: ShowTime = .none, completion: @escaping (FZShow?) -> Void) {
+        // Strip optional E/L suffix (e.g. "1982 07 09 E" → "1982 07 09")
+        // showDate keys now include the suffix; callers may pass either form
+        let baseParts = date.components(separatedBy: " ")
+        let baseDate = baseParts.prefix(3).joined(separator: " ")
+
         // Parse date format "1982 07 09"
-        let parts = date.components(separatedBy: " ")
+        let parts = baseDate.components(separatedBy: " ")
         guard parts.count == 3,
               let year = Int(parts[0]),
               let month = Int(parts[1]),
@@ -170,8 +178,8 @@ class FZShowsFetcher {
         }
 
         // Check for exceptions
-        let exceptionKey = showTime == .none ? date : "\(date) \(showTime == .early ? "E" : "L")"
-        let exception = exceptions[exceptionKey] ?? exceptions[date]
+        let exceptionKey = showTime == .none ? baseDate : "\(baseDate) \(showTime == .early ? "E" : "L")"
+        let exception = exceptions[exceptionKey] ?? exceptions[baseDate]
 
         let searchDate: String
         let sectionKeywords: [String]?
@@ -180,10 +188,10 @@ class FZShowsFetcher {
             searchDate = exc.searchDate
             sectionKeywords = exc.sectionKeywords
             #if DEBUG
-            print("📋 Using exception mapping: \(date) -> \(searchDate)")
+            print("📋 Using exception mapping: \(baseDate) -> \(searchDate)")
             #endif
         } else {
-            searchDate = date
+            searchDate = baseDate
             sectionKeywords = nil
         }
 
@@ -201,7 +209,7 @@ class FZShowsFetcher {
         }
 
         let primaryURLString = "https://www.zappateers.com/fzshows/\(primaryFilename)"
-        fetchFromURL(urlString: primaryURLString, filename: primaryFilename, searchDate: searchDate, originalDate: date,
+        fetchFromURL(urlString: primaryURLString, filename: primaryFilename, searchDate: searchDate, originalDate: baseDate,
                      showTime: showTime, sectionKeywords: sectionKeywords) { show in
             if let show = show {
                 completion(show)
@@ -211,7 +219,7 @@ class FZShowsFetcher {
                 print("🔄 Primary page had no match, trying rehearsals.html")
                 #endif
                 let rehearsalsURLString = "https://www.zappateers.com/fzshows/rehearsals.html"
-                self.fetchFromURL(urlString: rehearsalsURLString, filename: "rehearsals.html", searchDate: searchDate, originalDate: date,
+                self.fetchFromURL(urlString: rehearsalsURLString, filename: "rehearsals.html", searchDate: searchDate, originalDate: baseDate,
                                   showTime: showTime, sectionKeywords: sectionKeywords, completion: completion)
             }
         }
@@ -530,6 +538,9 @@ class FZShowsFetcher {
         // Extract tour name from HTML (h3 tag preceding this show)
         let tour = extractTourName(html: html, beforeIndex: h4Match.lowerBound)
 
+        // Extract band lineup from HTML (last <p class="band"> block before this show)
+        let bandInfo = extractBandInfo(html: html, beforeIndex: h4Match.lowerBound)
+
         // Parse location from venue
         let location = GeoData.parseLocation(from: venue)
 
@@ -539,8 +550,16 @@ class FZShowsFetcher {
         print("   🗓️ Period: \(period ?? "?") | Tour: \(tour ?? "?")")
         #endif
 
+        // Include E/L suffix so Early and Late shows from the same date get distinct showDate keys
+        let dateKey: String
+        switch showTime {
+        case .early: dateKey = "\(originalDate) E"
+        case .late:  dateKey = "\(originalDate) L"
+        case .none:  dateKey = originalDate
+        }
+
         return FZShow(
-            date: originalDate,
+            date: dateKey,
             venue: venue,
             soundcheck: soundcheck,
             note: note,
@@ -552,7 +571,8 @@ class FZShowsFetcher {
             state: location.state,
             country: location.country,
             period: period,
-            tour: tour
+            tour: tour,
+            bandInfo: bandInfo
         )
     }
 
@@ -670,5 +690,60 @@ class FZShowsFetcher {
         }
 
         return nil
+    }
+
+    /// Extracts the band lineup from the HTML structure before the show date.
+    /// Looks for the last <p class="band">...</p> block before the show's <h4> tag,
+    /// and the <h3> immediately preceding it for the band/period title.
+    /// Returns "{h3 title}\n{members}" or nil if no band block found.
+    private static func extractBandInfo(html: String, beforeIndex: String.Index) -> String? {
+        let precedingHTML = String(html[html.startIndex..<beforeIndex])
+
+        // Find all <p class="band">...</p> matches, keep track of the last one
+        var lastBandRange: Range<String.Index>? = nil
+        var lastBandContent: String? = nil
+
+        let bandPattern = #"<p class="band">([^<]*)</p>"#
+        if let regex = try? NSRegularExpression(pattern: bandPattern, options: []) {
+            let nsRange = NSRange(precedingHTML.startIndex..<precedingHTML.endIndex, in: precedingHTML)
+            regex.enumerateMatches(in: precedingHTML, range: nsRange) { match, _, _ in
+                guard let match = match,
+                      let fullRange = Range(match.range(at: 0), in: precedingHTML),
+                      let contentRange = Range(match.range(at: 1), in: precedingHTML) else { return }
+                lastBandRange = fullRange
+                lastBandContent = String(precedingHTML[contentRange])
+                    .decodeHTMLEntities()
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        guard let bandRange = lastBandRange, let membersText = lastBandContent, !membersText.isEmpty else {
+            return nil
+        }
+
+        // Find the last <h3> before the band block for the title
+        let beforeBand = String(precedingHTML[precedingHTML.startIndex..<bandRange.lowerBound])
+        var titleText: String? = nil
+
+        let h3Pattern = #"<h3[^>]*>([^<]+)</h3>"#
+        if let regex = try? NSRegularExpression(pattern: h3Pattern, options: []) {
+            let nsRange = NSRange(beforeBand.startIndex..<beforeBand.endIndex, in: beforeBand)
+            regex.enumerateMatches(in: beforeBand, range: nsRange) { match, _, _ in
+                guard let match = match,
+                      let range = Range(match.range(at: 1), in: beforeBand) else { return }
+                let candidate = String(beforeBand[range])
+                    .decodeHTMLEntities()
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !candidate.isEmpty {
+                    titleText = candidate
+                }
+            }
+        }
+
+        if let title = titleText {
+            return "\(title)\n\(membersText)"
+        } else {
+            return membersText
+        }
     }
 }

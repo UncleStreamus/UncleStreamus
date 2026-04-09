@@ -89,6 +89,13 @@ struct BugReportData {
     }
 }
 
+// MARK: - Identifiable URL (shared)
+
+struct IdentifiableURL: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
+}
+
 // MARK: - Safari View & Mail Composer (iOS only)
 
 #if os(iOS)
@@ -97,11 +104,6 @@ import MessageUI
 
 extension BugReportData: Identifiable {
     var id: String { "\(showDate)-\(venue)" }
-}
-
-struct IdentifiableURL: Identifiable {
-    let url: URL
-    var id: String { url.absoluteString }
 }
 
 struct SafariView: UIViewControllerRepresentable {
@@ -148,6 +150,61 @@ struct MailComposerView: UIViewControllerRepresentable {
             dismiss()
         }
     }
+}
+#endif
+
+// MARK: - In-App Browser (macOS)
+
+#if os(macOS)
+import WebKit
+
+struct MacBrowserView: View {
+    let url: URL
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(url.host ?? "donlope.net")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            Divider()
+            MacWebView(url: url)
+            Divider()
+            HStack {
+                Spacer()
+                Button("Open in browser...") {
+                    NSWorkspace.shared.open(url)
+                }
+                .font(.caption)
+                .foregroundColor(.secondary)
+            }
+            .padding(.vertical, 8)
+            .padding(.trailing, 12)
+        }
+        .frame(minWidth: 500, minHeight: 600)
+    }
+}
+
+private struct MacWebView: NSViewRepresentable {
+    let url: URL
+
+    func makeNSView(context: Context) -> WKWebView {
+        let wv = WKWebView()
+        wv.load(URLRequest(url: url))
+        return wv
+    }
+
+    func updateNSView(_ wv: WKWebView, context: Context) {}
 }
 #endif
 

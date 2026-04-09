@@ -6,8 +6,8 @@ struct ShowEntryRow: View {
     @State private var isExpanded: Bool = false
     @State private var isRefreshing: Bool = false
     @State private var acronymsExpanded: Bool = false
+    @State private var setlistInfoItem: SetlistInfoItem?
     #if os(iOS)
-    @State private var safariURL: IdentifiableURL?
     @State private var bugReportData: BugReportData?
     #endif
     @Environment(\.openURL) private var openURL
@@ -121,13 +121,9 @@ struct ShowEntryRow: View {
                 }
 
                 if !savedShow.url.isEmpty {
-                    Button("Go to FZShows...") {
+                    Button("Setlist Info (FZShows)...") {
                         if let url = URL(string: savedShow.url) {
-                            #if os(iOS)
-                            safariURL = IdentifiableURL(url: url)
-                            #else
-                            openURL(url)
-                            #endif
+                            setlistInfoItem = SetlistInfoItem(url: url, showDate: savedShow.showDate)
                         }
                     }
                     .scaledFont(.caption2)
@@ -151,14 +147,10 @@ struct ShowEntryRow: View {
             if !savedShow.url.isEmpty {
                 Button(action: {
                     if let url = URL(string: savedShow.url) {
-                        #if os(iOS)
-                        safariURL = IdentifiableURL(url: url)
-                        #else
-                        openURL(url)
-                        #endif
+                        setlistInfoItem = SetlistInfoItem(url: url, showDate: savedShow.showDate)
                     }
                 }) {
-                    Label("Go to FZShows...", systemImage: "safari")
+                    Label("Setlist Info (FZShows)...", systemImage: "list.bullet.rectangle")
                 }
             }
 
@@ -181,11 +173,10 @@ struct ShowEntryRow: View {
                 Label("Report Issue...", systemImage: "envelope")
             }
         }
-        #if os(iOS)
-        .sheet(item: $safariURL) { item in
-            SafariView(url: item.url)
-                .ignoresSafeArea()
+        .sheet(item: $setlistInfoItem) { item in
+            SetlistInfoPaneView(item: item)
         }
+        #if os(iOS)
         .sheet(item: $bugReportData) { data in
             if MailComposerView.canSendMail {
                 MailComposerView(data: data)

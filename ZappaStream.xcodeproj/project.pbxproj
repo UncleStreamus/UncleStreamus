@@ -80,6 +80,12 @@
 		BEF8E53E2F3A873A000B6773 /* MarqueeText.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */; };
 		C3A1F8B52F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */; };
 		C3A1F8B62F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */; };
+		CC03DC000003DC0300CC03DC /* DonlopeIndexCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC01DC000001DC0100CC01DC /* DonlopeIndexCache.swift */; };
+		CC04DC000004DC0400CC04DC /* DonlopeIndexCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC01DC000001DC0100CC01DC /* DonlopeIndexCache.swift */; };
+		CC05DC000005DC0500CC05DC /* TrackInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC02DC000002DC0200CC02DC /* TrackInfoView.swift */; };
+		CC06DC000006DC0600CC06DC /* TrackInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC02DC000002DC0200CC02DC /* TrackInfoView.swift */; };
+		CC07DC000007DC0700CC07DC /* SetlistInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0ADC00000ADC0A00CC0ADC /* SetlistInfoView.swift */; };
+		CC08DC000008DC0800CC08DC /* SetlistInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0ADC00000ADC0A00CC0ADC /* SetlistInfoView.swift */; };
 		D7AD703B5B1743C183C698F7 /* AudioFXView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */; };
 		F62804A5EF88994291433F17 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
 		FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752DBEE239607630EF9BE524 /* SongFormatter.swift */; };
@@ -161,6 +167,9 @@
 		BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsFetcher.swift; sourceTree = "<group>"; };
 		BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MarqueeText.swift; sourceTree = "<group>"; };
 		C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamBuffer.swift; sourceTree = "<group>"; };
+		CC01DC000001DC0100CC01DC /* DonlopeIndexCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DonlopeIndexCache.swift; sourceTree = "<group>"; };
+		CC02DC000002DC0200CC02DC /* TrackInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackInfoView.swift; sourceTree = "<group>"; };
+		CC0ADC00000ADC0A00CC0ADC /* SetlistInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetlistInfoView.swift; sourceTree = "<group>"; };
 		DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FilterView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -274,6 +283,9 @@
 				BBBB00092FBB000900BB0009 /* BASSRadioPlayer+Metadata.swift */,
 				BBBB000C2FBB000C00BB000C /* BASSRadioPlayer+DVR.swift */,
 				C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */,
+				CC01DC000001DC0100CC01DC /* DonlopeIndexCache.swift */,
+				CC02DC000002DC0200CC02DC /* TrackInfoView.swift */,
+				CC0ADC00000ADC0A00CC0ADC /* SetlistInfoView.swift */,
 			);
 			path = ZappaStream;
 			sourceTree = "<group>";
@@ -473,6 +485,9 @@
 				BBBB000A2FBB000A00BB000A /* BASSRadioPlayer+DVR.swift in Sources */,
 				9D924559343B4593F5DE1323 /* SettingsView.swift in Sources */,
 				C3A1F8B52F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */,
+				CC03DC000003DC0300CC03DC /* DonlopeIndexCache.swift in Sources */,
+				CC05DC000005DC0500CC05DC /* TrackInfoView.swift in Sources */,
+				CC07DC000007DC0700CC07DC /* SetlistInfoView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -504,6 +519,9 @@
 				BE2FCA6B2F3CBB520038E706 /* ContentView_iOS.swift in Sources */,
 				D7AD703B5B1743C183C698F7 /* AudioFXView.swift in Sources */,
 				C3A1F8B62F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */,
+				CC04DC000004DC0400CC04DC /* DonlopeIndexCache.swift in Sources */,
+				CC06DC000006DC0600CC06DC /* TrackInfoView.swift in Sources */,
+				CC08DC000008DC0800CC08DC /* SetlistInfoView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

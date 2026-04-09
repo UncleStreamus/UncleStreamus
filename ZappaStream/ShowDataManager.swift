@@ -104,11 +104,11 @@ class ShowDataManager {
     func refreshShowInfo(savedShow: SavedShow, completion: @escaping (Bool) -> Void) {
         let showDate = savedShow.showDate
 
-        // Parse showTime from showInfo if present
+        // Derive showTime from showDate suffix (e.g. "1980 12 11 E" → .early)
         let showTime: ShowTime
-        if savedShow.showInfo.lowercased().contains("early") {
+        if showDate.hasSuffix(" E") {
             showTime = .early
-        } else if savedShow.showInfo.lowercased().contains("late") {
+        } else if showDate.hasSuffix(" L") {
             showTime = .late
         } else {
             showTime = .none
@@ -135,6 +135,7 @@ class ShowDataManager {
                 savedShow.country = newShow.country
                 savedShow.period = newShow.period
                 savedShow.tour = newShow.tour
+                savedShow.bandInfo = newShow.bandInfo
 
                 try? self.modelContext.save()
                 #if DEBUG

@@ -16,7 +16,7 @@ import AppKit
 struct ZappaStreamApp: App {
     @AppStorage("textScale") private var textScale: Double = 1.1
 
-    // Text scale levels: Smaller, Default, Large, Largest
+// Text scale levels: Smaller, Default, Large, Largest
     private let textScaleLevels: [Double] = [1.0, 1.1, 1.2, 1.3]
 
     #if os(macOS)
@@ -24,15 +24,24 @@ struct ZappaStreamApp: App {
     #endif
 
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            SavedShow.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let schema = Schema([SavedShow.self])
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let storeDir = appSupport.appendingPathComponent("ZappaStream", isDirectory: true)
+        let storeURL = storeDir.appendingPathComponent("ZappaStream.store")
+        try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
+        let config = ModelConfiguration(schema: schema, url: storeURL)
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try ModelContainer(for: schema, configurations: [config])
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            // Schema migration failure — back up the broken store and start fresh
+            print("⚠️ SwiftData store migration failed: \(error). Backing up and recreating.")
+            let backupURL = storeDir.appendingPathComponent("ZappaStream.store.bak")
+            try? FileManager.default.removeItem(at: backupURL)
+            try? FileManager.default.moveItem(at: storeURL, to: backupURL)
+            let freshConfig = ModelConfiguration(schema: schema, url: storeURL)
+            return (try? ModelContainer(for: schema, configurations: [freshConfig]))
+                ?? { fatalError("Could not create ModelContainer even after reset: \(error)") }()
         }
     }()
 
@@ -155,6 +164,7 @@ struct ZappaStreamApp: App {
             textScale = textScaleLevels.last { $0 < textScale } ?? textScaleLevels.first!
         }
     }
+
 }
 
 // MARK: - macOS App Delegate for Menubar

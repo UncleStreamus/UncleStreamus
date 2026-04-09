@@ -25,11 +25,14 @@ final class SavedShow {
     var period: String?
     var tour: String?
 
+    // Band lineup: "{h3 title}\n{members}" or nil
+    var bandInfo: String?
+
     init(showDate: String, venue: String, soundcheck: String?, note: String?,
          showInfo: String, setlistData: Data, acronymsData: Data, url: String,
          isFavorite: Bool = false, listenedAt: Date? = nil,
          city: String? = nil, state: String? = nil, country: String? = nil,
-         period: String? = nil, tour: String? = nil) {
+         period: String? = nil, tour: String? = nil, bandInfo: String? = nil) {
         self.showDate = showDate
         self.venue = venue
         self.soundcheck = soundcheck
@@ -45,6 +48,7 @@ final class SavedShow {
         self.country = country
         self.period = period
         self.tour = tour
+        self.bandInfo = bandInfo
     }
 
     var setlist: [String] {
@@ -73,7 +77,8 @@ final class SavedShow {
             state: state,
             country: country,
             period: period,
-            tour: tour
+            tour: tour,
+            bandInfo: bandInfo
         )
     }
 
@@ -97,7 +102,8 @@ final class SavedShow {
             state: show.state,
             country: show.country,
             period: show.period,
-            tour: show.tour
+            tour: show.tour,
+            bandInfo: show.bandInfo
         )
     }
 }

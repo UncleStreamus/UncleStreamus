@@ -4,6 +4,8 @@ import SwiftData
 import AVFoundation
 import MediaPlayer
 
+private enum FooterSection { case bandInfo, officialReleases }
+
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openSettings) private var openSettings
@@ -26,7 +28,7 @@ struct ContentView: View {
     @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
     @AppStorage("fxPersistOnRestart") private var fxPersistOnRestart: Bool = false
     @State private var panelOpen: Bool = false  // Local state for panel visibility
-    @State private var acronymsExpanded: Bool = false  // Collapsible acronyms section
+    @State private var expandedFooterSection: FooterSection? = nil
     @State private var contentBounceOffset: CGFloat = 0
     @State private var bounceResetTask: DispatchWorkItem?
     @State private var setlistFrameInWindow: CGRect = .zero  // Track setlist area to exclude from bounce
@@ -34,6 +36,8 @@ struct ContentView: View {
     @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
     @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
     @State private var showFXPane: Bool = false
+    @State private var trackInfoURL: IdentifiableURL?
+    @State private var setlistInfoItem: SetlistInfoItem?
     @AppStorage("setlistWasOpenBeforeFX") private var setlistWasOpenBeforeFX: Bool = false  // Track setlist state before FX panel opened; persisted so app relaunch can restore it
     @AppStorage("dvrEnabled") private var dvrEnabled: Bool = true
     @AppStorage("dvrBufferMinutes") private var dvrBufferMinutes: Int = 15
@@ -193,6 +197,12 @@ struct ContentView: View {
                 }
             }
         }
+        .sheet(item: $trackInfoURL) { item in
+            MacBrowserView(url: item.url)
+        }
+        .sheet(item: $setlistInfoItem) { item in
+            SetlistInfoPaneView(item: item)
+        }
     }
 
     private let maxWindowHeight: CGFloat = 800
@@ -351,6 +361,7 @@ struct ContentView: View {
                 }
                 .padding(.horizontal)
                 .padding(.top)
+                .environment(\.fontScale, 1.1)
 
                 // === Track Info Card (bounces) ===
                 VStack(alignment: .leading, spacing: 8) {
@@ -429,7 +440,7 @@ struct ContentView: View {
                 .padding(.bottom, 12)
                 .offset(y: contentBounceOffset)
 
-                // === MIDDLE: Show Info OR FX Pane (with fade transition) ===
+                // === MIDDLE: Show Info OR FX Pane OR Track Info Pane (with fade transition) ===
             if showFXPane {
                 // FX Pane: extends from below track info to above controls
                 VStack(spacing: 0) {
@@ -604,6 +615,11 @@ struct ContentView: View {
 
                     // Play/Pause button
                     Button(action: {
+                        print("🖱️ Play/Stop button tapped — isPlaying=\(isPlaying) thread=\(Thread.isMainThread ? "main" : "bg")")
+                        guard bassPlayer.checkUserActionAllowed() else {
+                            print("🚫 Button action blocked by debounce")
+                            return
+                        }
                         switch (isPlaying, bassPlayer.dvrState) {
                         case (false, _):
                             playStream()
@@ -639,6 +655,7 @@ struct ContentView: View {
                     // Stop button (DVR enabled only) — stops stream and clears buffer
                     if dvrEnabled {
                         Button(action: {
+                            guard bassPlayer.checkUserActionAllowed() else { return }
                             stopStream()
                         }) {
                             HStack(spacing: 6) {
@@ -658,6 +675,7 @@ struct ContentView: View {
                         .disabled(!isPlaying)
                     }
                 }
+                .environment(\.fontScale, 1.1)
             }
             .padding(.horizontal)
             .padding(.bottom)
@@ -821,35 +839,82 @@ struct ContentView: View {
                         }
                     )
 
-                    // Collapsible official releases section
-                    if !show.acronyms.isEmpty {
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                acronymsExpanded.toggle()
+                    // Band Info / Official Releases tab row
+                    let hasBandInfo = show.bandInfo != nil
+                    let hasAcronyms = !show.acronyms.isEmpty
+                    if hasBandInfo || hasAcronyms {
+                        HStack(spacing: 12) {
+                            if let bandInfo = show.bandInfo {
+                                let _ = bandInfo  // suppress unused warning
+                                Button(action: {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        expandedFooterSection = expandedFooterSection == .bandInfo ? nil : .bandInfo
+                                    }
+                                }) {
+                                    HStack(spacing: 2) {
+                                        Text("[")
+                                            .scaledFont(.caption, weight: .medium)
+                                            .foregroundColor(.secondary)
+                                        Text("Band Info")
+                                            .scaledFont(.caption, weight: .medium)
+                                            .foregroundColor(.primary)
+                                        Text("]")
+                                            .scaledFont(.caption, weight: .medium)
+                                            .foregroundColor(.secondary)
+                                        Image(systemName: expandedFooterSection == .bandInfo ? "chevron.down" : "chevron.right")
+                                            .scaledFont(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
                             }
-                        }) {
-                            HStack(spacing: 2) {
-                                Text("[")
-                                    .scaledFont(.caption, weight: .medium)
-                                    .foregroundColor(.secondary)
-                                Text("Official Releases")
-                                    .scaledFont(.caption, weight: .medium)
-                                    .foregroundColor(Color.orange.opacity(0.8))
-                                Text("]")
-                                    .scaledFont(.caption, weight: .medium)
-                                    .foregroundColor(.secondary)
-                                Image(systemName: acronymsExpanded ? "chevron.down" : "chevron.right")
-                                    .scaledFont(.caption2)
-                                    .foregroundColor(.secondary)
-                                Spacer()
+                            if hasAcronyms {
+                                Button(action: {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        expandedFooterSection = expandedFooterSection == .officialReleases ? nil : .officialReleases
+                                    }
+                                }) {
+                                    HStack(spacing: 2) {
+                                        Text("[")
+                                            .scaledFont(.caption, weight: .medium)
+                                            .foregroundColor(.secondary)
+                                        Text("Official Releases")
+                                            .scaledFont(.caption, weight: .medium)
+                                            .foregroundColor(Color.orange.opacity(0.8))
+                                        Text("]")
+                                            .scaledFont(.caption, weight: .medium)
+                                            .foregroundColor(.secondary)
+                                        Image(systemName: expandedFooterSection == .officialReleases ? "chevron.down" : "chevron.right")
+                                            .scaledFont(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .contentShape(Rectangle())
+                            Spacer()
                         }
-                        .buttonStyle(.plain)
                         .padding(.top, 16)
 
-                        if acronymsExpanded {
-                            // Deduplicate acronyms (same short form only listed once)
+                        // Expanded content (only one at a time)
+                        if expandedFooterSection == .bandInfo, let bandInfo = show.bandInfo {
+                            let parts = bandInfo.split(separator: "\n", maxSplits: 1).map(String.init)
+                            VStack(alignment: .leading, spacing: 4) {
+                                if parts.count >= 1 {
+                                    Text(parts[0])
+                                        .scaledFont(.caption, weight: .medium)
+                                        .foregroundColor(.secondary)
+                                        .italic()
+                                }
+                                if parts.count >= 2 {
+                                    Text(parts[1])
+                                        .scaledFont(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(.leading, 8)
+                        } else if expandedFooterSection == .officialReleases {
                             let uniqueAcronyms = show.acronyms.reduce(into: [(short: String, full: String)]()) { result, acronym in
                                 if !result.contains(where: { $0.short == acronym.short }) {
                                     result.append(acronym)
@@ -870,13 +935,25 @@ struct ContentView: View {
                         }
                     }
 
-                    Button("Go to FZShows...") {
-                        if let url = URL(string: show.url) {
-                            #if os(macOS)
-                            NSWorkspace.shared.open(url)
-                            #else
-                            // For iOS, we'll add Safari View Controller later
-                            #endif
+                    HStack(spacing: 8) {
+                        Button("Track Info (IINK)...") {
+                            guard let trackName = parsedTrack?.trackName else { return }
+                            Task {
+                                let result = await DonlopeIndexCache.shared.lookupURL(for: trackName)
+                                let url: URL
+                                if case .found(let found) = result { url = found }
+                                else { url = URL(string: "https://www.donlope.net/fz/songs/index.html")! }
+                                await MainActor.run { trackInfoURL = IdentifiableURL(url: url) }
+                            }
+                        }
+                        .disabled(parsedTrack?.trackName == nil)
+                        Spacer()
+                        Button("Setlist Info (FZShows)...") {
+                            if let url = URL(string: show.url) {
+                                // Strip E/L variant suffix — scroll-to search matches raw HTML dates
+                                let baseDate = show.date.components(separatedBy: " ").prefix(3).joined(separator: " ")
+                                setlistInfoItem = SetlistInfoItem(url: url, showDate: baseDate)
+                            }
                         }
                     }
                     .scaledFont(.caption)
@@ -1077,6 +1154,7 @@ struct ContentView: View {
             object: nil,
             queue: .main
         ) { [self] _ in
+            guard bassPlayer.checkUserActionAllowed() else { return }
             switch (isPlaying, bassPlayer.dvrState) {
             case (false, _):
                 playStream()
@@ -1095,6 +1173,7 @@ struct ContentView: View {
             object: nil,
             queue: .main
         ) { [self] _ in
+            guard bassPlayer.checkUserActionAllowed() else { return }
             if isPlaying { stopStream() }
         }
 
@@ -1263,6 +1342,7 @@ struct ContentView: View {
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { [self] _ in
             DispatchQueue.main.async {
+                guard self.bassPlayer.checkUserActionAllowed() else { return }
                 if self.bassPlayer.dvrState == .paused {
                     self.bassPlayer.dvrResume()
                 } else if !self.isPlaying {
@@ -1277,6 +1357,7 @@ struct ContentView: View {
         commandCenter.pauseCommand.addTarget { [self] _ in
             if isPlaying {
                 DispatchQueue.main.async {
+                    guard self.bassPlayer.checkUserActionAllowed() else { return }
                     switch self.bassPlayer.dvrState {
                     case .live:
                         if self.dvrEnabled { self.bassPlayer.dvrPause() } else { self.stopStream() }
@@ -1294,6 +1375,7 @@ struct ContentView: View {
         commandCenter.togglePlayPauseCommand.isEnabled = true
         commandCenter.togglePlayPauseCommand.addTarget { [self] _ in
             DispatchQueue.main.async {
+                guard self.bassPlayer.checkUserActionAllowed() else { return }
                 switch (self.isPlaying, self.bassPlayer.dvrState) {
                 case (false, _):
                     self.playStream()
@@ -1367,6 +1449,7 @@ struct ContentView: View {
 
     func playStream(showWarning: Bool = true) {
         guard let stream = selectedStream else { return }
+        print("▶️ playStream() called — stack: \(Thread.callStackSymbols.prefix(5).joined(separator: " | "))")
 
         bassPlayer.play(format: stream.format, url: stream.url)
         isPlaying = true
@@ -1391,6 +1474,7 @@ struct ContentView: View {
     }
 
     func stopStream() {
+        print("⏸️ stopStream() called — stack: \(Thread.callStackSymbols.prefix(5).joined(separator: " | "))")
         bassPlayer.stopWithFadeOut()
         isPlaying = false
         NotificationCenter.default.post(name: .playbackStateChanged, object: nil, userInfo: ["isPlaying": false])
@@ -1409,12 +1493,19 @@ struct ContentView: View {
     }
 
     func fetchShowInfo(date: String, showTime: ShowTime = .none) {
+        // Build the variant date key (e.g. "1980 12 11 E") for accurate early/late deduplication
+        let variantDate: String
+        switch showTime {
+        case .early: variantDate = "\(date) E"
+        case .late:  variantDate = "\(date) L"
+        case .none:  variantDate = date
+        }
         // Only fetch if we don't already have this show (and same showTime)
-        guard currentShow?.date != date else { return }
+        guard currentShow?.date != variantDate else { return }
 
         // Determine whether to restore or reset FX based on show change and persistence settings
         let lastShowDate = UserDefaults.standard.string(forKey: "lastShowDateOnQuit")
-        let showHasChanged = lastShowDate != nil && lastShowDate != date
+        let showHasChanged = lastShowDate != nil && lastShowDate != variantDate
 
         if showHasChanged {
             // Show changed: decide based on "across shows" setting
@@ -1459,6 +1550,27 @@ struct ContentView: View {
                     print("   Venue: \(show.venue)")
                     print("   Setlist: \(show.setlist.count) songs")
                     #endif
+
+                    // If parsed metadata lacks location, fill in from FZShow
+                    if let parsed = self.parsedTrack, parsed.city == nil || parsed.state == nil {
+                        let updatedParsed = ParsedTrackInfo(
+                            date: parsed.date,
+                            showTime: parsed.showTime,
+                            city: parsed.city ?? show.city,
+                            state: parsed.state ?? show.state,
+                            showDuration: parsed.showDuration,
+                            source: parsed.source,
+                            generation: parsed.generation,
+                            creator: parsed.creator,
+                            artist: parsed.artist,
+                            trackNumber: parsed.trackNumber,
+                            trackName: parsed.trackName,
+                            year: parsed.year,
+                            trackDuration: parsed.trackDuration,
+                            rawTitle: parsed.rawTitle
+                        )
+                        self.parsedTrack = updatedParsed
+                    }
 
                     // Auto-record to history
                     self.showDataManager?.recordListen(show: show)

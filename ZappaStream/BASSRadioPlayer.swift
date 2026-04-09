@@ -98,6 +98,9 @@ enum PlaybackState {
     /// freeStream() and restartStream() must NOT touch this.
     var isUserIntendedPlay: Bool = false
 
+    /// Timestamp of the last user-initiated play or stop. Used to debounce rapid double-taps.
+    private var lastUserActionTime: Date = .distantPast
+
     /// True while a reconnect attempt is scheduled or in-flight (drives UI).
     var isReconnecting: Bool = false
 
@@ -396,6 +399,18 @@ enum PlaybackState {
     /// Start playing the stream with the given format.
     /// `format` must be one of "MP3", "OGG", "AAC", "FLAC".
     /// `url` is accepted for API compatibility but the quality table is the source of truth.
+    /// Returns true and records the timestamp if enough time has passed since the last user action.
+    /// Call this once at the top of any user-initiated playback control (button, media key, etc.).
+    /// If it returns false, discard the action entirely — do not update any UI state.
+    func checkUserActionAllowed() -> Bool {
+        let now = Date()
+        let elapsed = now.timeIntervalSince(lastUserActionTime)
+        print("🔒 checkUserActionAllowed: elapsed=\(String(format: "%.4f", elapsed))s thread=\(Thread.isMainThread ? "main" : "bg") allowed=\(elapsed >= 0.8)")
+        guard elapsed >= 1.2 else { return false }
+        lastUserActionTime = now
+        return true
+    }
+
     func play(format: String, url: String) {
         switchQuality(format)
     }

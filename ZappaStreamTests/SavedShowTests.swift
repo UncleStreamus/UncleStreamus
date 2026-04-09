@@ -21,7 +21,8 @@ final class SavedShowTests: XCTestCase {
         FZShow(
             date: date, venue: venue, soundcheck: soundcheck, note: note,
             showInfo: showInfo, setlist: setlist, acronyms: acronyms, url: url,
-            city: city, state: state, country: country, period: period, tour: tour
+            city: city, state: state, country: country, period: period, tour: tour,
+            bandInfo: nil
         )
     }
 

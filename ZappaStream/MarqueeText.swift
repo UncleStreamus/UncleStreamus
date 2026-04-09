@@ -11,7 +11,7 @@ struct MarqueeText: View {
     @State private var textWidth: CGFloat = 0
     @State private var containerWidth: CGFloat = 0
     @State private var offset: CGFloat = 0
-    @State private var isAnimating = false
+    @State private var scrollTask: Task<Void, Never>? = nil
 
     // Scrolling parameters
     private let scrollSpeed: Double = 20 // points per second
@@ -21,7 +21,6 @@ struct MarqueeText: View {
         textWidth > containerWidth && containerWidth > 0
     }
 
-    /// How far we need to scroll to reveal the end of the text
     private var scrollDistance: CGFloat {
         max(0, textWidth - containerWidth)
     }
@@ -44,14 +43,19 @@ struct MarqueeText: View {
                     containerWidth = availableWidth
                 }
                 .onChange(of: availableWidth) { _, newWidth in
+                    // Ignore sub-pixel fluctuations to prevent spurious mid-scroll restarts
+                    guard abs(newWidth - containerWidth) > 1 else { return }
                     containerWidth = newWidth
                     restartAnimation()
                 }
                 .onChange(of: text) { _, _ in
-                    measureAndAnimate()
+                    // Cancel immediately and reset; wait for textWidth update to start
+                    scrollTask?.cancel()
+                    scrollTask = nil
+                    offset = 0
                 }
                 .onChange(of: fontScale) { _, _ in
-                    measureAndAnimate()
+                    restartAnimation()
                 }
         }
         .frame(height: fontSize * 1.3) // Approximate line height
@@ -65,10 +69,11 @@ struct MarqueeText: View {
                         Color.clear
                             .onAppear {
                                 textWidth = geo.size.width
-                                startScrollingIfNeeded()
+                                restartAnimation()
                             }
                             .onChange(of: geo.size.width) { _, newWidth in
                                 textWidth = newWidth
+                                restartAnimation()
                             }
                     }
                 )
@@ -76,59 +81,50 @@ struct MarqueeText: View {
         )
     }
 
-    private func measureAndAnimate() {
-        // Reset and remeasure
-        isAnimating = false
-        offset = 0
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            startScrollingIfNeeded()
-        }
-    }
-
-    private func startScrollingIfNeeded() {
-        guard needsScrolling, !isAnimating else { return }
-        isAnimating = true
-        offset = 0
-        animateScroll()
-    }
-
     private func restartAnimation() {
-        isAnimating = false
-        offset = 0
+        scrollTask?.cancel()
+        scrollTask = nil
+        // Suppress any in-flight SwiftUI animation when snapping back to start
+        withTransaction(Transaction(animation: nil)) { offset = 0 }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            startScrollingIfNeeded()
+        guard needsScrolling else { return }
+
+        scrollTask = Task { @MainActor in
+            await runScrollLoop()
         }
     }
 
-    private func animateScroll() {
-        guard needsScrolling, isAnimating else {
-            isAnimating = false
-            return
-        }
+    @MainActor
+    private func runScrollLoop() async {
+        // Brief settle delay so textWidth and containerWidth are both current
+        try? await Task.sleep(for: .milliseconds(50))
 
-        let scrollDuration = scrollDistance / scrollSpeed
+        while !Task.isCancelled && needsScrolling {
+            // Pause at start
+            do {
+                try await Task.sleep(for: .seconds(pauseDuration))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, needsScrolling else { return }
 
-        // Pause at start
-        DispatchQueue.main.asyncAfter(deadline: .now() + pauseDuration) {
-            guard self.isAnimating, self.needsScrolling else { return }
-
-            // Scroll left to reveal the end
-            withAnimation(.linear(duration: scrollDuration)) {
-                self.offset = -self.scrollDistance
+            // Scroll left to reveal end — compute distance fresh each iteration
+            let distance = scrollDistance
+            let duration = distance / scrollSpeed
+            withAnimation(.linear(duration: duration)) {
+                offset = -distance
             }
 
-            // Pause at end, then jump back to start
-            DispatchQueue.main.asyncAfter(deadline: .now() + scrollDuration + pauseDuration) {
-                guard self.isAnimating else { return }
-
-                // Jump back to start (no animation)
-                self.offset = 0
-
-                // Continue the loop
-                self.animateScroll()
+            // Pause at end
+            do {
+                try await Task.sleep(for: .seconds(duration + pauseDuration))
+            } catch {
+                return
             }
+            guard !Task.isCancelled else { return }
+
+            // Jump back to start (no animation)
+            offset = 0
         }
     }
 }
