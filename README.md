@@ -50,12 +50,12 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 
 ### Planned Features
 
-**iCloud Sync across all Apple devices**
+- iCloud Sync across all Apple devices
 
-**More inline data about the period, tour, band etc:**
+- More inline data about the period, tour, band etc
 
-**Customisable section headers for the Favourites tab:**
-- Not just by year, but also period, tour, band member, location etc.
+- Customisable section headers for the Favourites tab:
+  - Not just by year, but also period, tour, band member, location etc.
 
 
 ### Current issues & Feedback options
