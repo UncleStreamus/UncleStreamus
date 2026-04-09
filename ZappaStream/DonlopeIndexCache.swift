@@ -54,7 +54,24 @@ actor DonlopeIndexCache {
                 }
             }
 
-            // 3. Fuzzy fallback
+            // 3. Try stripping subtitle separator (e.g. "Goblin Girl - Doreen" → "Goblin Girl")
+            if let dashRange = normalized.range(of: " - ") {
+                let baseName = String(normalized[..<dashRange.lowerBound])
+                if let url = caseInsensitiveLookup(baseName, in: idx) {
+                    return .found(url)
+                }
+                for suffix in suffixes where baseName.lowercased().hasSuffix(suffix.lowercased()) {
+                    let stripped = String(baseName.dropLast(suffix.count))
+                    if let url = caseInsensitiveLookup(stripped, in: idx) {
+                        return .found(url)
+                    }
+                }
+                if let url = fuzzyMatch(normalizedName: baseName, in: idx) {
+                    return .found(url)
+                }
+            }
+
+            // 4. Fuzzy fallback on full name
             if let url = fuzzyMatch(normalizedName: normalized, in: idx) {
                 return .found(url)
             }
