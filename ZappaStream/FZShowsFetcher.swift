@@ -384,8 +384,17 @@ class FZShowsFetcher {
             // Find Early/Late section
             let targetKeyword = showTime == .early ? "Early" : "Late"
             if let h5Range = showSection.range(of: "<h5>\(targetKeyword)", options: .caseInsensitive) {
-                targetSectionStart = html.index(h4End.upperBound, offsetBy: showSection.distance(from: showSection.startIndex, to: h5Range.lowerBound))
-                targetSection = String(html[targetSectionStart..<showSectionEnd])
+                let absStart = html.index(h4End.upperBound, offsetBy: showSection.distance(from: showSection.startIndex, to: h5Range.lowerBound))
+                targetSectionStart = absStart
+                // Truncate at the next sibling <h5> so notes/setlist from the other show aren't included
+                let afterThisH5 = h5Range.upperBound
+                let subsectionAbsEnd: String.Index
+                if let nextH5Range = showSection.range(of: "<h5>", options: .caseInsensitive, range: afterThisH5..<showSection.endIndex) {
+                    subsectionAbsEnd = html.index(h4End.upperBound, offsetBy: showSection.distance(from: showSection.startIndex, to: nextH5Range.lowerBound))
+                } else {
+                    subsectionAbsEnd = showSectionEnd
+                }
+                targetSection = String(html[absStart..<subsectionAbsEnd])
                 detectedShowType = showTime
                 #if DEBUG
                 print("🎭 Found \(targetKeyword) show section")
