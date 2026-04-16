@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 // MARK: - FX Info Icon
 
@@ -75,6 +78,10 @@ struct VerticalEQSlider: View {
 
     private let thumbSize:  CGFloat = 20
     private let trackWidth: CGFloat = 5
+    @State private var dragStartValue: Float = 0
+    @State private var dragStartY: CGFloat = 0
+    @State private var isDragging = false
+    @State private var lastHapticDB: Int = 0
 
     var body: some View {
         GeometryReader { geo in
@@ -133,12 +140,34 @@ struct VerticalEQSlider: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { drag in
+#if os(iOS)
+                        if !isDragging {
+                            isDragging = true
+                            dragStartValue = value
+                            dragStartY = drag.location.y
+                            lastHapticDB = Int(value.rounded())
+                        }
+                        // Relative drag at 0.5× sensitivity: need 2× travel for the same dB change
+                        let dBPerPoint = Float(12.0 / trackH)
+                        let deltaDB = Float(drag.location.y - dragStartY) * dBPerPoint * 0.5
+                        // Snap to 0.1 dB increments
+                        let newValue = (max(-6, min(6, dragStartValue - deltaDB)) * 10).rounded() / 10
+                        // Light haptic tick at each whole dB crossing
+                        let newWholeDB = Int(newValue.rounded())
+                        if newWholeDB != lastHapticDB {
+                            lastHapticDB = newWholeDB
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        }
+                        value = newValue
+#else
                         let relY = drag.location.y - trackTop
                         let t = max(0, min(1, Float(relY / trackH)))
                         let u = 1 - 2 * t                               // +1 at top, -1 at bottom
                         value = 6 * (u >= 0 ? u * u : -(u * u))
+#endif
                         onUpdate()
                     }
+                    .onEnded { _ in isDragging = false }
             )
             .simultaneousGesture(
                 TapGesture(count: 2).onEnded {
