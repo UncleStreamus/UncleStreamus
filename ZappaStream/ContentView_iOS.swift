@@ -354,6 +354,9 @@ struct ContentView_iOS: View {
         .onChange(of: dvrBufferMinutes) { _, _ in
             bassPlayer.updateDVRBufferSize()
         }
+        .onChange(of: bassPlayer.dvrState) { _, _ in
+            updateNowPlayingInfo()
+        }
     }
 
     // MARK: - Track Info Card
@@ -823,6 +826,7 @@ struct ContentView_iOS: View {
                                             .foregroundColor(.secondary)
                                     }
                                 }
+                                .fixedSize(horizontal: false, vertical: true)
                                 .padding(.leading, 8)
                             } else if expandedFooterSection == .officialReleases {
                                 let uniqueAcronyms = show.acronyms.reduce(into: [(short: String, full: String)]()) { result, acronym in
@@ -1178,17 +1182,16 @@ struct ContentView_iOS: View {
 
         commandCenter.pauseCommand.isEnabled = true
         commandCenter.pauseCommand.addTarget { _ in
-            if isPlaying {
-                DispatchQueue.main.async {
-                    guard self.bassPlayer.checkUserActionAllowed() else { return }
-                    switch self.bassPlayer.dvrState {
-                    case .live:
-                        if self.dvrEnabled { self.bassPlayer.dvrPause() } else { self.stopStream() }
-                    case .paused:
-                        break  // already paused
-                    case .playing:
-                        self.bassPlayer.dvrPausePlayback()
-                    }
+            DispatchQueue.main.async {
+                guard self.isPlaying else { return }
+                guard self.bassPlayer.checkUserActionAllowed() else { return }
+                switch self.bassPlayer.dvrState {
+                case .live:
+                    if self.dvrEnabled { self.bassPlayer.dvrPause() } else { self.stopStream() }
+                case .paused:
+                    break  // already paused
+                case .playing:
+                    self.bassPlayer.dvrPausePlayback()
                 }
             }
             return .success
@@ -1245,7 +1248,7 @@ struct ContentView_iOS: View {
             #endif
         }
 
-        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = (isPlaying && bassPlayer.dvrState != .paused) ? 1.0 : 0.0
         nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = true
         nowPlayingInfo[MPMediaItemPropertyMediaType] = MPMediaType.music.rawValue
 
