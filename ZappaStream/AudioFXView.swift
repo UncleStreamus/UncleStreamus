@@ -156,7 +156,7 @@ struct VerticalEQSlider: View {
                         let newWholeDB = Int((newValue / 2).rounded()) * 2
                         if newWholeDB != lastHapticDB {
                             lastHapticDB = newWholeDB
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.8)
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 1.0)
                         }
                         value = newValue
 #else
