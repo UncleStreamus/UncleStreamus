@@ -456,7 +456,7 @@ struct ContentView_iOS: View {
                             .font(.caption)
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
-                        Button("Go Live") { bassPlayer.goLive() }
+                        Button("Go Live") { bassPlayer.goLive(); updateNowPlayingInfo() }
                             .buttonStyle(.borderedProminent)
                             .tint(Color(red: 0.72, green: 0.07, blue: 0.07))
                             .controlSize(.small)
@@ -592,10 +592,13 @@ struct ContentView_iOS: View {
                         playStream()
                     case (true, .live):
                         if dvrEnabled { bassPlayer.dvrPause() } else { stopStream() }
+                        updateNowPlayingInfo()
                     case (true, .paused):
                         bassPlayer.dvrResume()
+                        updateNowPlayingInfo()
                     case (true, .playing):
                         bassPlayer.dvrPausePlayback()
+                        updateNowPlayingInfo()
                     }
                 } label: {
                     HStack(spacing: 4) {
@@ -1170,9 +1173,13 @@ struct ContentView_iOS: View {
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { _ in
             DispatchQueue.main.async {
+                #if DEBUG
+                print("▶️  remoteCmd PLAY — isPlaying=\(self.isPlaying) dvrState=\(self.bassPlayer.dvrState)")
+                #endif
                 guard self.bassPlayer.checkUserActionAllowed() else { return }
                 if self.bassPlayer.dvrState == .paused {
                     self.bassPlayer.dvrResume()
+                    self.updateNowPlayingInfo()
                 } else if !self.isPlaying {
                     self.playStream()
                 }
@@ -1183,15 +1190,24 @@ struct ContentView_iOS: View {
         commandCenter.pauseCommand.isEnabled = true
         commandCenter.pauseCommand.addTarget { _ in
             DispatchQueue.main.async {
+                #if DEBUG
+                print("⏸️  remoteCmd PAUSE — isPlaying=\(self.isPlaying) dvrState=\(self.bassPlayer.dvrState)")
+                #endif
                 guard self.isPlaying else { return }
+                // Don't call checkUserActionAllowed for a no-op (already paused) — avoid
+                // consuming the debounce when iOS/AirPods send a stale pause while we're
+                // already paused, which would block the subsequent play press.
+                guard self.bassPlayer.dvrState != .paused else { return }
                 guard self.bassPlayer.checkUserActionAllowed() else { return }
                 switch self.bassPlayer.dvrState {
                 case .live:
                     if self.dvrEnabled { self.bassPlayer.dvrPause() } else { self.stopStream() }
+                    self.updateNowPlayingInfo()
                 case .paused:
-                    break  // already paused
+                    break  // unreachable; guarded above
                 case .playing:
                     self.bassPlayer.dvrPausePlayback()
+                    self.updateNowPlayingInfo()
                 }
             }
             return .success
@@ -1200,16 +1216,22 @@ struct ContentView_iOS: View {
         commandCenter.togglePlayPauseCommand.isEnabled = true
         commandCenter.togglePlayPauseCommand.addTarget { _ in
             DispatchQueue.main.async {
+                #if DEBUG
+                print("⏯️  remoteCmd TOGGLE — isPlaying=\(self.isPlaying) dvrState=\(self.bassPlayer.dvrState)")
+                #endif
                 guard self.bassPlayer.checkUserActionAllowed() else { return }
                 switch (self.isPlaying, self.bassPlayer.dvrState) {
                 case (false, _):
                     self.playStream()
                 case (true, .live):
                     if self.dvrEnabled { self.bassPlayer.dvrPause() } else { self.stopStream() }
+                    self.updateNowPlayingInfo()
                 case (true, .paused):
                     self.bassPlayer.dvrResume()
+                    self.updateNowPlayingInfo()
                 case (true, .playing):
                     self.bassPlayer.dvrPausePlayback()
+                    self.updateNowPlayingInfo()
                 }
             }
             return .success
@@ -1248,8 +1270,11 @@ struct ContentView_iOS: View {
             #endif
         }
 
-        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = (isPlaying && bassPlayer.dvrState != .paused) ? 1.0 : 0.0
-        nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = true
+        let dvrPaused = bassPlayer.dvrState == .paused
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = (isPlaying && !dvrPaused) ? 1.0 : 0.0
+        // IsLiveStream=true causes iOS to ignore playbackRate=0, so clear it when DVR is paused
+        // so the lock screen and AirPods correctly reflect the paused state.
+        nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = !dvrPaused
         nowPlayingInfo[MPMediaItemPropertyMediaType] = MPMediaType.music.rawValue
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo

@@ -109,6 +109,11 @@ enum PlaybackState {
 
     var reconnectTimer: DispatchSourceTimer?
 
+    // Pumps the decode-only pre-mixer while the output mixer is paused during DVR pause.
+    // Keeps the recording DSP firing so WAV segments continue to be written to disk.
+    var dvrRecordingPumpSource: DispatchSourceTimer?
+    var dvrRecordingPumpBuf = [UInt8](repeating: 0, count: 35280) // 100ms at 44.1kHz stereo float32
+
     // Flat 5s retry interval, giving up after 12 attempts (~1 minute total).
     let reconnectRetryInterval: TimeInterval = 5
     let reconnectMaxAttempts: Int = 12

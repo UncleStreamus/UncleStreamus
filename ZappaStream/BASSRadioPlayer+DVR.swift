@@ -84,9 +84,16 @@ extension BASSRadioPlayer {
         // when the user paused and quickly resumed (mid-fade mixer vol + DVR stream
         // ch-vol fade = two simultaneous fade-ins on non-FLAC's old 0.5s single mixer).
         let liveSource = preMixerHandle
-        startFadeOut(mixer: liveSource) {
-            // Ensure fully muted; stream and recording DSP remain active.
+        startFadeOut(mixer: liveSource) { [weak self] in
             BASS_ChannelSetAttribute(liveSource, DWORD(BASS_ATTRIB_VOL), 0)
+            guard let self else { return }
+            // Pause the output mixer so CoreAudio stops producing audio output.
+            // This causes iOS to recognise the paused state, fixing AirPods/lock screen.
+            // The recording DSP on preMixerHandle only fires when something reads from it,
+            // so we start a background pump that keeps pulling decoded audio into /dev/null
+            // while the output mixer is paused, ensuring WAV segments keep being written.
+            BASS_ChannelPause(self.mixerHandle)
+            self.startDVRRecordingPump()
         }
         print("⏸️ DVR paused at t=\(String(format: "%.2f", dvrPauseTimestamp))s")
     }
@@ -136,6 +143,8 @@ extension BASSRadioPlayer {
             }
             self.dvrPausedStreams.removeAll()
             BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
+            BASS_ChannelPause(ph)
+            self.startDVRRecordingPump()
         }
         print("⏸️ DVR playback paused at recording t=\(String(format: "%.2f", currentRecordingTime))s")
     }
@@ -145,7 +154,11 @@ extension BASSRadioPlayer {
     func dvrResume() {
         // Buffer was full: if the 15-min window has expired, go live; otherwise play the buffer.
         if dvrBufferFull && dvrBufferFullExpired { goLive(); return }
-        guard dvrState == .paused, let buffer = streamBuffer else { return }
+        guard dvrState == .paused, let buffer = streamBuffer else {
+            print("⚠️ dvrResume guard failed: dvrState=\(dvrState) hasBuffer=\(streamBuffer != nil)")
+            return
+        }
+        stopDVRRecordingPump()
 
         let stream = buffer.createPlaybackStream(from: dvrPauseTimestamp)
         guard stream != 0 else {
@@ -218,6 +231,7 @@ extension BASSRadioPlayer {
     /// The live stream is unmuted with a fade-in.
     func goLive() {
         guard dvrState != .live else { return }
+        stopDVRRecordingPump()
 
         // Stop DVR playback (freeing the stream auto-removes it from mixerHandle).
         if dvrPlaybackStream != 0 {
@@ -274,8 +288,9 @@ extension BASSRadioPlayer {
             return
         }
 
-        // Normal DVR unpause (stream was never paused): unmute with a fade-in.
+        // Normal DVR unpause (stream was never paused): resume mixer then unmute with a fade-in.
         bassPollingQueue.async { [weak self] in self?.pollMetadata() }
+        if mixerHandle != 0 { BASS_ChannelPlay(mixerHandle, 0) }
         if preMixerHandle != 0 {
             cancelFade()                       // cancel any DVR stream ch-vol fade; advance generation
             startFadeIn(mixer: preMixerHandle) // fade live source ch-vol from 0→1
@@ -622,6 +637,35 @@ extension BASSRadioPlayer {
         lastDVRPublishedMetadata = entry.metadata
         print("📼 DVR metadata @ t=\(String(format: "%.1f", currentRecordingTime))s → \(entry.metadata)")
         onMetadataUpdate?(entry.metadata)
+    }
+
+    // MARK: - Recording Pump (keeps WAV recording alive while output mixer is paused)
+
+    /// Starts a background timer that reads from the decode-only pre-mixer (~100ms/tick).
+    /// The output mixer is paused during DVR pause so iOS sees no audio output (AirPods
+    /// and lock screen correctly show a play button). Without this pump, the recording DSP
+    /// on preMixerHandle would stop firing and WAV segments would have gaps.
+    func startDVRRecordingPump() {
+        stopDVRRecordingPump()
+        guard preMixerHandle != 0 else { return }
+        let src = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInitiated))
+        src.schedule(deadline: .now() + 0.1, repeating: .milliseconds(100), leeway: .milliseconds(10))
+        src.setEventHandler { [weak self] in
+            guard let self, self.preMixerHandle != 0 else { return }
+            self.dvrRecordingPumpBuf.withUnsafeMutableBytes { ptr in
+                _ = BASS_ChannelGetData(self.preMixerHandle, ptr.baseAddress!, DWORD(ptr.count))
+            }
+        }
+        src.resume()
+        dvrRecordingPumpSource = src
+        print("🎙️ DVR recording pump started")
+    }
+
+    func stopDVRRecordingPump() {
+        guard dvrRecordingPumpSource != nil else { return }
+        dvrRecordingPumpSource?.cancel()
+        dvrRecordingPumpSource = nil
+        print("🎙️ DVR recording pump stopped")
     }
 
     /// Start polling the metadata journal for DVR playback position every 3 s.

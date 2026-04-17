@@ -147,6 +147,7 @@ extension BASSRadioPlayer {
 
         // Stop DVR playback and timers before freeing channels.
         // Ordering: stop timer → free DVR stream → stop BASS channels (stops DSP) → cleanup buffer.
+        stopDVRRecordingPump()
         dvrBehindTimer?.invalidate()
         dvrBehindTimer = nil
         dvrMetadataTimer?.invalidate()
