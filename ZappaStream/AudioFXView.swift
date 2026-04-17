@@ -145,18 +145,18 @@ struct VerticalEQSlider: View {
                             isDragging = true
                             dragStartValue = value
                             dragStartY = drag.location.y
-                            lastHapticDB = Int(value.rounded())
+                            lastHapticDB = Int((value / 2).rounded()) * 2
                         }
                         // Relative drag at 0.5× sensitivity: need 2× travel for the same dB change
                         let dBPerPoint = Float(12.0 / trackH)
                         let deltaDB = Float(drag.location.y - dragStartY) * dBPerPoint * 0.5
                         // Snap to 0.1 dB increments
                         let newValue = (max(-6, min(6, dragStartValue - deltaDB)) * 10).rounded() / 10
-                        // Light haptic tick at each whole dB crossing
-                        let newWholeDB = Int(newValue.rounded())
+                        // Light haptic tick at every 2 dB crossing
+                        let newWholeDB = Int((newValue / 2).rounded()) * 2
                         if newWholeDB != lastHapticDB {
                             lastHapticDB = newWholeDB
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.8)
                         }
                         value = newValue
 #else
