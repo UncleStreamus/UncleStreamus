@@ -83,6 +83,7 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 <img width="763" height="892" alt="Screenshot 2026-03-05 at 11 33 55" src="https://github.com/user-attachments/assets/be21a9d2-cbd5-487c-85f0-443a4ef4db4b" />
 <img width="926" height="859" alt="Screenshot 2026-03-05 at 11 32 51" src="https://github.com/user-attachments/assets/8ef93bd3-c8bf-4735-9cb6-df932119e872" />
 <img width="482" height="912" alt="Screenshot 2026-03-05 at 11 38 38" src="https://github.com/user-attachments/assets/ec9dd67c-1111-46cd-a1cf-0047d654f9a9" />
+<img width="512" height="420" alt="Screenshot 2026-04-20 at 17 20 30" src="https://github.com/user-attachments/assets/1c3384d2-0e3b-4f1c-80a3-7138d2bbf50b" />
 
 
 **iOS/iPadOS:**
