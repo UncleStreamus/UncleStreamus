@@ -18,6 +18,7 @@ struct ContentView_iOS: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
     @State private var showDataManager: ShowDataManager?
+    @State private var fzShowsDB: FZShowsDatabase?
     @State private var safariURL: IdentifiableURL?
     @State private var setlistInfoItem: SetlistInfoItem?
 
@@ -321,6 +322,15 @@ struct ContentView_iOS: View {
             if showDataManager == nil {
                 showDataManager = ShowDataManager(modelContext: modelContext)
             }
+            if fzShowsDB == nil {
+                let db = FZShowsDatabase(modelContext: modelContext)
+                fzShowsDB = db
+                if db.totalCachedShows == 0 {
+                    db.downloadAllPages()
+                } else {
+                    db.refreshStalePages()
+                }
+            }
             if selectedStream == nil {
                 selectedStream = streams.first { $0.format == lastStreamFormat } ?? streams.first
             }
@@ -335,6 +345,9 @@ struct ContentView_iOS: View {
                     self.playStream()
                 }
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .refreshShowDatabase)) { _ in
+            fzShowsDB?.downloadAllPages()
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background || newPhase == .inactive {
@@ -496,6 +509,14 @@ struct ContentView_iOS: View {
                             .tint(colorScheme == .dark ? .secondary : .blue)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                             .animation(.easeInOut(duration: 0.3), value: isBuffering)
+                    }
+
+                    // Show database first-launch download progress bar
+                    if let db = fzShowsDB, db.isDownloading && db.totalCachedShows == 0 {
+                        ProgressView(value: db.downloadProgress)
+                            .progressViewStyle(.linear)
+                            .tint(.secondary)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                     }
 
                     // Delay warning when using AAC stream - shows briefly then hides
@@ -853,7 +874,7 @@ struct ContentView_iOS: View {
                         }
 
                         HStack(spacing: 8) {
-                            Button("Track Info (IINK)...") {
+                            Button("Track Info (donlope)...") {
                                 guard let trackName = parsedTrack?.trackName else { return }
                                 Task {
                                     let result = await DonlopeIndexCache.shared.lookupURL(for: trackName)
@@ -1342,7 +1363,14 @@ struct ContentView_iOS: View {
         }
 
         isFetchingShowInfo = true
-        FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime) { show in
+        let fetch: (@escaping (FZShow?) -> Void) -> Void = { completion in
+            if let db = self.fzShowsDB {
+                db.fetchShow(date: date, showTime: showTime, completion: completion)
+            } else {
+                FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime, completion: completion)
+            }
+        }
+        fetch { show in
             DispatchQueue.main.async {
                 self.currentShow = show
                 self.currentSetlistPosition = 0  // Reset position for new show

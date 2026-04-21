@@ -541,10 +541,13 @@ extension BASSRadioPlayer {
         }
     }
 
-    /// Rebuild only the live BASS stream + mixer while keeping DVR state intact.
+    /// Rebuild only the live BASS stream + pre-mixer while keeping DVR state intact.
     /// Called when the live stream dies (STOPPED or buffer underrun) during DVR pause/playback.
     /// The existing StreamBuffer keeps running, so WAV segments continue to grow and DVR
     /// playback is unaffected. The new live stream starts muted.
+    ///
+    /// mixerHandle is preserved so the DVR playback stream stays attached throughout —
+    /// no audio dropout occurs during the reconnect.
     func partialRestartLiveChannel() {
         guard activeFormat != "FLAC" else {
             // FLAC two-mixer setup is too complex for a partial restart; go live as a fallback.
@@ -561,8 +564,19 @@ extension BASSRadioPlayer {
         stopMetadataPolling()   // also stops state polling timer
         oggStopConfirmed = false
 
-        // Free only live BASS channels. BASS_ChannelFree removes all DSPs from the channel.
-        if mixerHandle    != 0 { BASS_ChannelFree(mixerHandle);    mixerHandle    = 0 }
+        // Strip FX and DSPs from mixerHandle individually rather than freeing it.
+        // Freeing mixerHandle removes the DVR playback stream from the output pipeline,
+        // causing an audio dropout while the new pipeline is constructed.
+        if eqLowFX       != 0 { BASS_ChannelRemoveFX(mixerHandle, eqLowFX);        eqLowFX       = 0 }
+        if eqMidFX       != 0 { BASS_ChannelRemoveFX(mixerHandle, eqMidFX);        eqMidFX       = 0 }
+        if eqHighFX      != 0 { BASS_ChannelRemoveFX(mixerHandle, eqHighFX);       eqHighFX      = 0 }
+        if compressorFX  != 0 { BASS_ChannelRemoveFX(mixerHandle, compressorFX);   compressorFX  = 0 }
+        if levelMeterDSP != 0 { BASS_ChannelRemoveDSP(mixerHandle, levelMeterDSP); levelMeterDSP = 0 }
+        if stereoDSP     != 0 { BASS_ChannelRemoveDSP(mixerHandle, stereoDSP);     stereoDSP     = 0 }
+        if limiterDSP    != 0 { BASS_ChannelRemoveDSP(mixerHandle, limiterDSP);    limiterDSP    = 0 }
+
+        // Free the live source layers only. BASS_ChannelFree on preMixerHandle auto-removes
+        // it from mixerHandle and removes its clickGuardDSP and recordingDSP.
         if preMixerHandle != 0 { BASS_ChannelFree(preMixerHandle); preMixerHandle = 0 }
         if streamHandle   != 0 { BASS_StreamFree(streamHandle);    streamHandle   = 0 }
         stallSync = 0; endSync = 0; oggChangeSync = 0
@@ -585,38 +599,30 @@ extension BASSRadioPlayer {
             DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE))
         BASS_Mixer_StreamAddChannel(preMixerHandle, streamHandle,
             DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN))
-        mixerHandle = BASS_Mixer_StreamCreate(44100, 2, DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
+
+        // Wire new pre-mixer into the existing output mixer — no mixer recreation needed.
+        // The DVR playback stream has been in mixerHandle the entire time.
         BASS_Mixer_StreamAddChannel(mixerHandle, preMixerHandle,
             DWORD(BASS_MIXER_CHAN_BUFFER))
 
-        // applyEffects inside configureStreamAttributes re-attaches the recording DSP.
+        // Re-apply FX/DSPs to mixerHandle and recording DSP to preMixerHandle.
         // self.streamBuffer is still alive, so recording continues without interruption.
         configureStreamAttributes(format: current.format, handle: streamHandle)
         setupSyncs(for: streamHandle)
 
-        // Start live source muted — DVR state controls when it unmutes.
-        // Output mixer vol stays at 1.0 so any DVR stream still in the mixer plays through.
+        // Mute the live source — DVR state controls when it unmutes.
+        // mixerHandle vol is unchanged at 1.0; DVR stream has been playing through it.
         BASS_ChannelSetAttribute(preMixerHandle, DWORD(BASS_ATTRIB_VOL), 0)
-        BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_VOL), 1.0)
 
-        // Re-attach the DVR playback stream to the new mixer if DVR is actively playing.
-        // When BASS_ChannelFree freed the old mixer above, it removed all source channels
-        // from it (without freeing them). dvrPlaybackStream is still a valid BASS handle
-        // but is no longer in any mixer. DECODE-mode streams don't advance when orphaned,
-        // so re-adding here resumes audio from exactly where it was — no audio is skipped.
-        if dvrState == .playing && dvrPlaybackStream != 0 {
-            BASS_Mixer_StreamAddChannel(mixerHandle, dvrPlaybackStream,
-                                        DWORD(BASS_MIXER_CHAN_BUFFER | BASS_MIXER_CHAN_NORAMPIN))
-            print("🔄 DVR playback stream re-attached to new mixer (seg=\(dvrCurrentSegNum))")
-        }
-
+        // DVR playback stream is still in mixerHandle — no re-attachment needed.
+        // Ensure mixer is playing (no-op if already running).
         BASS_ChannelPlay(mixerHandle, 0)
 
         DispatchQueue.main.async {
             self.playbackState = .playing
             self.startMetadataPolling()
         }
-        print("✅ DVR partial restart complete — dvrState=\(dvrState) seg=\(dvrCurrentSegNum)")
+        print("✅ DVR partial restart complete (gapless) — dvrState=\(dvrState) seg=\(dvrCurrentSegNum)")
     }
 
     // MARK: - DVR Metadata Playback

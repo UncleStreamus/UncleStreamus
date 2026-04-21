@@ -8,7 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		07D191737EF2D1D5E95B0ADB /* ScaledFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = B859389429B13E3327751EB4 /* ScaledFont.swift */; };
+		24613FC3F8D087EFEA009D92 /* CachedFZShow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F66D9B51B903E6898BC392 /* CachedFZShow.swift */; };
 		360EE955A35C50D1A38B36CD /* TourPeriods.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */; };
+		4B3921DEB7831EF3C8144540 /* FZShowsDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEA788CAA6882C71E437FF1 /* FZShowsDatabase.swift */; };
+		8F7455CF51B663EDFD96802D /* FZShowsPageRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFAF780DA29F39C724E66902 /* FZShowsPageRecord.swift */; };
 		9D924559343B4593F5DE1323 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */; };
 		A5B56D4EB5104EC7B090E187 /* AudioFXView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */; };
 		AAAA00112FAA001100AA0011 /* ParsedTrackInfoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00012FAA000100AA0001 /* ParsedTrackInfoTests.swift */; };
@@ -16,6 +19,8 @@
 		AAAA00132FAA001300AA0013 /* ShowTimeFetcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00032FAA000300AA0003 /* ShowTimeFetcherTests.swift */; };
 		AAAA00142FAA001400AA0014 /* SavedShowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00042FAA000400AA0004 /* SavedShowTests.swift */; };
 		AAAA00152FAA001500AA0015 /* StreamBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00052FAA000500AA0005 /* StreamBufferTests.swift */; };
+		AAAA00172FAA001700AA0017 /* FZShowsImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00072FAA000700AA0007 /* FZShowsImportTests.swift */; };
+		ABA2E392DCDB235388C0AB59 /* FZShowsPageRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFAF780DA29F39C724E66902 /* FZShowsPageRecord.swift */; };
 		BBBB00012FBB000100BB0001 /* BASSRadioPlayer+Playback.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBB00052FBB000500BB0005 /* BASSRadioPlayer+Playback.swift */; };
 		BBBB00022FBB000200BB0002 /* BASSRadioPlayer+Playback.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBB00052FBB000500BB0005 /* BASSRadioPlayer+Playback.swift */; };
 		BBBB00032FBB000300BB0003 /* BASSRadioPlayer+AudioFX.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBB00062FBB000600BB0006 /* BASSRadioPlayer+AudioFX.swift */; };
@@ -24,6 +29,7 @@
 		BBBB00082FBB000800BB0008 /* BASSRadioPlayer+Metadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBB00092FBB000900BB0009 /* BASSRadioPlayer+Metadata.swift */; };
 		BBBB000A2FBB000A00BB000A /* BASSRadioPlayer+DVR.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBB000C2FBB000C00BB000C /* BASSRadioPlayer+DVR.swift */; };
 		BBBB000B2FBB000B00BB000B /* BASSRadioPlayer+DVR.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBB000C2FBB000C00BB000C /* BASSRadioPlayer+DVR.swift */; };
+		BD32698586201316407AE343 /* CachedFZShow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F66D9B51B903E6898BC392 /* CachedFZShow.swift */; };
 		BE024DBD2F4A655500B2C079 /* Bass in Frameworks */ = {isa = PBXBuildFile; productRef = BE024DBC2F4A655500B2C079 /* Bass */; };
 		BE024DBF2F4A655500B2C079 /* BassFLAC in Frameworks */ = {isa = PBXBuildFile; productRef = BE024DBE2F4A655500B2C079 /* BassFLAC */; };
 		BE024DC12F4A655500B2C079 /* BassFX in Frameworks */ = {isa = PBXBuildFile; productRef = BE024DC02F4A655500B2C079 /* BassFX */; };
@@ -87,6 +93,7 @@
 		CC07DC000007DC0700CC07DC /* SetlistInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0ADC00000ADC0A00CC0ADC /* SetlistInfoView.swift */; };
 		CC08DC000008DC0800CC08DC /* SetlistInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0ADC00000ADC0A00CC0ADC /* SetlistInfoView.swift */; };
 		D7AD703B5B1743C183C698F7 /* AudioFXView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */; };
+		EBB2C65450DF6C61B3EACC69 /* FZShowsDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEA788CAA6882C71E437FF1 /* FZShowsDatabase.swift */; };
 		F62804A5EF88994291433F17 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
 		FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752DBEE239607630EF9BE524 /* SongFormatter.swift */; };
 /* End PBXBuildFile section */
@@ -123,6 +130,7 @@
 /* Begin PBXFileReference section */
 		5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TourPeriods.swift; sourceTree = "<group>"; };
 		5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		72F66D9B51B903E6898BC392 /* CachedFZShow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CachedFZShow.swift; sourceTree = "<group>"; };
 		752DBEE239607630EF9BE524 /* SongFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SongFormatter.swift; sourceTree = "<group>"; };
 		A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFXView.swift; sourceTree = "<group>"; };
 		AAAA00012FAA000100AA0001 /* ParsedTrackInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfoTests.swift; sourceTree = "<group>"; };
@@ -130,7 +138,9 @@
 		AAAA00032FAA000300AA0003 /* ShowTimeFetcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowTimeFetcherTests.swift; sourceTree = "<group>"; };
 		AAAA00042FAA000400AA0004 /* SavedShowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedShowTests.swift; sourceTree = "<group>"; };
 		AAAA00052FAA000500AA0005 /* StreamBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamBufferTests.swift; sourceTree = "<group>"; };
+		AAAA00072FAA000700AA0007 /* FZShowsImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsImportTests.swift; sourceTree = "<group>"; };
 		AAAA00062FAA000600AA0006 /* ZappaStreamTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ZappaStreamTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AFAF780DA29F39C724E66902 /* FZShowsPageRecord.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FZShowsPageRecord.swift; sourceTree = "<group>"; };
 		B859389429B13E3327751EB4 /* ScaledFont.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScaledFont.swift; sourceTree = "<group>"; };
 		BBBB00052FBB000500BB0005 /* BASSRadioPlayer+Playback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BASSRadioPlayer+Playback.swift"; sourceTree = "<group>"; };
 		BBBB00062FBB000600BB0006 /* BASSRadioPlayer+AudioFX.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BASSRadioPlayer+AudioFX.swift"; sourceTree = "<group>"; };
@@ -170,6 +180,7 @@
 		CC01DC000001DC0100CC01DC /* DonlopeIndexCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DonlopeIndexCache.swift; sourceTree = "<group>"; };
 		CC02DC000002DC0200CC02DC /* TrackInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackInfoView.swift; sourceTree = "<group>"; };
 		CC0ADC00000ADC0A00CC0ADC /* SetlistInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetlistInfoView.swift; sourceTree = "<group>"; };
+		CCEA788CAA6882C71E437FF1 /* FZShowsDatabase.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FZShowsDatabase.swift; sourceTree = "<group>"; };
 		DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FilterView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -218,6 +229,7 @@
 				AAAA00032FAA000300AA0003 /* ShowTimeFetcherTests.swift */,
 				AAAA00042FAA000400AA0004 /* SavedShowTests.swift */,
 				AAAA00052FAA000500AA0005 /* StreamBufferTests.swift */,
+			AAAA00072FAA000700AA0007 /* FZShowsImportTests.swift */,
 			);
 			path = ZappaStreamTests;
 			sourceTree = "<group>";
@@ -254,38 +266,41 @@
 		BE1A341D2F30C6D600647B01 /* ZappaStream */ = {
 			isa = PBXGroup;
 			children = (
-				BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */,
-				BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */,
-				BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */,
-				BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */,
-				BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */,
-				BE1A34202F30C6D600647B01 /* ContentView.swift */,
-				A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */,
 				BEAA00002F34000100AA0001 /* Acronym.swift */,
-				BEAA00022F34000100AA0003 /* SavedShow.swift */,
-				BEAA00042F34000100AA0005 /* ShowDataManager.swift */,
-				BEAA00062F34000100AA0007 /* SidebarView.swift */,
-				BEAA00082F34000100AA0009 /* ShowEntryRow.swift */,
 				BE1A34242F30C6D800647B01 /* Assets.xcassets */,
-				BE1A34262F30C6D800647B01 /* ZappaStream.entitlements */,
-				BE1A34272F30C6D800647B01 /* Preview Content */,
-				BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */,
-				BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */,
-				B859389429B13E3327751EB4 /* ScaledFont.swift */,
-				5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */,
-				DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */,
-				752DBEE239607630EF9BE524 /* SongFormatter.swift */,
-				5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */,
+				A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */,
 				BE024DE12F4A67D800B2C079 /* BASSBridgingHeader.h */,
 				BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */,
-				BBBB00052FBB000500BB0005 /* BASSRadioPlayer+Playback.swift */,
 				BBBB00062FBB000600BB0006 /* BASSRadioPlayer+AudioFX.swift */,
-				BBBB00092FBB000900BB0009 /* BASSRadioPlayer+Metadata.swift */,
 				BBBB000C2FBB000C00BB000C /* BASSRadioPlayer+DVR.swift */,
-				C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */,
+				BBBB00092FBB000900BB0009 /* BASSRadioPlayer+Metadata.swift */,
+				BBBB00052FBB000500BB0005 /* BASSRadioPlayer+Playback.swift */,
+				BE1A34202F30C6D600647B01 /* ContentView.swift */,
+				BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */,
 				CC01DC000001DC0100CC01DC /* DonlopeIndexCache.swift */,
-				CC02DC000002DC0200CC02DC /* TrackInfoView.swift */,
+				DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */,
+				BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */,
+				BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */,
+				BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */,
+				BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */,
+				BE1A34272F30C6D800647B01 /* Preview Content */,
+				BEAA00022F34000100AA0003 /* SavedShow.swift */,
+				B859389429B13E3327751EB4 /* ScaledFont.swift */,
 				CC0ADC00000ADC0A00CC0ADC /* SetlistInfoView.swift */,
+				5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */,
+				BEAA00042F34000100AA0005 /* ShowDataManager.swift */,
+				BEAA00082F34000100AA0009 /* ShowEntryRow.swift */,
+				BEAA00062F34000100AA0007 /* SidebarView.swift */,
+				752DBEE239607630EF9BE524 /* SongFormatter.swift */,
+				BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */,
+				C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */,
+				5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */,
+				CC02DC000002DC0200CC02DC /* TrackInfoView.swift */,
+				BE1A34262F30C6D800647B01 /* ZappaStream.entitlements */,
+				BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */,
+				72F66D9B51B903E6898BC392 /* CachedFZShow.swift */,
+				CCEA788CAA6882C71E437FF1 /* FZShowsDatabase.swift */,
+				AFAF780DA29F39C724E66902 /* FZShowsPageRecord.swift */,
 			);
 			path = ZappaStream;
 			sourceTree = "<group>";
@@ -453,6 +468,7 @@
 				AAAA00132FAA001300AA0013 /* ShowTimeFetcherTests.swift in Sources */,
 				AAAA00142FAA001400AA0014 /* SavedShowTests.swift in Sources */,
 				AAAA00152FAA001500AA0015 /* StreamBufferTests.swift in Sources */,
+			AAAA00172FAA001700AA0017 /* FZShowsImportTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -488,6 +504,9 @@
 				CC03DC000003DC0300CC03DC /* DonlopeIndexCache.swift in Sources */,
 				CC05DC000005DC0500CC05DC /* TrackInfoView.swift in Sources */,
 				CC07DC000007DC0700CC07DC /* SetlistInfoView.swift in Sources */,
+				24613FC3F8D087EFEA009D92 /* CachedFZShow.swift in Sources */,
+				4B3921DEB7831EF3C8144540 /* FZShowsDatabase.swift in Sources */,
+				ABA2E392DCDB235388C0AB59 /* FZShowsPageRecord.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -522,6 +541,9 @@
 				CC04DC000004DC0400CC04DC /* DonlopeIndexCache.swift in Sources */,
 				CC06DC000006DC0600CC06DC /* TrackInfoView.swift in Sources */,
 				CC08DC000008DC0800CC08DC /* SetlistInfoView.swift in Sources */,
+				BD32698586201316407AE343 /* CachedFZShow.swift in Sources */,
+				EBB2C65450DF6C61B3EACC69 /* FZShowsDatabase.swift in Sources */,
+				8F7455CF51B663EDFD96802D /* FZShowsPageRecord.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

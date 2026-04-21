@@ -338,7 +338,9 @@ class FZShowsFetcher {
         // Extract venue after dash
         if let dashIndex = fullH4.firstIndex(of: "-") {
             let afterDash = fullH4[fullH4.index(after: dashIndex)..<fullH4.endIndex]
-            venue = String(afterDash).replacingOccurrences(of: "</h4>", with: "")
+            venue = String(afterDash)
+                .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                .decodeHTMLEntities()
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             #if DEBUG
             print("🏟️ Venue: '\(venue)'")
@@ -447,9 +449,9 @@ class FZShowsFetcher {
             h6Regex.enumerateMatches(in: searchSection, range: nsRange) { match, _, _ in
                 if let match = match, let range = Range(match.range(at: 1), in: searchSection) {
                     let h6Content = String(searchSection[range])
-                        .replacingOccurrences(of: "<br>", with: " • ")
-                        .replacingOccurrences(of: "<br/>", with: " • ")
-                        .replacingOccurrences(of: "<br />", with: " • ")
+                        .replacingOccurrences(of: #"<[Bb][Rr]\s*/?>"#, with: " • ", options: .regularExpression)
+                        .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                        .decodeHTMLEntities()
                         .replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                     if !h6Content.isEmpty {
@@ -475,6 +477,7 @@ class FZShowsFetcher {
                 .replacingOccurrences(of: "</p>", with: "")
                 .replacingOccurrences(of: #"<a href="([^"]+)">([^<]+)</a>"#, with: "[$2]($1)", options: .regularExpression)
                 .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                .decodeHTMLEntities()
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             #if DEBUG
             print("📝 Note: '\(note ?? "")'")
@@ -699,6 +702,92 @@ class FZShowsFetcher {
         }
 
         return nil
+    }
+
+    // MARK: - Bulk Import
+
+    /// Parses all shows from a downloaded HTML page for local DB import.
+    /// Returns one FZShow per date/variant found, including exception mappings for this filename.
+    static func importAllShows(fromHTML html: String, filename: String, url: String) -> [FZShow] {
+        var shows: [FZShow] = []
+
+        // Step 1: Standard import — find all <h4> entries with YYYY MM DD dates
+        let datePattern = "<h4[^>]*>(\\d{4} \\d{2} \\d{2})"
+        if let regex = try? NSRegularExpression(pattern: datePattern) {
+            let nsRange = NSRange(html.startIndex..<html.endIndex, in: html)
+            let matches = regex.matches(in: html, range: nsRange)
+
+            for match in matches {
+                guard let dateRange = Range(match.range(at: 1), in: html),
+                      let h4Range = Range(match.range(at: 0), in: html) else { continue }
+                let dateStr = String(html[dateRange])
+
+                // Find section bounds to detect Early/Late subsections
+                guard let h4End = html.range(of: "</h4>", range: h4Range.upperBound..<html.endIndex) else { continue }
+                let nextShowSectionEnd: String.Index
+                if let nextH4 = html.range(of: "<h4>\\d{4} \\d{2} \\d{2}", options: .regularExpression,
+                                            range: h4End.upperBound..<html.endIndex) {
+                    nextShowSectionEnd = nextH4.lowerBound
+                } else {
+                    nextShowSectionEnd = html.endIndex
+                }
+                let section = String(html[h4End.upperBound..<nextShowSectionEnd])
+                let hasEarly = section.range(of: "<h5>Early", options: .caseInsensitive) != nil
+                let hasLate  = section.range(of: "<h5>Late",  options: .caseInsensitive) != nil
+
+                if hasEarly || hasLate {
+                    if hasEarly, let show = parseShowFromHTML(html: html, filename: filename, searchDate: dateStr,
+                                                              originalDate: dateStr, showTime: .early,
+                                                              sectionKeywords: nil, url: url) {
+                        shows.append(show)
+                    }
+                    if hasLate, let show = parseShowFromHTML(html: html, filename: filename, searchDate: dateStr,
+                                                             originalDate: dateStr, showTime: .late,
+                                                             sectionKeywords: nil, url: url) {
+                        shows.append(show)
+                    }
+                } else {
+                    if let show = parseShowFromHTML(html: html, filename: filename, searchDate: dateStr,
+                                                   originalDate: dateStr, showTime: .none,
+                                                   sectionKeywords: nil, url: url) {
+                        shows.append(show)
+                    }
+                }
+            }
+        }
+
+        // Step 2: Exception mappings — import under metadata date keys so lookup needs no translation
+        for (metadataDateKey, exc) in exceptions {
+            // Determine which page this exception belongs to
+            let stripped = metadataDateKey.hasSuffix(" E") || metadataDateKey.hasSuffix(" L")
+                ? String(metadataDateKey.dropLast(2)) : metadataDateKey
+            let parts = stripped.components(separatedBy: " ")
+            guard parts.count >= 3, let year = Int(parts[0]), let month = Int(parts[1]) else { continue }
+
+            let expectedFilename = exc.altFilename ?? getTourPageFilename(year: year, month: month)
+            guard expectedFilename == filename else { continue }
+
+            let showTime: ShowTime = metadataDateKey.hasSuffix(" E") ? .early
+                                   : metadataDateKey.hasSuffix(" L") ? .late : .none
+            let baseDate = parts.prefix(3).joined(separator: " ")
+
+            guard let parsed = parseShowFromHTML(html: html, filename: filename,
+                                                 searchDate: exc.searchDate, originalDate: baseDate,
+                                                 showTime: showTime, sectionKeywords: exc.sectionKeywords,
+                                                 url: url) else { continue }
+
+            // Build a show with the metadata date key so DB lookup needs no exceptions dict
+            let metadataShow = FZShow(
+                date: metadataDateKey,
+                venue: parsed.venue, soundcheck: parsed.soundcheck, note: parsed.note,
+                showInfo: parsed.showInfo, setlist: parsed.setlist, acronyms: parsed.acronyms,
+                url: parsed.url, city: parsed.city, state: parsed.state, country: parsed.country,
+                period: parsed.period, tour: parsed.tour, bandInfo: parsed.bandInfo
+            )
+            shows.append(metadataShow)
+        }
+
+        return shows
     }
 
     /// Extracts the band lineup from the HTML structure before the show date.

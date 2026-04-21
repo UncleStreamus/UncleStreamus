@@ -18,7 +18,7 @@ struct SettingsView: View {
             switch self {
             case .playback: return 500
             case .sync: return 200
-            case .savedData: return 320
+            case .savedData: return 520
             case .credits: return 280
             }
         }
@@ -224,6 +224,82 @@ struct SyncSettingsView: View {
     }
 }
 
+// MARK: - Show Database Settings
+
+struct ShowDatabaseSettingsView: View {
+    @Query private var cachedShows: [CachedFZShow]
+    @Query(sort: \FZShowsPageRecord.lastFetchedAt, order: .forward) private var pageRecords: [FZShowsPageRecord]
+
+    private var oldestPageDate: Date? { pageRecords.first?.lastFetchedAt }
+
+    private var lastUpdatedText: String {
+        guard let date = oldestPageDate else { return "Never" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    var body: some View {
+        SettingsSectionHeader(title: "FZShows Database", systemImage: "music.note.list")
+
+        SettingsSectionBox {
+            HStack {
+                Text("\(cachedShows.count) shows across \(pageRecords.count) pages")
+                    .font(.callout)
+                Spacer()
+                if FZShowsLog.shared.entries.isEmpty == false,
+                   FZShowsLog.shared.entries.last?.contains("…") == true {
+                    ProgressView().scaleEffect(0.7)
+                }
+            }
+
+            HStack {
+                Text("Last updated: \(lastUpdatedText)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Button("Refresh Now") {
+                    NotificationCenter.default.post(name: .refreshShowDatabase, object: nil)
+                }
+                .font(.caption)
+                .buttonStyle(.borderless)
+                .foregroundColor(.accentColor)
+            }
+
+            if cachedShows.isEmpty {
+                Text("Show data is downloaded on first launch. This may take a moment.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+
+        // Activity log
+        if !FZShowsLog.shared.entries.isEmpty {
+            SettingsSectionBox {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 2) {
+                            ForEach(Array(FZShowsLog.shared.entries.enumerated()), id: \.offset) { _, entry in
+                                Text(entry)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .id(entry)
+                            }
+                        }
+                        .onChange(of: FZShowsLog.shared.entries.count) { _, _ in
+                            if let last = FZShowsLog.shared.entries.last {
+                                proxy.scrollTo(last, anchor: .bottom)
+                            }
+                        }
+                    }
+                    .frame(height: 80)
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Saved Data Settings
 
 struct SavedDataSettingsView: View {
@@ -289,6 +365,8 @@ struct SavedDataSettingsView: View {
                     .foregroundColor(.secondary)
             }
 
+            ShowDatabaseSettingsView()
+
             Spacer()
         }
     }
@@ -324,7 +402,7 @@ struct CreditsView: View {
             SettingsSectionHeader(title: "Show Information", systemImage: "list.bullet.rectangle")
 
             SettingsSectionBox {
-                Text("Setlists and show information provided by the Zappateers community.")
+                Text("Setlists, show information and original tape sources provided by the Zappateers community.")
                     .font(.caption)
                     .foregroundColor(.secondary)
 

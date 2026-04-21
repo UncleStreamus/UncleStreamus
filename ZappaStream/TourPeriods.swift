@@ -30,6 +30,8 @@ enum GeoData {
         TourPeriod(name: "1984: 20th Anniversary World tour", filename: "84.html", yearRange: 1984...1984),
         TourPeriod(name: "1988: The last tour", filename: "88.html", yearRange: 1988...1988),
         TourPeriod(name: "Pre-tour Rehearsals", filename: "rehearsals.html", yearRange: 1977...1987),
+        TourPeriod(name: "Orchestral Works", filename: "orchestral.html", yearRange: 1963...1992),
+        TourPeriod(name: "Unreleased / Studio Recordings", filename: "unreleased.html", yearRange: 1960...1993),
     ]
 
     /// Maps HTML filename to period name
@@ -66,7 +68,9 @@ enum GeoData {
         let components = venue.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
 
         guard components.count >= 2 else {
-            return (nil, nil, nil)
+            let single = components.first.flatMap { $0.isEmpty ? nil : $0 }
+            if let s = single, knownCountries.contains(s) { return (nil, nil, s) }
+            return (single, nil, nil)
         }
 
         // Last component is usually state/country

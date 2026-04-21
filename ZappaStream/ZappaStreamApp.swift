@@ -24,7 +24,7 @@ struct ZappaStreamApp: App {
     #endif
 
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([SavedShow.self])
+        let schema = Schema([SavedShow.self, CachedFZShow.self, FZShowsPageRecord.self])
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let storeDir = appSupport.appendingPathComponent("ZappaStream", isDirectory: true)
         let storeURL = storeDir.appendingPathComponent("ZappaStream.store")

@@ -315,7 +315,7 @@ Platform-Specific:
 - Setlist: two-column layout when width > 500pt (landscape/iPad), single-column otherwise
 - Current track highlighting: speaker icon on matching setlist row; handles duplicate song names by advancing through matches
 - Band Info / Official Releases: collapsible footer section; acronyms decoded inline
-- "Track Info (IINK)..." button: looks up current track on donlope.net via `DonlopeIndexCache`
+- "Track Info (donlope)..." button: looks up current track on donlope.net via `DonlopeIndexCache`
 - "Setlist Info (FZShows)..." button: opens `SetlistInfoPaneView` scrolled to show date
 - Context menu "Report Issue...": opens `BugReportData` → email via `MailComposerView` (iOS) or `openMailClient()` (macOS)
 - Bounce/rubber-band effect: macOS via `ScrollWheelOverlay` (excludes setlist area); iOS via `DragGesture`
@@ -325,7 +325,7 @@ Platform-Specific:
 **iOS-Specific UI:**
 - **iPhone**: Settings slide in as overlay drawer from left (`.move(edge: .leading)`, dark overlay behind); history via NavigationLink push
 - **iPad** (regular horizontal size class): Settings and history as inline panels from edges; swipe gesture on divider to dismiss
-- **TrackInfoView pane**: Tap a region on the main screen to reveal an inline track info pane with IINK lookup; "×" button to dismiss
+- **TrackInfoView pane**: Tap a region on the main screen to reveal an inline track info pane with donlope lookup; "×" button to dismiss
 - Lock screen / Control Center media controls via `MPRemoteCommandCenter` + `MPNowPlayingInfoCenter`; supports play, pause, togglePlayPause
 - Now Playing info format: title = track name, artist = "Artist • Date • Venue" (all info in one line), `IsLiveStream = true`
 - Interruption handling: resumes stream on `AVAudioSession.InterruptionType.ended` with `.shouldResume`
@@ -373,9 +373,9 @@ Platform-Specific:
 | `ZappaStreamApp.swift` | App entry, SwiftData `ModelContainer`, menubar (macOS), `AppDelegate` |
 | `MarqueeText.swift` | Animated scrolling text for long track titles (macOS) |
 | `StreamBuffer.swift` | Rolling WAV segment ring buffer for DVR (both platforms) — 16-bit PCM, 44.1 kHz stereo, 15 × 60s segments |
-| `DonlopeIndexCache.swift` | Async cache for donlope.net IINK track URL lookups |
+| `DonlopeIndexCache.swift` | Async cache for donlope.net track URL lookups |
 | `SetlistInfoPaneView.swift` | Sheet that loads zappateers.com show page and scrolls to the show date |
-| `TrackInfoView.swift` | iOS inline pane showing IINK track info with Safari link |
+| `TrackInfoView.swift` | iOS inline pane showing donlope track info with Safari link |
 | `BugReportData.swift` / `MailComposerView.swift` | Bug reporting via email — captures show/track/metadata context |
 | Shared utilities | `Acronym.swift`, `Stream.swift`, `PlatformHelpers.swift`, `SongFormatter.swift`, `ScaledFont.swift` |
 | iOS-only | `BASSBridgingHeader.h` — BASS C symbols globally available to Swift |

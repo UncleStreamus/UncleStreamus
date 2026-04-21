@@ -212,11 +212,18 @@ final class TourMappingTests: XCTestCase {
         XCTAssertEqual(result.country, "USA")
     }
 
-    func testParseLocation_singleComponent_returnsNil() {
+    func testParseLocation_singleComponent_returnsCityFallback() {
         let result = GeoData.parseLocation(from: "SomeVenue")
-        XCTAssertNil(result.city)
+        XCTAssertEqual(result.city, "SomeVenue")
         XCTAssertNil(result.state)
         XCTAssertNil(result.country)
+    }
+
+    func testParseLocation_singleComponent_knownCountry() {
+        let result = GeoData.parseLocation(from: "England")
+        XCTAssertNil(result.city)
+        XCTAssertNil(result.state)
+        XCTAssertEqual(result.country, "England")
     }
 
     func testParseLocation_dc() {
