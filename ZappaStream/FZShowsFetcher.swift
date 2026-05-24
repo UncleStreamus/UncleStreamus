@@ -81,6 +81,13 @@ class FZShowsFetcher {
     // MARK: - Constants
 
     /// User-Agent header for HTTP requests to identify the app to servers
+    // Hoisted to avoid recompiling the regex on every setlist parse call.
+    // Force-unwrap is acceptable here: this is a literal, never changes, and a
+    // typo would be caught immediately at launch rather than silently mid-parse.
+    private static let acronymRegex = try! NSRegularExpression(
+        pattern: #"<acronym title="([^"]+)">([^<]+)</acronym>"#
+    )
+
     static let userAgentString: String = {
         #if os(macOS)
         let platform = "macOS"
@@ -510,9 +517,8 @@ class FZShowsFetcher {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
 
                 // Extract acronym mappings from raw HTML before stripping tags
-                let acronymRegex = try! NSRegularExpression(pattern: #"<acronym title="([^"]+)">([^<]+)</acronym>"#)
                 let nsRange = NSRange(rawSetlistText.startIndex..<rawSetlistText.endIndex, in: rawSetlistText)
-                let matches = acronymRegex.matches(in: rawSetlistText, range: nsRange)
+                let matches = FZShowsFetcher.acronymRegex.matches(in: rawSetlistText, range: nsRange)
 
                 for match in matches {
                     if let fullRange = Range(match.range(at: 1), in: rawSetlistText),

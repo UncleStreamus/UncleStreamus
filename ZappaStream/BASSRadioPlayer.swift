@@ -188,7 +188,7 @@ enum PlaybackState {
     // goes STOPPED, the recovery stream is activated in-place (no 10s pre-buffer).
     var recoveryStreamHandle: DWORD = 0
     var isAttemptingRecovery: Bool  = false
-    var recoveryStartTime: Date?    = nil
+    var recoveryStartTime: TimeInterval? = nil
     /// True while the recovery stream's download ring buffer is filling back up after a network
     /// drop. The recovery stream is paused (BASS_MIXER_CHAN_PAUSE) in the pre-mixer so no data
     /// is consumed until the buffer reaches the target threshold, matching initial-connect behaviour.
@@ -374,12 +374,16 @@ enum PlaybackState {
         BASS_SetConfig(DWORD(BASS_CONFIG_IOS_SESSION), DWORD(BASS_IOS_SESSION_DISABLE))
         #endif
         guard BASS_Init(-1, 44100, 0, nil, nil) != 0 else {
+            #if DEBUG
             print("❌  BASS_Init failed — error: \(BASS_ErrorGetCode())")
+            #endif
             return
         }
         BASS_Start()
         BASS_SetConfig(DWORD(BASS_CONFIG_GVOL_STREAM), DWORD(masterVolume * 10000))
+        #if DEBUG
         print("✅  BASS initialised")
+        #endif
         startNetworkMonitoring()
 
         // Try to register the FLAC plugin so BASS_StreamCreateURL auto-detects FLAC.
@@ -390,7 +394,9 @@ enum PlaybackState {
         for path in pluginPaths {
             let h = BASS_PluginLoad(path, 0)
             if h != 0 {
+                #if DEBUG
                 print("✅  FLAC plugin loaded via BASS_PluginLoad(\"\(path)\") — handle \(h)")
+                #endif
                 break
             }
         }
@@ -413,7 +419,9 @@ enum PlaybackState {
     func checkUserActionAllowed() -> Bool {
         let now = Date()
         let elapsed = now.timeIntervalSince(lastUserActionTime)
+        #if DEBUG
         print("🔒 checkUserActionAllowed: elapsed=\(String(format: "%.4f", elapsed))s thread=\(Thread.isMainThread ? "main" : "bg") allowed=\(elapsed >= 0.8)")
+        #endif
         guard elapsed >= 1.2 else { return false }
         lastUserActionTime = now
         return true
@@ -461,7 +469,9 @@ enum PlaybackState {
     /// (e.g., foreground resume, AVAudioSession interruption end, macOS wake).
     func triggerImmediateReconnect() {
         guard isUserIntendedPlay else { return }
+        #if DEBUG
         print("🔄 triggerImmediateReconnect called")
+        #endif
         cancelReconnectTimer()
         reconnectAttempt = 0
         DispatchQueue.main.async { self.isReconnecting = true }
@@ -476,12 +486,16 @@ enum PlaybackState {
                 // minimising the rebuffer wait after the old stream drains.
                 if self.activeFormat == "FLAC", !self.isAttemptingRecovery, self.recoveryStreamHandle == 0,
                    !self.flacRebufferingAfterRecovery {
+                    #if DEBUG
                     print("🔄 triggerImmediateReconnect: FLAC stream playing — pre-starting recovery stream")
+                    #endif
                     self.isAttemptingRecovery = true
-                    self.recoveryStartTime = Date()
+                    self.recoveryStartTime = ProcessInfo.processInfo.systemUptime
                     self.startFlacRecovery()
                 } else {
+                    #if DEBUG
                     print("🔄 triggerImmediateReconnect: stream already playing — skipping")
+                    #endif
                 }
                 DispatchQueue.main.async { self.isReconnecting = false }
                 return
@@ -491,7 +505,9 @@ enum PlaybackState {
             // the STOPPED handler and rebuffer logic will complete the handoff.
             if self.activeFormat == "FLAC",
                self.isAttemptingRecovery || self.recoveryStreamHandle != 0 || self.flacRebufferingAfterRecovery {
+                #if DEBUG
                 print("🔄 triggerImmediateReconnect: FLAC recovery in progress — skipping restart")
+                #endif
                 DispatchQueue.main.async { self.isReconnecting = false }
                 return
             }
@@ -501,7 +517,9 @@ enum PlaybackState {
             // DVR playback stream intact. restartStream() would call freeStream() and
             // destroy the ring buffer, losing everything the user paused to save.
             if self.dvrState != .live {
+                #if DEBUG
                 print("🔄 triggerImmediateReconnect: DVR active — partial live restart (ring buffer preserved)")
+                #endif
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.partialRestartLiveChannel() }
             } else {
                 self.restartStream()
@@ -530,7 +548,9 @@ enum PlaybackState {
         print("🔊 ensureOutputPlaying: mixerState=\(status)")
         #endif
         if status != DWORD(BASS_ACTIVE_PLAYING) {
+            #if DEBUG
             print("🔊 ensureOutputPlaying: mixer not playing — restarting")
+            #endif
             BASS_ChannelPlay(ph, 0)
         }
     }
@@ -551,6 +571,8 @@ enum PlaybackState {
         if dvrState == .playing || dvrState == .live {
             BASS_ChannelPlay(mixerHandle, 0)
         }
+        #if DEBUG
         print("🔊 BASS output reconnected to new audio route (dvrState=\(dvrState))")
+        #endif
     }
 }

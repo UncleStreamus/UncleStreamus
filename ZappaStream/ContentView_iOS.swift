@@ -58,6 +58,7 @@ struct ContentView_iOS: View {
 
     @State private var sidebarNavigationActive: Bool = false
     @State private var contentBounceOffset: CGFloat = 0
+    @State private var interruptionHandlerSetUp = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -335,7 +336,10 @@ struct ContentView_iOS: View {
                 selectedStream = streams.first { $0.format == lastStreamFormat } ?? streams.first
             }
             setupPlayer()
-            setupInterruptionHandler()
+            if !interruptionHandlerSetUp {
+                setupInterruptionHandler()
+                interruptionHandlerSetUp = true
+            }
 
             // Auto-play if was playing when app quit (and auto-resume is enabled)
             let wasPlaying = UserDefaults.standard.bool(forKey: "wasPlayingOnQuit")
@@ -1273,6 +1277,10 @@ struct ContentView_iOS: View {
 
     private func setupRemoteCommandCenter() {
         let commandCenter = MPRemoteCommandCenter.shared()
+
+        commandCenter.playCommand.removeTarget(nil)
+        commandCenter.pauseCommand.removeTarget(nil)
+        commandCenter.togglePlayPauseCommand.removeTarget(nil)
 
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { _ in

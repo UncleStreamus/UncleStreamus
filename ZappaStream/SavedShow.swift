@@ -51,12 +51,22 @@ final class SavedShow {
         self.bandInfo = bandInfo
     }
 
+    // Decode once and cache; setlistData/acronymsData are write-once so the cache never stales.
+    @Transient private var _setlistCache: [String]? = nil
+    @Transient private var _acronymsCache: [Acronym]? = nil
+
     var setlist: [String] {
-        (try? JSONDecoder().decode([String].self, from: setlistData)) ?? []
+        if let cached = _setlistCache { return cached }
+        let decoded = (try? JSONDecoder().decode([String].self, from: setlistData)) ?? []
+        _setlistCache = decoded
+        return decoded
     }
 
     var acronyms: [Acronym] {
-        (try? JSONDecoder().decode([Acronym].self, from: acronymsData)) ?? []
+        if let cached = _acronymsCache { return cached }
+        let decoded = (try? JSONDecoder().decode([Acronym].self, from: acronymsData)) ?? []
+        _acronymsCache = decoded
+        return decoded
     }
 
     var acronymTuples: [(short: String, full: String)] {
