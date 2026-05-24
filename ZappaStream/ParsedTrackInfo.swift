@@ -163,7 +163,7 @@ struct ParsedTrackInfo {
         
         if isFullFormat {
             // Original parsing code for full format
-            if let bracketRange = title.range(of: #"\[([^\]]+)\]"#, options: .regularExpression) {
+            if let bracketRange = title.range(of: #"\[(\d{4}[^\]]+)\]"#, options: .regularExpression) {
                 let bracketContent = String(title[bracketRange]).dropFirst().dropLast()
                 let parts = bracketContent.components(separatedBy: " ")
                 

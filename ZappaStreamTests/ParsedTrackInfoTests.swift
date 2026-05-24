@@ -87,6 +87,19 @@ final class ParsedTrackInfoTests: XCTestCase {
         XCTAssertEqual(info.rawTitle, title)
     }
 
+    func testFullBracket_icecastPrefix() {
+        // [ICECAST] prefix must not swallow the date bracket
+        let info = ParsedTrackInfo.parse("[ICECAST] [1988 03 25 Uniondale NY 154.04 AUD MC (PvL-walk)] Frank Zappa: (16) Pound For A Brown (1988) [0:10:43]")
+        XCTAssertEqual(info.date, "1988 03 25")
+        XCTAssertEqual(info.city, "Uniondale")
+        XCTAssertEqual(info.state, "NY")
+        XCTAssertEqual(info.artist, "Frank Zappa")
+        XCTAssertEqual(info.trackNumber, "16")
+        XCTAssertEqual(info.source, "AUD")
+        XCTAssertEqual(info.generation, "MC")
+        XCTAssertEqual(info.creator, "PvL-walk")
+    }
+
     // MARK: - Simple Date Format
 
     func testSimpleDate_basicFields() {

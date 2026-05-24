@@ -440,8 +440,8 @@ class FZShowsFetcher {
         let h6Pattern = "<h6>([\\s\\S]*?)</h6>"
         if let h6Regex = try? NSRegularExpression(pattern: h6Pattern, options: []) {
             // Only search up to the setlist or note to avoid picking up h6 from other shows
-            let searchEnd = targetSection.range(of: "<p class=\"setlist\">")?.lowerBound
-                ?? targetSection.range(of: "<p class=\"note\">")?.lowerBound
+            let searchEnd = targetSection.range(of: #"<p class\s*=\s*"setlist">"#, options: .regularExpression)?.lowerBound
+                ?? targetSection.range(of: #"<p class\s*=\s*"note">"#, options: .regularExpression)?.lowerBound
                 ?? targetSection.endIndex
             let searchSection = String(targetSection[..<searchEnd])
             let nsRange = NSRange(searchSection.startIndex..<searchSection.endIndex, in: searchSection)
@@ -470,10 +470,10 @@ class FZShowsFetcher {
         }
 
         // Find notes in this section (before the setlist)
-        if let noteStart = targetSection.range(of: "<p class=\"note\">"),
+        if let noteStart = targetSection.range(of: #"<p class\s*=\s*"note">"#, options: .regularExpression),
            let noteEnd = targetSection.range(of: "</p>", range: noteStart.upperBound..<targetSection.endIndex) {
             let fullNote = String(targetSection[noteStart.lowerBound..<noteEnd.upperBound])
-            note = fullNote.replacingOccurrences(of: "<p class=\"note\">", with: "")
+            note = fullNote.replacingOccurrences(of: #"<p class\s*=\s*"note">"#, with: "", options: .regularExpression)
                 .replacingOccurrences(of: "</p>", with: "")
                 .replacingOccurrences(of: #"<a href="([^"]+)">([^<]+)</a>"#, with: "[$2]($1)", options: .regularExpression)
                 .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
@@ -487,7 +487,7 @@ class FZShowsFetcher {
         // Find setlist in this section
         // Need to find the setlist that belongs to the target show (Early or Late)
         // If showTime is specified, find the setlist AFTER the corresponding h5
-        if let setlistStart = targetSection.range(of: "<p class=\"setlist\">") {
+        if let setlistStart = targetSection.range(of: #"<p class\s*=\s*"setlist">"#, options: .regularExpression) {
             let searchFrom = setlistStart.upperBound
 
             // Find the end of the setlist content: either </p> or the next <h5>/<h4> section
