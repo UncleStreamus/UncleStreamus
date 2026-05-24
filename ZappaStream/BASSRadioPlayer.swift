@@ -91,6 +91,9 @@ enum PlaybackState {
     /// after audio output stops (network loss while locked).
     #if os(iOS)
     var bgReconnectTask: UIBackgroundTaskIdentifier = .invalid
+    /// Background task token used on iOS to keep the app alive during the FLAC
+    /// pre-buffer window, before BASS_ChannelPlay starts the audio unit.
+    var bgFlacPrebufTask: UIBackgroundTaskIdentifier = .invalid
     #endif
 
     /// True only while the user intends playback to be active.

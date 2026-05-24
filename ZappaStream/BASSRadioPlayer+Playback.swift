@@ -111,6 +111,9 @@ extension BASSRadioPlayer {
                 }
             }
             print("   handle=\(capturedSH) mixer=\(mixerHandle) preMix=\(preMixerHandle) playback=\(capturedPH) — pre-buffering \(Int(totalDelay))s before mixer start…")
+            #if os(iOS)
+            beginFlacPrebufBackgroundTask()
+            #endif
             DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + totalDelay) { [weak self] in
                 guard let self = self, self.streamHandle == capturedSH else { return }
                 DispatchQueue.main.async {
@@ -120,6 +123,9 @@ extension BASSRadioPlayer {
                 print("   🎬 FLAC pre-buffer complete — calling BASS_ChannelPlay")
                 BASS_ChannelPlay(capturedPH, 0)
                 DispatchQueue.main.async { self.startMetadataPolling() }
+                #if os(iOS)
+                self.endFlacPrebufBackgroundTask()
+                #endif
             }
         } else {
             print("   handle=\(streamHandle) preMix=\(preMixerHandle) mixer=\(mixerHandle) playback=\(ph) — calling BASS_ChannelPlay…")
@@ -173,6 +179,9 @@ extension BASSRadioPlayer {
         preBufferTimer?.invalidate()
         preBufferTimer = nil
         DispatchQueue.main.async { self.preBufferProgress = 0.0 }
+        #if os(iOS)
+        endFlacPrebufBackgroundTask()
+        #endif
         if preMixerHandle != 0 {
             BASS_ChannelStop(preMixerHandle)
             BASS_StreamFree(preMixerHandle)
@@ -700,6 +709,30 @@ extension BASSRadioPlayer {
         DispatchQueue.main.async {
             UIApplication.shared.endBackgroundTask(task)
             print("📱 Background reconnect task ended")
+        }
+    }
+
+    /// Requests background execution time to cover the FLAC pre-buffer window
+    /// (before BASS_ChannelPlay starts the audio unit and iOS permits background audio).
+    func beginFlacPrebufBackgroundTask() {
+        guard bgFlacPrebufTask == .invalid else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.bgFlacPrebufTask == .invalid else { return }
+            self.bgFlacPrebufTask = UIApplication.shared.beginBackgroundTask(withName: "flac-prebuffer") { [weak self] in
+                print("⚠️ iOS FLAC pre-buffer background task expired")
+                self?.endFlacPrebufBackgroundTask()
+            }
+            print("📱 FLAC pre-buffer background task started (id=\(self.bgFlacPrebufTask.rawValue))")
+        }
+    }
+
+    func endFlacPrebufBackgroundTask() {
+        let task = bgFlacPrebufTask
+        guard task != .invalid else { return }
+        bgFlacPrebufTask = .invalid
+        DispatchQueue.main.async {
+            UIApplication.shared.endBackgroundTask(task)
+            print("📱 FLAC pre-buffer background task ended")
         }
     }
     #endif
