@@ -208,19 +208,21 @@ extension BASSRadioPlayer {
         if liveSource != 0 {
             BASS_ChannelSetAttribute(liveSource, DWORD(BASS_ATTRIB_VOL), 0.0)
         }
-        // Add DVR stream and immediately silence its channel volume within the mixer.
-        // We fade the STREAM's channel volume (not the mixer's output volume) because
-        // BASS_ATTRIB_VOL on the mixer becomes unreliable after dvrPausePlayback()'s
-        // fade-out on non-FLAC streams. Fading the channel vol is the robust alternative.
+        // Set stream vol to 0 before adding so no burst occurs if the mixer is already
+        // active (e.g. unpaused by partialRestartLiveChannel between pause and resume).
+        BASS_ChannelSetAttribute(stream, DWORD(BASS_ATTRIB_VOL), 0)
         BASS_Mixer_StreamAddChannel(mixerHandle, stream,
                                     DWORD(BASS_MIXER_CHAN_BUFFER | BASS_MIXER_CHAN_NORAMPIN))
-        BASS_ChannelSetAttribute(stream, DWORD(BASS_ATTRIB_VOL), 0)
-        // Ensure the mixer itself is at full output — both sources are at ch_vol=0 so
-        // there is no burst. If the mixer was stopped (BASS_MIXER_END), restart it.
-        BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_VOL), 1.0)
+        // Bring the stream to full vol now — the mixer output vol is the gate.
+        BASS_ChannelSetAttribute(stream, DWORD(BASS_ATTRIB_VOL), 1.0)
+        // Gate: set mixer output to 0 before unpausing. This blocks any audio from
+        // reaching the speaker at the resume moment regardless of channel vol state —
+        // stale BASS internal buffer content, BASS_MIXER_END replay, race-condition
+        // renders, or any other unexpected source.
+        BASS_ChannelSetAttribute(mixerHandle, DWORD(BASS_ATTRIB_VOL), 0)
         BASS_ChannelPlay(mixerHandle, 0)
-        // Fade the DVR stream's channel volume from 0→1 directly on the main thread.
-        startFadeInOnMainThread(mixer: stream)
+        // Fade the mixer OUTPUT volume (the gate) from 0→1.
+        startFadeInOnMainThread(mixer: mixerHandle)
         dvrState = .playing
         startBehindTimer()
         startDVRMetadataPolling()
@@ -320,11 +322,9 @@ extension BASSRadioPlayer {
         stopMetadataPolling()
         // Pause the live download channel for all formats to stop network activity.
         // goLive() will do a full stream restart (restartStream()) when wasBufferFull is true.
-        #if os(macOS)
         if streamHandle != 0 {
             BASS_ChannelPause(streamHandle)
         }
-        #endif
         // Start a 15-minute window during which the user can press play to watch the buffer.
         dvrBufferExpiryTimer?.invalidate()
         dvrBufferExpiryTimer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: false) { [weak self] _ in

@@ -492,7 +492,17 @@ enum PlaybackState {
                 DispatchQueue.main.async { self.isReconnecting = false }
                 return
             }
-            self.restartStream()
+            // Preserve the DVR ring buffer and playback state when the live channel dies
+            // during DVR pause or DVR playback. partialRestartLiveChannel() rebuilds only
+            // the network download + pre-mixer layers while keeping mixerHandle and any
+            // DVR playback stream intact. restartStream() would call freeStream() and
+            // destroy the ring buffer, losing everything the user paused to save.
+            if self.dvrState != .live {
+                print("🔄 triggerImmediateReconnect: DVR active — partial live restart (ring buffer preserved)")
+                DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.partialRestartLiveChannel() }
+            } else {
+                self.restartStream()
+            }
         }
     }
 
@@ -504,4 +514,40 @@ enum PlaybackState {
 
     /// True when BASS has a valid stream set up (not torn down).
     var isStreamActive: Bool { streamHandle != 0 && mixerHandle != 0 }
+
+    /// Restart the output mixer if it has stopped (e.g. after an iOS audio route change).
+    /// Called from the remote play command when dvrState == .playing but audio is silent.
+    /// BASS_ChannelPlay with restart=0 is a no-op for an already-playing channel, so this
+    /// is safe to call speculatively.
+    func ensureOutputPlaying() {
+        let ph = playbackHandle
+        guard ph != 0 else { return }
+        let status = BASS_ChannelIsActive(ph)
+        #if DEBUG
+        print("🔊 ensureOutputPlaying: mixerState=\(status)")
+        #endif
+        if status != DWORD(BASS_ACTIVE_PLAYING) {
+            print("🔊 ensureOutputPlaying: mixer not playing — restarting")
+            BASS_ChannelPlay(ph, 0)
+        }
+    }
+
+    /// Called when a new audio output device (AirPod, headphones) becomes available.
+    /// With BASS_CONFIG_IOS_SESSION_DISABLE, BASS doesn't intercept route changes itself.
+    /// After a route change, BASS's RemoteIO unit may still be pointed at the old device
+    /// (e.g. iPhone speaker) even though AVAudioSession is now routing to AirPods. BASS
+    /// reports ACTIVE_PLAYING but outputs silence on the new device.
+    /// BASS_Stop/Start forces RemoteIO to reconnect to the current AVAudioSession route.
+    /// DECODE-mode pre-mixer and network download are unaffected by BASS_Stop.
+    func restartOutputAfterRouteChange() {
+        guard mixerHandle != 0 else { return }
+        BASS_Stop()
+        BASS_Start()
+        // Kick the output mixer back if it was actively streaming. For DVR-paused state,
+        // leave it paused — dvrResume() will call BASS_ChannelPlay when the user presses play.
+        if dvrState == .playing || dvrState == .live {
+            BASS_ChannelPlay(mixerHandle, 0)
+        }
+        print("🔊 BASS output reconnected to new audio route (dvrState=\(dvrState))")
+    }
 }

@@ -615,6 +615,7 @@ struct ContentView_iOS: View {
                         if dvrEnabled { bassPlayer.dvrPause() } else { stopStream() }
                         updateNowPlayingInfo()
                     case (true, .paused):
+                        configureAudioSession()
                         bassPlayer.dvrResume()
                         updateNowPlayingInfo()
                     case (true, .playing):
@@ -1105,7 +1106,20 @@ struct ContentView_iOS: View {
             guard let bassPlayer = bassPlayer,
                   let typeValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
-            if type == .ended {
+            if type == .began {
+                // Stop audio immediately on interruption (phone call, Siri, another app
+                // claiming the session). Use DVR-aware pause so the ring buffer keeps
+                // recording through the call; user can catch up when it ends.
+                let dvrEnabled = UserDefaults.standard.object(forKey: "dvrEnabled") as? Bool ?? true
+                switch bassPlayer.dvrState {
+                case .live:
+                    if dvrEnabled { bassPlayer.dvrPause() } else { bassPlayer.stopWithFadeOut() }
+                case .playing:
+                    bassPlayer.dvrPausePlayback()
+                case .paused:
+                    break  // already paused
+                }
+            } else if type == .ended {
                 let opts = AVAudioSession.InterruptionOptions(
                     rawValue: notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0)
                 if opts.contains(.shouldResume) && bassPlayer.isUserIntendedPlay {
@@ -1114,25 +1128,94 @@ struct ContentView_iOS: View {
                 }
             }
         }
+
+        // Pause to DVR when headphones are removed (AirPod taken out of ear, Bluetooth
+        // disconnect, wired headphones unplugged). Without this, audio routes to the
+        // iPhone speaker and the DVR ring buffer never gets created.
+        // ContentView_iOS is a struct so [weak self] is invalid; capture bassPlayer as a
+        // weak class reference instead. dvrEnabled is read from UserDefaults at fire time
+        // so it reflects the current setting, not the value at observer-registration time.
+        // updateNowPlayingInfo() is triggered automatically via .onChange(of: bassPlayer.dvrState).
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak bassPlayer] notification in
+            guard let bassPlayer,
+                  let reasonValue = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                  AVAudioSession.RouteChangeReason(rawValue: reasonValue) == .oldDeviceUnavailable else { return }
+
+            let prevRoute = notification.userInfo?[AVAudioSessionRouteChangePreviousRouteKey]
+                as? AVAudioSessionRouteDescription
+            let wasHeadphones = prevRoute?.outputs.contains {
+                [.headphones, .bluetoothA2DP, .bluetoothHFP].contains($0.portType)
+            } ?? false
+
+            guard wasHeadphones, bassPlayer.isUserIntendedPlay else { return }
+
+            #if DEBUG
+            print("🎧 Route change: headphones removed — DVR pause")
+            #endif
+
+            let dvrEnabled = UserDefaults.standard.object(forKey: "dvrEnabled") as? Bool ?? true
+            switch bassPlayer.dvrState {
+            case .live:
+                if dvrEnabled { bassPlayer.dvrPause() } else { bassPlayer.stopWithFadeOut() }
+            case .playing:
+                bassPlayer.dvrPausePlayback()
+            case .paused:
+                break   // already paused
+            }
+        }
+
+        // Re-activate the audio session when a Bluetooth device (AirPods) reconnects.
+        // After BASS_ChannelPause during DVR pause, CoreAudio's output unit goes idle.
+        // Re-calling setActive(true) here re-routes the session to the new device so
+        // BASS_ChannelPlay in dvrResume() can start rendering audio immediately.
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak bassPlayer] notification in
+            guard let bassPlayer,
+                  let reasonValue = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                  AVAudioSession.RouteChangeReason(rawValue: reasonValue) == .newDeviceAvailable,
+                  bassPlayer.isUserIntendedPlay else { return }
+
+            let session = AVAudioSession.sharedInstance()
+            let hasBluetoothOutput = session.currentRoute.outputs.contains {
+                [.bluetoothA2DP, .bluetoothHFP].contains($0.portType)
+            }
+            guard hasBluetoothOutput else { return }
+
+            #if DEBUG
+            print("🎧 Route change: Bluetooth device available — re-activating audio session")
+            #endif
+            try? session.setActive(true)
+            bassPlayer.restartOutputAfterRouteChange()
+        }
     }
 
     // MARK: - Audio Session Setup
 
     private func configureAudioSession() {
+        let audioSession = AVAudioSession.sharedInstance()
+        // setCategory is best-effort: may throw -50 during a Bluetooth route transition
+        // when iOS has the session temporarily locked. The category was already set correctly
+        // during playStream(), so failure here is harmless — we just need setActive(true).
+        try? audioSession.setCategory(.playback, mode: .default, options: [.allowBluetoothA2DP, .allowAirPlay])
+        // IO buffer duration is best-effort: can fail during hardware handover.
+        try? audioSession.setPreferredIOBufferDuration(0.5)
+        // setActive(true) always runs (not gated by setCategory success) so BASS's audio
+        // unit gets a properly active session before BASS_ChannelPlay is called.
         do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .default, options: [.allowBluetoothA2DP])
-            // Request a larger hardware IO buffer to reduce scheduling pressure and micro-stutters.
-            // 0.5s means CoreAudio calls BASS 2×/sec instead of 10×/sec, giving the FLAC decoder
-            // far more time per callback. Fine for a radio app where output latency doesn't matter.
-            try audioSession.setPreferredIOBufferDuration(0.5)
-            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            try audioSession.setActive(true)
             #if DEBUG
-            print("✅ Audio session configured for playback")
+            print("✅ Audio session activated")
             #endif
         } catch {
             #if DEBUG
-            print("❌ Failed to configure audio session: \(error)")
+            print("❌ Failed to activate audio session: \(error)")
             #endif
         }
     }
@@ -1199,7 +1282,14 @@ struct ContentView_iOS: View {
                 #endif
                 guard self.bassPlayer.checkUserActionAllowed() else { return }
                 if self.bassPlayer.dvrState == .paused {
+                    configureAudioSession()
                     self.bassPlayer.dvrResume()
+                    self.updateNowPlayingInfo()
+                } else if self.bassPlayer.dvrState == .playing {
+                    // iOS sent play while DVR is already in playback state — mixer may have
+                    // stopped silently after an audio route change. Re-route and kick it.
+                    configureAudioSession()
+                    self.bassPlayer.ensureOutputPlaying()
                     self.updateNowPlayingInfo()
                 } else if !self.isPlaying {
                     self.playStream()
@@ -1248,6 +1338,7 @@ struct ContentView_iOS: View {
                     if self.dvrEnabled { self.bassPlayer.dvrPause() } else { self.stopStream() }
                     self.updateNowPlayingInfo()
                 case (true, .paused):
+                    configureAudioSession()
                     self.bassPlayer.dvrResume()
                     self.updateNowPlayingInfo()
                 case (true, .playing):
@@ -1327,8 +1418,13 @@ struct ContentView_iOS: View {
         bassPlayer.stopWithFadeOut()
         isPlaying = false
         updateNowPlayingInfo()
-
         UserDefaults.standard.set(false, forKey: "wasPlayingOnQuit")
+        // After the 0.4s fade, deactivate the session so other audio apps (Spotify,
+        // Podcasts, Music) receive interruptionNotification .ended and auto-resume.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            guard !bassPlayer.isUserIntendedPlay else { return }
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
 
     func fetchShowInfo(date: String, showTime: ShowTime = .none) {

@@ -12,7 +12,7 @@ import Bass
 //                                      ↓ drain at ~50 Hz on write queue
 //                              WAV segment files on disk (15 × 60 s)
 //
-// Storage: 16-bit PCM, 44100 Hz, stereo → ~10.5 MB/segment → ~157 MB max.
+// Storage: 16-bit PCM, 44100 Hz, stereo → ~10.1 MiB/segment → ~151 MiB (15 min default), ~303 MiB (30 min max).
 // WAV header uses placeholder data size (0xFFFFFFFF) — BASS reads to EOF fine.
 
 final class StreamBuffer {

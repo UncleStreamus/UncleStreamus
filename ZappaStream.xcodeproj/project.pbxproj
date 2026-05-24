@@ -138,8 +138,8 @@
 		AAAA00032FAA000300AA0003 /* ShowTimeFetcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowTimeFetcherTests.swift; sourceTree = "<group>"; };
 		AAAA00042FAA000400AA0004 /* SavedShowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedShowTests.swift; sourceTree = "<group>"; };
 		AAAA00052FAA000500AA0005 /* StreamBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamBufferTests.swift; sourceTree = "<group>"; };
-		AAAA00072FAA000700AA0007 /* FZShowsImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsImportTests.swift; sourceTree = "<group>"; };
 		AAAA00062FAA000600AA0006 /* ZappaStreamTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ZappaStreamTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AAAA00072FAA000700AA0007 /* FZShowsImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsImportTests.swift; sourceTree = "<group>"; };
 		AFAF780DA29F39C724E66902 /* FZShowsPageRecord.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FZShowsPageRecord.swift; sourceTree = "<group>"; };
 		B859389429B13E3327751EB4 /* ScaledFont.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScaledFont.swift; sourceTree = "<group>"; };
 		BBBB00052FBB000500BB0005 /* BASSRadioPlayer+Playback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BASSRadioPlayer+Playback.swift"; sourceTree = "<group>"; };
@@ -229,7 +229,7 @@
 				AAAA00032FAA000300AA0003 /* ShowTimeFetcherTests.swift */,
 				AAAA00042FAA000400AA0004 /* SavedShowTests.swift */,
 				AAAA00052FAA000500AA0005 /* StreamBufferTests.swift */,
-			AAAA00072FAA000700AA0007 /* FZShowsImportTests.swift */,
+				AAAA00072FAA000700AA0007 /* FZShowsImportTests.swift */,
 			);
 			path = ZappaStreamTests;
 			sourceTree = "<group>";
@@ -468,7 +468,7 @@
 				AAAA00132FAA001300AA0013 /* ShowTimeFetcherTests.swift in Sources */,
 				AAAA00142FAA001400AA0014 /* SavedShowTests.swift in Sources */,
 				AAAA00152FAA001500AA0015 /* StreamBufferTests.swift in Sources */,
-			AAAA00172FAA001700AA0017 /* FZShowsImportTests.swift in Sources */,
+				AAAA00172FAA001700AA0017 /* FZShowsImportTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -825,7 +825,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.2;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.datisit.ZappaStream-iOS";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.datisit.ZappaStream-iOS2";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
@@ -863,7 +863,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.2;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.datisit.ZappaStream-iOS";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.datisit.ZappaStream-iOS2";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
