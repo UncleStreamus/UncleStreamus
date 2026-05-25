@@ -555,6 +555,17 @@ enum PlaybackState {
         }
     }
 
+    /// Force BASS's RemoteIO output unit to reconnect to the current AVAudioSession route.
+    /// Safe to call any time — DECODE-mode channels and network downloads are unaffected.
+    /// Call after AVAudioSession.setActive(true) on iOS to guarantee the output unit is
+    /// bound to the active session before BASS_ChannelPlay. Without this, after
+    /// BASS_ChannelPause (DVR pause/resume cycle) + freeStream + new stream start, BASS
+    /// can report ACTIVE_PLAYING while its RemoteIO unit outputs silence.
+    func reconnectOutputToAudioSession() {
+        BASS_Stop()
+        BASS_Start()
+    }
+
     /// Called when a new audio output device (AirPod, headphones) becomes available.
     /// With BASS_CONFIG_IOS_SESSION_DISABLE, BASS doesn't intercept route changes itself.
     /// After a route change, BASS's RemoteIO unit may still be pointed at the old device

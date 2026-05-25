@@ -1214,6 +1214,11 @@ struct ContentView_iOS: View {
         // unit gets a properly active session before BASS_ChannelPlay is called.
         do {
             try audioSession.setActive(true)
+            // Reconnect BASS's RemoteIO output unit to the now-active session. After a
+            // BASS_ChannelPause (DVR pause/resume cycle) + freeStream + new stream, the
+            // RemoteIO unit can become stale and output silence even though BASS reports
+            // ACTIVE_PLAYING. BASS_Stop/Start forces it to re-bind to the current route.
+            bassPlayer.reconnectOutputToAudioSession()
             #if DEBUG
             print("✅ Audio session activated")
             #endif
