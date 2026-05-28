@@ -58,6 +58,7 @@ struct ContentView_iOS: View {
 
     @State private var sidebarNavigationActive: Bool = false
     @State private var contentBounceOffset: CGFloat = 0
+    @State private var interruptionHandlerSetUp = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -335,7 +336,10 @@ struct ContentView_iOS: View {
                 selectedStream = streams.first { $0.format == lastStreamFormat } ?? streams.first
             }
             setupPlayer()
-            setupInterruptionHandler()
+            if !interruptionHandlerSetUp {
+                setupInterruptionHandler()
+                interruptionHandlerSetUp = true
+            }
 
             // Auto-play if was playing when app quit (and auto-resume is enabled)
             let wasPlaying = UserDefaults.standard.bool(forKey: "wasPlayingOnQuit")
@@ -1210,6 +1214,11 @@ struct ContentView_iOS: View {
         // unit gets a properly active session before BASS_ChannelPlay is called.
         do {
             try audioSession.setActive(true)
+            // Reconnect BASS's RemoteIO output unit to the now-active session. After a
+            // BASS_ChannelPause (DVR pause/resume cycle) + freeStream + new stream, the
+            // RemoteIO unit can become stale and output silence even though BASS reports
+            // ACTIVE_PLAYING. BASS_Stop/Start forces it to re-bind to the current route.
+            bassPlayer.reconnectOutputToAudioSession()
             #if DEBUG
             print("✅ Audio session activated")
             #endif
@@ -1273,6 +1282,10 @@ struct ContentView_iOS: View {
 
     private func setupRemoteCommandCenter() {
         let commandCenter = MPRemoteCommandCenter.shared()
+
+        commandCenter.playCommand.removeTarget(nil)
+        commandCenter.pauseCommand.removeTarget(nil)
+        commandCenter.togglePlayPauseCommand.removeTarget(nil)
 
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { _ in

@@ -21,8 +21,10 @@ extension BASSRadioPlayer {
         cancelReconnectTimer()
         reconnectAttempt = 0
         DispatchQueue.main.async { self.isReconnecting = false }
+        #if DEBUG
         print("\n🔊 ── SWITCHING TO \(format) ──────────────────────────")
         print("   URL: \(entry.url)")
+        #endif
 
         freeStream()
 
@@ -44,7 +46,9 @@ extension BASSRadioPlayer {
 
         if streamHandle == 0 {
             let err = BASS_ErrorGetCode()
+            #if DEBUG
             print("❌  Stream creation failed (error \(err)) — scheduling reconnect")
+            #endif
             scheduleReconnect()
             return
         }
@@ -110,7 +114,9 @@ extension BASSRadioPlayer {
                     self.preBufferProgress = min(self.preBufferProgress + 0.1 / totalDelay, 1.0)
                 }
             }
+            #if DEBUG
             print("   handle=\(capturedSH) mixer=\(mixerHandle) preMix=\(preMixerHandle) playback=\(capturedPH) — pre-buffering \(Int(totalDelay))s before mixer start…")
+            #endif
             #if os(iOS)
             beginFlacPrebufBackgroundTask()
             #endif
@@ -120,7 +126,9 @@ extension BASSRadioPlayer {
                     self.preBufferTimer?.invalidate()
                     self.preBufferTimer = nil
                 }
+                #if DEBUG
                 print("   🎬 FLAC pre-buffer complete — calling BASS_ChannelPlay")
+                #endif
                 BASS_ChannelPlay(capturedPH, 0)
                 DispatchQueue.main.async { self.startMetadataPolling() }
                 #if os(iOS)
@@ -128,7 +136,9 @@ extension BASSRadioPlayer {
                 #endif
             }
         } else {
+            #if DEBUG
             print("   handle=\(streamHandle) preMix=\(preMixerHandle) mixer=\(mixerHandle) playback=\(ph) — calling BASS_ChannelPlay…")
+            #endif
             BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
             BASS_ChannelPlay(ph, 0)
             startFadeIn(mixer: ph)
@@ -173,7 +183,9 @@ extension BASSRadioPlayer {
         if mixerHandle != 0 {
             BASS_ChannelStop(mixerHandle)     // stops DSP callbacks including recordingDSP
             BASS_StreamFree(mixerHandle)
+            #if DEBUG
             print("⏹  mixer freed (handle was \(mixerHandle))")
+            #endif
             mixerHandle = 0
         }
         preBufferTimer?.invalidate()
@@ -185,7 +197,9 @@ extension BASSRadioPlayer {
         if preMixerHandle != 0 {
             BASS_ChannelStop(preMixerHandle)
             BASS_StreamFree(preMixerHandle)
+            #if DEBUG
             print("⏹  pre-mixer freed (handle was \(preMixerHandle))")
+            #endif
             preMixerHandle = 0
         }
         if streamHandle != 0 {
@@ -194,7 +208,9 @@ extension BASSRadioPlayer {
             // stop/free the stream here).
             BASS_ChannelStop(streamHandle)
             BASS_StreamFree(streamHandle)
+            #if DEBUG
             print("⏹  stream freed (handle was \(streamHandle))")
+            #endif
             streamHandle = 0
         }
         eqLowFX  = 0
@@ -266,9 +282,13 @@ extension BASSRadioPlayer {
             let preMixBuf: Float = format == "FLAC" ? 3.0 : (format == "OGG" ? 1.5 : 0.3)
             BASS_ChannelSetAttribute(preMixerHandle, DWORD(BASS_ATTRIB_BUFFER), preMixBuf)
             BASS_ChannelSetAttribute(mixerHandle,    DWORD(BASS_ATTRIB_BUFFER), 0.1)
+            #if DEBUG
             print("⚙️  configureStreamAttributes format=\(format) preMixBuf=\(preMixBuf)s fxMixBuf=0.1s")
+            #endif
         } else {
+            #if DEBUG
             print("⚙️  configureStreamAttributes format=\(format) — no mixer (direct mode)")
+            #endif
         }
 
         // Click guard always on preMixerHandle: fires before the FX output mixer,
@@ -319,7 +339,9 @@ extension BASSRadioPlayer {
                 },
                 userData
             )
+            #if DEBUG
             print("🔗 Syncs registered — stall=\(stallSync) end=\(endSync) oggChange=\(oggChangeSync) (mixer, mixtime)")
+            #endif
         } else if activeFormat == "MP3" {
             // MP3: use BASS_SYNC_META to detect ICY metadata changes as a proxy
             // for track boundaries. Arms the same click guard DSP used by OGG/FLAC.
@@ -334,10 +356,14 @@ extension BASSRadioPlayer {
                 },
                 userData
             )
+            #if DEBUG
             print("🔗 Syncs registered — stall=\(stallSync) end=\(endSync) metaChange=\(metaChangeSync) (mixer, mixtime)")
+            #endif
         } else {
             // AAC: no bitstream boundaries or ICY metadata; no click guard.
+            #if DEBUG
             print("🔗 Syncs registered — stall=\(stallSync) end=\(endSync)")
+            #endif
         }
     }
 
@@ -348,7 +374,9 @@ extension BASSRadioPlayer {
         let dlBuf = BASS_StreamGetFilePosition(channel, DWORD(5))
         let dlEnd = BASS_StreamGetFilePosition(channel, DWORD(2))
         let rebuf = BASS_StreamGetFilePosition(channel, DWORD(9))
+        #if DEBUG
         print("⏸️  STALL pos=\(String(format: "%.2f", secs))s dlBuf=\(dlBuf)/\(dlEnd) rebuffering=\(rebuf)%")
+        #endif
         DispatchQueue.main.async { [weak self] in
             self?.playbackState = .buffering
         }
@@ -357,14 +385,20 @@ extension BASSRadioPlayer {
     func handleEndSync(channel: DWORD) {
         guard channel == streamHandle, streamHandle != 0 else { return }
         if activeFormat == "OGG" || activeFormat == "FLAC" {
+            #if DEBUG
             print("🏁  BASS_SYNC_END fired for \(activeFormat) channel \(channel) — deferring to status poll")
+            #endif
             return
         }
         guard dvrState == .live else {
+            #if DEBUG
             print("🏁  BASS_SYNC_END fired during DVR mode — ignoring")
+            #endif
             return
         }
+        #if DEBUG
         print("🏁  BASS_SYNC_END fired for channel \(channel) — event-based restart")
+        #endif
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.restartStream()
         }
@@ -398,7 +432,9 @@ extension BASSRadioPlayer {
         cgScanPrevPrevL = 0
         cgMP3SpikeCount = 0
         cgSyncTime = now
+        #if DEBUG
         print("🛡️  MP3 guard armed (60ms + scan) — title: \(title)")
+        #endif
     }
 
     func handleOggChangeSync(channel: DWORD) {
@@ -434,7 +470,9 @@ extension BASSRadioPlayer {
         let sh = streamHandle
         guard ph != 0, sh != 0, case .playing = playbackState else { return }
         isRefillPausing = true
+        #if DEBUG
         print("⏸️ FLAC dlBuf low — freezing stream in pre-mixer \(bufferRefillDuration)s to refill")
+        #endif
         // Mute the output mixer so the user hears silence.
         BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
         // Freeze the stream channel inside the pre-mixer — BASS stops consuming the download
@@ -468,7 +506,9 @@ extension BASSRadioPlayer {
             return
         }
 
+        #if DEBUG
         print("🔄 FLAC recovery: pre-creating recovery stream")
+        #endif
 
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 30000)
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 0)    // return immediately after connect; fill in background
@@ -481,7 +521,9 @@ extension BASSRadioPlayer {
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 10000) // restore
 
         guard newHandle != 0 else {
+            #if DEBUG
             print("❌ FLAC recovery: stream creation failed (err=\(streamErr)) — will fall back to normal restart")
+            #endif
             isAttemptingRecovery = false
             recoveryStartTime = nil
             return
@@ -494,15 +536,19 @@ extension BASSRadioPlayer {
         BASS_ChannelSetAttribute(newHandle, DWORD(BASS_ATTRIB_VOL), 0)
 
         recoveryStreamHandle = newHandle
+        #if DEBUG
         print("🔄 FLAC recovery: stream \(newHandle) added to pre-mixer (muted) — downloading…")
+        #endif
     }
 
     /// Swaps the pre-created recovery stream in place of the exhausted old stream.
     /// Avoids the full 10s pre-buffer restart. Called on bassPollingQueue.
     func activateRecoveryStream(handle: DWORD) {
-        let elapsed = recoveryStartTime.map { Date().timeIntervalSince($0) } ?? 0
+        let elapsed = recoveryStartTime.map { ProcessInfo.processInfo.systemUptime - $0 } ?? 0
         recoveryStartTime = nil
+        #if DEBUG
         print("🔄 FLAC recovery: activating stream \(handle) (downloaded \(String(format:"%.1f", elapsed))s)")
+        #endif
 
         // Remove and free the exhausted old stream from the pre-mixer.
         let oldHandle = streamHandle
@@ -510,7 +556,9 @@ extension BASSRadioPlayer {
             BASS_Mixer_ChannelRemove(oldHandle)
             BASS_ChannelStop(oldHandle)
             BASS_StreamFree(oldHandle)
+            #if DEBUG
             print("🔄 FLAC recovery: old stream \(oldHandle) freed")
+            #endif
         }
 
         // Swap in the recovery stream.
@@ -529,7 +577,9 @@ extension BASSRadioPlayer {
         // state and returning 0 bytes, so the output mixer would stop again immediately.
         // Rebuild the full mixer pipeline around the recovery stream to restore playback.
         if mixerHandle != 0, BASS_ChannelIsActive(mixerHandle) == 0 {
+            #if DEBUG
             print("⚠️  FLAC recovery: output mixer stopped — rebuilding mixer pipeline")
+            #endif
             // Detach recovery stream from the stopped pre-mixer before freeing it.
             BASS_Mixer_ChannelRemove(handle)
             BASS_StreamFree(mixerHandle)
@@ -557,7 +607,9 @@ extension BASSRadioPlayer {
                 self?.preBufferProgress = 0.0
                 self?.playbackState = .connecting
             }
+            #if DEBUG
             print("⏳ FLAC recovery (rebuilt mixers): stream \(handle) active — rebuffering")
+            #endif
             return
         }
 
@@ -571,13 +623,17 @@ extension BASSRadioPlayer {
             self?.preBufferProgress = 0.0
             self?.playbackState = .connecting
         }
+        #if DEBUG
         print("⏳ FLAC recovery: stream \(handle) active — rebuffering (channel paused in mixer)")
+        #endif
     }
 
     // MARK: - Stream Restart
 
     func restartStream() {
+        #if DEBUG
         print("🔄 Restarting \(activeFormat) stream...")
+        #endif
         // freeStream() resets dvrState → .live and cleans up DVR playback/recording.
         freeStream()
 
@@ -599,7 +655,9 @@ extension BASSRadioPlayer {
 
         guard newHandle != 0 else {
             let err = BASS_ErrorGetCode()
+            #if DEBUG
             print("❌ restartStream: BASS_StreamCreateURL failed (err=\(err)) — scheduling reconnect")
+            #endif
             scheduleReconnect()
             return
         }
@@ -656,16 +714,22 @@ extension BASSRadioPlayer {
                     self.preBufferProgress = min(self.preBufferProgress + 0.1 / totalDelay, 1.0)
                 }
             }
+            #if DEBUG
             print("   🔄 FLAC restart: pre-buffering \(Int(totalDelay))s — handle=\(capturedSH) mixer=\(mixerHandle) preMix=\(preMixerHandle)")
+            #endif
             DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + totalDelay) { [weak self] in
                 guard let self = self, self.streamHandle == capturedSH else { return }
                 DispatchQueue.main.async {
                     self.preBufferTimer?.invalidate()
                     self.preBufferTimer = nil
                 }
+                #if DEBUG
                 print("   🎬 FLAC restart pre-buffer complete — calling BASS_ChannelPlay")
+                #endif
                 BASS_ChannelPlay(capturedPH, 0)
+                #if DEBUG
                 print("✅ Restarted handle=\(capturedSH) playback=\(capturedPH)")
+                #endif
                 DispatchQueue.main.async {
                     self.playbackState = .playing
                     self.startMetadataPolling()
@@ -673,7 +737,9 @@ extension BASSRadioPlayer {
             }
         } else {
             BASS_ChannelPlay(ph, 0)
+            #if DEBUG
             print("✅ Restarted handle=\(newHandle) preMix=\(preMixerHandle) mixer=\(mixerHandle) playback=\(ph)")
+            #endif
             DispatchQueue.main.async {
                 self.playbackState = .playing
                 self.startMetadataPolling()
@@ -694,10 +760,14 @@ extension BASSRadioPlayer {
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.bgReconnectTask == .invalid else { return }
             self.bgReconnectTask = UIApplication.shared.beginBackgroundTask(withName: "stream-reconnect") { [weak self] in
+                #if DEBUG
                 print("⚠️ iOS background reconnect task expired")
+                #endif
                 self?.endBackgroundReconnectTask()
             }
+            #if DEBUG
             print("📱 Background reconnect task started (id=\(self.bgReconnectTask.rawValue))")
+            #endif
         }
     }
 
@@ -708,7 +778,9 @@ extension BASSRadioPlayer {
         bgReconnectTask = .invalid
         DispatchQueue.main.async {
             UIApplication.shared.endBackgroundTask(task)
+            #if DEBUG
             print("📱 Background reconnect task ended")
+            #endif
         }
     }
 
@@ -719,10 +791,14 @@ extension BASSRadioPlayer {
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.bgFlacPrebufTask == .invalid else { return }
             self.bgFlacPrebufTask = UIApplication.shared.beginBackgroundTask(withName: "flac-prebuffer") { [weak self] in
+                #if DEBUG
                 print("⚠️ iOS FLAC pre-buffer background task expired")
+                #endif
                 self?.endFlacPrebufBackgroundTask()
             }
+            #if DEBUG
             print("📱 FLAC pre-buffer background task started (id=\(self.bgFlacPrebufTask.rawValue))")
+            #endif
         }
     }
 
@@ -732,7 +808,9 @@ extension BASSRadioPlayer {
         bgFlacPrebufTask = .invalid
         DispatchQueue.main.async {
             UIApplication.shared.endBackgroundTask(task)
+            #if DEBUG
             print("📱 FLAC pre-buffer background task ended")
+            #endif
         }
     }
     #endif
@@ -747,7 +825,9 @@ extension BASSRadioPlayer {
                 // Re-check on the serial queue so we don't start multiple restarts
                 // if NWPathMonitor fires several times before handles are set.
                 guard !self.isStreamActive else { return }
+                #if DEBUG
                 print("🌐 Network restored — triggering immediate reconnect")
+                #endif
                 self.cancelReconnectTimer()
                 self.reconnectAttempt = 0
                 self.restartStream()
@@ -764,7 +844,9 @@ extension BASSRadioPlayer {
         beginBackgroundReconnectTaskIfNeeded()
         #endif
         guard reconnectAttempt < reconnectMaxAttempts else {
+            #if DEBUG
             print("❌ Reconnect giving up after \(reconnectMaxAttempts) attempts (~1 minute)")
+            #endif
             DispatchQueue.main.async {
                 self.isReconnecting = false
                 self.playbackState = .stopped
@@ -773,7 +855,9 @@ extension BASSRadioPlayer {
         }
         let delay = reconnectRetryInterval
         reconnectAttempt += 1
+        #if DEBUG
         print("⏳ Reconnect attempt \(reconnectAttempt)/\(reconnectMaxAttempts) scheduled in \(Int(delay))s")
+        #endif
         DispatchQueue.main.async {
             self.isReconnecting = true
             self.playbackState = .connecting
@@ -786,7 +870,9 @@ extension BASSRadioPlayer {
             // Skip if a concurrent source (e.g. triggerImmediateReconnect) already
             // created a new stream while this timer was waiting in the queue.
             guard !self.isStreamActive else {
+                #if DEBUG
                 print("⏩ Reconnect timer fired but stream already active — skipping")
+                #endif
                 return
             }
             self.restartStream()
@@ -823,13 +909,13 @@ extension BASSRadioPlayer {
         BASS_ChannelSetAttribute(mixer, DWORD(BASS_ATTRIB_VOL), 0)
 
         var currentVolume: Float = 0
-        let startTime = Date()
+        let startTime = ProcessInfo.processInfo.systemUptime
         let tickInterval: TimeInterval = 1.0 / 60.0  // ~60Hz
 
         fadeTimer = Timer.scheduledTimer(withTimeInterval: tickInterval, repeats: true) { [weak self] _ in
             guard let self = self, mixer != 0 else { return }
 
-            let elapsed = Date().timeIntervalSince(startTime)
+            let elapsed = ProcessInfo.processInfo.systemUptime - startTime
             let progress = min(elapsed / self.fadeInDuration, 1.0)
             currentVolume = Float(progress)
 
@@ -860,13 +946,13 @@ extension BASSRadioPlayer {
         BASS_ChannelGetAttribute(mixer, DWORD(BASS_ATTRIB_VOL), &currentVolume)
         guard currentVolume > 0 else { completion(); return }
         let startVolume = currentVolume
-        let startTime = Date()
+        let startTime = ProcessInfo.processInfo.systemUptime
         let tickInterval: TimeInterval = 1.0 / 60.0  // ~60Hz
 
         fadeTimer = Timer.scheduledTimer(withTimeInterval: tickInterval, repeats: true) { [weak self] _ in
             guard let self = self, mixer != 0 else { return }
 
-            let elapsed = Date().timeIntervalSince(startTime)
+            let elapsed = ProcessInfo.processInfo.systemUptime - startTime
             let progress = min(elapsed / self.fadeOutDuration, 1.0)
             let newVolume = startVolume * Float(1.0 - progress)
 

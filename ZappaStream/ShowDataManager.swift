@@ -25,7 +25,7 @@ class ShowDataManager {
             modelContext.insert(saved)
         }
 
-        try? modelContext.save()
+        do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
     }
 
     // MARK: - Favorites
@@ -38,14 +38,14 @@ class ShowDataManager {
 
         if let existing = try? modelContext.fetch(descriptor).first {
             existing.isFavorite.toggle()
-            try? modelContext.save()
+            do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
             favoriteVersion += 1
         }
     }
 
     func toggleFavorite(savedShow: SavedShow) {
         savedShow.isFavorite.toggle()
-        try? modelContext.save()
+        do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
         favoriteVersion += 1
     }
 
@@ -75,7 +75,7 @@ class ShowDataManager {
             }
         }
 
-        try? modelContext.save()
+        do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
     }
 
     func clearFavorites() {
@@ -95,7 +95,7 @@ class ShowDataManager {
             }
         }
 
-        try? modelContext.save()
+        do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
         favoriteVersion += 1
     }
 

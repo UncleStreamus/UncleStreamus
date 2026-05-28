@@ -28,6 +28,9 @@ struct ZappaStreamApp: App {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let storeDir = appSupport.appendingPathComponent("ZappaStream", isDirectory: true)
         let storeURL = storeDir.appendingPathComponent("ZappaStream.store")
+        #if os(macOS)
+        migrateLegacyStoreIfNeeded(into: storeDir)
+        #endif
         try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
         let config = ModelConfiguration(schema: schema, url: storeURL)
 
@@ -141,6 +144,49 @@ struct ZappaStreamApp: App {
         Settings {
             SettingsView()
                 .modelContainer(sharedModelContainer)
+        }
+    }
+    #endif
+
+    // MARK: - Legacy Store Migration
+
+    // Copies the pre-sandbox store (~/Library/Application Support/ZappaStream/) into the
+    // sandboxed container path. Runs once on first launch; fails silently if the sandbox
+    // blocks access (expected for App Store installs with no prior data).
+    #if os(macOS)
+    private static func migrateLegacyStoreIfNeeded(into newDir: URL) {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: "sandboxStoreMigrationDone") else { return }
+        defer { defaults.set(true, forKey: "sandboxStoreMigrationDone") }
+
+        let fm = FileManager.default
+        let newStore = newDir.appendingPathComponent("ZappaStream.store")
+
+        // Derive the real (pre-sandbox) Application Support path from the container path.
+        // Under the sandbox, applicationSupportDirectory resolves to:
+        //   ~/Library/Containers/<bundle-id>/Data/Library/Application Support
+        // The real path is the portion before "/Library/Containers/".
+        let containerPath = newDir.deletingLastPathComponent().path
+        guard let containerRange = containerPath.range(of: "/Library/Containers/") else { return }
+        let realAppSupport = String(containerPath[..<containerRange.lowerBound]) + "/Library/Application Support"
+        let oldDir = URL(fileURLWithPath: realAppSupport).appendingPathComponent("ZappaStream")
+        let oldStore = oldDir.appendingPathComponent("ZappaStream.store")
+
+        guard oldStore.path != newStore.path,
+              fm.fileExists(atPath: oldStore.path) else { return }
+
+        // Don't overwrite a populated existing store.
+        if fm.fileExists(atPath: newStore.path),
+           let attrs = try? fm.attributesOfItem(atPath: newStore.path),
+           (attrs[.size] as? Int ?? 0) > 65536 { return }
+
+        try? fm.createDirectory(at: newDir, withIntermediateDirectories: true)
+        for suffix in ["", "-shm", "-wal"] {
+            let src = oldDir.appendingPathComponent("ZappaStream.store\(suffix)")
+            let dst = newDir.appendingPathComponent("ZappaStream.store\(suffix)")
+            guard fm.fileExists(atPath: src.path) else { continue }
+            try? fm.removeItem(at: dst)
+            try? fm.copyItem(at: src, to: dst)
         }
     }
     #endif

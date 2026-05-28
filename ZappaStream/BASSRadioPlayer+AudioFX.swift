@@ -12,6 +12,9 @@ extension BASSRadioPlayer {
     // MARK: - Apply Effects Pipeline
 
     func applyEffects(to handle: DWORD, clickGuardOn cgHandle: DWORD? = nil) {
+        // passUnretained is safe here: BASS_ChannelRemoveDSP (called from flushEffects() in
+        // freeStream() / deinit) synchronises with the BASS render thread before returning,
+        // so no callback can fire on a deallocated self after removal.
         let userData = Unmanaged.passUnretained(self).toOpaque()
 
         eqLowFX  = BASS_ChannelSetFX(handle, DWORD(BASS_FX_BFX_BQF), 0)

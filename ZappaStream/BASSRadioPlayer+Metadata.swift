@@ -46,7 +46,9 @@ extension BASSRadioPlayer {
         if let ptr = BASS_ChannelGetTags(streamHandle, DWORD(BASS_TAG_META)) {
             let raw = String(cString: ptr)
             if !raw.isEmpty, let title = parseICYTitle(raw), !title.isEmpty {
+                #if DEBUG
                 print("📋  [ICY] \(title)")
+                #endif
                 publishTitle(title)
                 return
             }
@@ -110,7 +112,9 @@ extension BASSRadioPlayer {
             let dlPct = dlBufSize > 0 ? Double(dlBufFill) / Double(dlBufSize) * 100 : 100
 
             let threshold: Double = 40  // ~10s at 900 kbps in a 25s ring buffer (matches initial connect ~10s wait)
+            #if DEBUG
             print("⏳ FLAC rebuffer: \(String(format:"%.0f",dlPct))% / \(Int(threshold))%")
+            #endif
             DispatchQueue.main.async { [weak self] in
                 self?.preBufferProgress = min(dlPct / threshold, 1.0)
             }
@@ -126,7 +130,9 @@ extension BASSRadioPlayer {
                 if BASS_ChannelIsActive(ph) == 0 { BASS_ChannelPlay(ph, 0) }
                 flacPendingFadeIn = true
                 DispatchQueue.main.async { [weak self] in self?.preBufferProgress = 0.0 }
+                #if DEBUG
                 print("🔊 FLAC rebuffer complete (\(String(format:"%.0f",dlPct))%) — unpausing stream, fade-in pending")
+                #endif
             }
             return  // Skip other health checks while rebuffering
         }
@@ -146,14 +152,18 @@ extension BASSRadioPlayer {
             // Treat as signed so the error sentinel reads -1, not ~12 billion ms.
             let fxBufMs = Int32(bitPattern: fxAvail) > 0 ? Double(fxAvail) / (44100.0 * 2 * 4) * 1000 : 0
 
+            #if DEBUG
             print("📊 FLAC health: pos=\(String(format:"%.1f",secs))s dlBuf=\(String(format:"%.0f",dlPct))% fxBuf=\(String(format:"%.0f",fxBufMs))ms")
+            #endif
 
             // Trigger fade-in once the FX output buffer has ≥80ms of audio (80% of its 0.1s
             // capacity). This fires on the first health poll after BASS_ChannelPlay succeeds,
             // confirming that data is flowing from the pre-mixer through the FX chain.
             if flacPendingFadeIn, fxBufMs >= 80 {
                 flacPendingFadeIn = false
+                #if DEBUG
                 print("🔊 FLAC buffer ready (fxBuf=\(String(format:"%.0f",fxBufMs))ms) — starting fade-in")
+                #endif
                 DispatchQueue.main.async { [weak self] in
                     self?.preBufferProgress = 0.0  // dismiss loading bar
                     self?.startFadeIn(mixer: ph)
@@ -169,7 +179,7 @@ extension BASSRadioPlayer {
             if dlPct >= 0, dlPct < 10, !isConnected,
                !isAttemptingRecovery, recoveryStreamHandle == 0, !flacRebufferingAfterRecovery {
                 isAttemptingRecovery = true
-                recoveryStartTime = Date()
+                recoveryStartTime = ProcessInfo.processInfo.systemUptime
                 bassPollingQueue.async { [weak self] in self?.startFlacRecovery() }
             }
         }
@@ -180,10 +190,14 @@ extension BASSRadioPlayer {
            bytes > 100000 {
             guard !isReconnecting else { return }
             if dvrState == .live {
+                #if DEBUG
                 print("🔄 AAC buffer underrun detected (pos=\(String(format:"%.0f",secs)) buffered=0) — fast restart")
+                #endif
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.restartStream() }
             } else {
+                #if DEBUG
                 print("🔄 AAC buffer underrun in DVR mode — partial live restart")
+                #endif
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.partialRestartLiveChannel() }
             }
             return
@@ -194,13 +208,15 @@ extension BASSRadioPlayer {
             if activeFormat == "OGG" || activeFormat == "FLAC" {
                 if !oggStopConfirmed {
                     oggStopConfirmed = true
+                    #if DEBUG
                     print("⏸️  \(activeFormat) STOPPED detected — confirming in next poll…")
+                    #endif
                     // FLAC: if recovery hasn't started yet (dlBuf was already < 20% when the
                     // network dropped, bypassing the health-check trigger), start it now.
                     // The 2s confirmation window gives the recovery stream time to connect.
                     if activeFormat == "FLAC", !isAttemptingRecovery, recoveryStreamHandle == 0 {
                         isAttemptingRecovery = true
-                        recoveryStartTime = Date()
+                        recoveryStartTime = ProcessInfo.processInfo.systemUptime
                         bassPollingQueue.async { [weak self] in self?.startFlacRecovery() }
                     }
                     return
@@ -212,20 +228,26 @@ extension BASSRadioPlayer {
             // activate it now instead of doing a full 10s restart.
             if activeFormat == "FLAC", recoveryStreamHandle != 0 {
                 let rh = recoveryStreamHandle
-                let elapsed = recoveryStartTime.map { Date().timeIntervalSince($0) } ?? 0
+                let elapsed = recoveryStartTime.map { ProcessInfo.processInfo.systemUptime - $0 } ?? 0
                 recoveryStreamHandle = 0
                 isAttemptingRecovery = false
+                #if DEBUG
                 print("🔄 FLAC recovery: old stream STOPPED — activating recovery stream \(rh) (downloaded \(String(format:"%.1f", elapsed))s)")
+                #endif
                 bassPollingQueue.async { [weak self] in self?.activateRecoveryStream(handle: rh) }
                 return
             }
 
             let err = BASS_ErrorGetCode()
             if dvrState == .live {
+                #if DEBUG
                 print("🔄 Stream STOPPED (err=\(err)) — fast auto restart")
+                #endif
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.restartStream() }
             } else {
+                #if DEBUG
                 print("🔄 Stream STOPPED (err=\(err)) in DVR mode — partial live restart")
+                #endif
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.partialRestartLiveChannel() }
             }
             return
@@ -265,7 +287,9 @@ extension BASSRadioPlayer {
 
             if title != self.lastIcecastTitle {
                 self.lastIcecastTitle = title
+                #if DEBUG
                 print("🛰️  [ICECAST] \(title)")
+                #endif
                 DispatchQueue.main.async {
                     self.publishTitle(title)
                 }
@@ -277,7 +301,9 @@ extension BASSRadioPlayer {
 
     func handleFlacTitleChange(shortTitle: String) {
         if lastFlacTitle != shortTitle {
+            #if DEBUG
             print("📋  FLAC TITLE changed: '\(lastFlacTitle ?? "(none)")' -> '\(shortTitle)'")
+            #endif
             lastFlacTitle = shortTitle
             publishTitle(shortTitle)
             fetchIcecastMetadata()
@@ -311,7 +337,9 @@ extension BASSRadioPlayer {
     // MARK: - Publish
 
     func publishTitle(_ title: String) {
+        #if DEBUG
         print("🎵  \(title)")
+        #endif
 
         // Journal every track change with its recording timestamp so DVR playback can
         // replay track info at the correct position.  All journal mutations run on the
