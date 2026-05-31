@@ -285,7 +285,7 @@ extension BASSRadioPlayer {
         // paused (buffer-full): the paused channel has no usable download buffer, so a fresh
         // connect is identical to a normal play-from-stopped experience.
         if activeFormat == "FLAC" || wasBufferFull {
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.restartStream() }
+            bassPollingQueue.async { [weak self] in self?.restartStream() }
             print("📡 DVR → LIVE (full restart)")
             return
         }
@@ -552,7 +552,7 @@ extension BASSRadioPlayer {
         guard activeFormat != "FLAC" else {
             // FLAC two-mixer setup is too complex for a partial restart; go live as a fallback.
             DispatchQueue.main.async { self.goLive() }
-            DispatchQueue.global(qos: .userInitiated).async { self.restartStream() }
+            bassPollingQueue.async { self.restartStream() }
             return
         }
         guard let current = qualities.first(where: { $0.format == activeFormat }),

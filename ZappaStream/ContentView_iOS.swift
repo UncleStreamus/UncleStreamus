@@ -616,8 +616,15 @@ struct ContentView_iOS: View {
                     case (false, _):
                         playStream()
                     case (true, .live):
-                        if dvrEnabled { bassPlayer.dvrPause() } else { stopStream() }
-                        updateNowPlayingInfo()
+                        if !bassPlayer.isStreamActive {
+                            // Stream died — restart rather than DVR pausing a dead stream.
+                            playStream()
+                        } else if dvrEnabled {
+                            bassPlayer.dvrPause()
+                            updateNowPlayingInfo()
+                        } else {
+                            stopStream()
+                        }
                     case (true, .paused):
                         configureAudioSession()
                         bassPlayer.dvrResume()
@@ -1291,7 +1298,7 @@ struct ContentView_iOS: View {
         commandCenter.playCommand.addTarget { _ in
             DispatchQueue.main.async {
                 #if DEBUG
-                print("▶️  remoteCmd PLAY — isPlaying=\(self.isPlaying) dvrState=\(self.bassPlayer.dvrState)")
+                print("▶️  remoteCmd PLAY — isPlaying=\(self.isPlaying) dvrState=\(self.bassPlayer.dvrState) streamActive=\(self.bassPlayer.isStreamActive)")
                 #endif
                 guard self.bassPlayer.checkUserActionAllowed() else { return }
                 if self.bassPlayer.dvrState == .paused {
@@ -1304,7 +1311,9 @@ struct ContentView_iOS: View {
                     configureAudioSession()
                     self.bassPlayer.ensureOutputPlaying()
                     self.updateNowPlayingInfo()
-                } else if !self.isPlaying {
+                } else if !self.isPlaying || !self.bassPlayer.isStreamActive {
+                    // Start or restart: covers initial play AND the case where isPlaying is
+                    // true but handles are gone (stream died in a tunnel while device was locked).
                     self.playStream()
                 }
             }
@@ -1341,15 +1350,24 @@ struct ContentView_iOS: View {
         commandCenter.togglePlayPauseCommand.addTarget { _ in
             DispatchQueue.main.async {
                 #if DEBUG
-                print("⏯️  remoteCmd TOGGLE — isPlaying=\(self.isPlaying) dvrState=\(self.bassPlayer.dvrState)")
+                print("⏯️  remoteCmd TOGGLE — isPlaying=\(self.isPlaying) dvrState=\(self.bassPlayer.dvrState) streamActive=\(self.bassPlayer.isStreamActive)")
                 #endif
                 guard self.bassPlayer.checkUserActionAllowed() else { return }
                 switch (self.isPlaying, self.bassPlayer.dvrState) {
                 case (false, _):
                     self.playStream()
                 case (true, .live):
-                    if self.dvrEnabled { self.bassPlayer.dvrPause() } else { self.stopStream() }
-                    self.updateNowPlayingInfo()
+                    if !self.bassPlayer.isStreamActive {
+                        // Stream died (tunnel) — restart instead of trying to DVR pause a dead stream.
+                        // Without this, the second tap would dvrResume() and create a DVR playback
+                        // stream that plays simultaneously with the reconnecting live stream.
+                        self.playStream()
+                    } else if self.dvrEnabled {
+                        self.bassPlayer.dvrPause()
+                        self.updateNowPlayingInfo()
+                    } else {
+                        self.stopStream()
+                    }
                 case (true, .paused):
                     configureAudioSession()
                     self.bassPlayer.dvrResume()

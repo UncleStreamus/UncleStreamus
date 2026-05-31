@@ -193,12 +193,12 @@ extension BASSRadioPlayer {
                 #if DEBUG
                 print("🔄 AAC buffer underrun detected (pos=\(String(format:"%.0f",secs)) buffered=0) — fast restart")
                 #endif
-                DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.restartStream() }
+                bassPollingQueue.async { [weak self] in self?.restartStream() }
             } else {
                 #if DEBUG
                 print("🔄 AAC buffer underrun in DVR mode — partial live restart")
                 #endif
-                DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.partialRestartLiveChannel() }
+                bassPollingQueue.async { [weak self] in self?.partialRestartLiveChannel() }
             }
             return
         }
@@ -243,16 +243,47 @@ extension BASSRadioPlayer {
                 #if DEBUG
                 print("🔄 Stream STOPPED (err=\(err)) — fast auto restart")
                 #endif
-                DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.restartStream() }
+                bassPollingQueue.async { [weak self] in self?.restartStream() }
             } else {
                 #if DEBUG
                 print("🔄 Stream STOPPED (err=\(err)) in DVR mode — partial live restart")
                 #endif
-                DispatchQueue.global(qos: .userInitiated).async { [weak self] in self?.partialRestartLiveChannel() }
+                bassPollingQueue.async { [weak self] in self?.partialRestartLiveChannel() }
             }
             return
         } else {
             oggStopConfirmed = false
+
+            // Position staleness: catches network loss where BASS keeps the stream in
+            // PLAYING state but the decode position stops advancing.  The canonical case
+            // is AAC + iOS AudioToolbox "ReadBytes failed" loop — the download buffer
+            // still shows data (so bufferedBytes != 0), but AudioToolbox can't decode it,
+            // so neither BASS_SYNC_STALL nor the bufferedBytes==0 check ever fires.
+            // 4s threshold (2× statePollInterval): AAC's 0.3s pre-mixer buffer depletes
+            // almost instantly on network loss, so position freezes within a fraction of
+            // a second. Two missed polls (4s) is safe against any realistic decode jitter.
+            let now = ProcessInfo.processInfo.systemUptime
+            if bytes > lastKnownStreamBytes {
+                lastKnownStreamBytes = bytes
+                lastPositionAdvanceTime = now
+            } else if lastKnownStreamBytes > 0,
+                      lastPositionAdvanceTime > 0,
+                      now - lastPositionAdvanceTime > 4.0,
+                      !isReconnecting,
+                      dvrState == .live {
+                #if DEBUG
+                print("🔄 Stream stale: pos stuck at \(bytes)B for \(String(format:"%.1f", now - lastPositionAdvanceTime))s — restarting")
+                #endif
+                #if os(iOS)
+                beginBackgroundReconnectTaskIfNeeded()
+                startSilenceKeepalive()
+                #endif
+                DispatchQueue.main.async { [weak self] in
+                    self?.isReconnecting = true
+                    self?.playbackState = .buffering
+                }
+                bassPollingQueue.async { [weak self] in self?.restartStream() }
+            }
         }
     }
 

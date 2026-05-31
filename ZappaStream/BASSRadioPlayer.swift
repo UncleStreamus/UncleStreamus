@@ -7,6 +7,7 @@ import BassFX
 import BassMix
 #else
 import UIKit
+import AVFoundation
 #endif
 // On iOS: BASS symbols are globally available via BASSBridgingHeader.h
 
@@ -94,7 +95,23 @@ enum PlaybackState {
     /// Background task token used on iOS to keep the app alive during the FLAC
     /// pre-buffer window, before BASS_ChannelPlay starts the audio unit.
     var bgFlacPrebufTask: UIBackgroundTaskIdentifier = .invalid
+    /// Silent looping AVAudioPlayer that keeps the AVAudioSession active while reconnecting.
+    /// iOS will not suspend an app with an active .playback session producing audio output,
+    /// even at volume 0.0 — so this prevents suspension during tunnels > ~30s.
+    var silenceKeepalivePlayer: AVAudioPlayer?
     #endif
+
+    /// Incremented by freeStream() each time handles are torn down. Captured by restartStream()
+    /// before the blocking BASS_StreamCreateURL call and checked afterward — if another
+    /// freeStream() ran concurrently (concurrent restarts from different queues), the generation
+    /// will have changed and the stale handle is discarded instead of overwriting a live stream.
+    var streamGeneration: Int = 0
+
+    /// Last decode byte position seen in checkStreamStatus(). Used to detect streams that BASS
+    /// keeps in PLAYING state but where decode has frozen (e.g. AAC AudioToolbox ReadBytes loop).
+    var lastKnownStreamBytes: UInt64 = 0
+    /// systemUptime when lastKnownStreamBytes last changed. Zero until the stream first decodes data.
+    var lastPositionAdvanceTime: TimeInterval = 0
 
     /// True only while the user intends playback to be active.
     /// Set true in switchQuality(); false only in stop() / stopWithFadeOut().
@@ -117,8 +134,8 @@ enum PlaybackState {
     var dvrRecordingPumpSource: DispatchSourceTimer?
     var dvrRecordingPumpBuf = [UInt8](repeating: 0, count: 35280) // 100ms at 44.1kHz stereo float32
 
-    // Flat 5s retry interval, giving up after 12 attempts (~1 minute total).
-    let reconnectRetryInterval: TimeInterval = 5
+    // 3s retry interval, giving up after 12 attempts (~1 minute total).
+    let reconnectRetryInterval: TimeInterval = 3
     let reconnectMaxAttempts: Int = 12
     /// How long to run FLAC muted before unmuting, giving the mixer output buffer time to fill.
     /// FLAC fade-in is triggered by checkStreamStatus() when playback buffer is sufficiently filled,
@@ -439,6 +456,7 @@ enum PlaybackState {
         DispatchQueue.main.async { self.isReconnecting = false }
         #if os(iOS)
         endBackgroundReconnectTask()
+        stopSilenceKeepalive()
         #endif
         freeStream()
         activeFormat = ""

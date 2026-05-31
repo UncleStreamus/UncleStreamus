@@ -7,6 +7,7 @@ import BassFX
 import BassMix
 #elseif os(iOS)
 import UIKit
+import AVFoundation
 #endif
 
 // MARK: - Stream Lifecycle, Network Resilience & Fade
@@ -236,6 +237,11 @@ extension BASSRadioPlayer {
         cgLastGuardTime = 0
         flacPendingFadeIn = false
         flacRebufferingAfterRecovery = false
+        // Signal that this teardown happened — restartStream() captures and re-checks this
+        // to detect a concurrent restart and discard its stale BASS_StreamCreateURL result.
+        streamGeneration &+= 1
+        lastKnownStreamBytes = 0
+        lastPositionAdvanceTime = 0
 
         if recoveryStreamHandle != 0 {
             BASS_Mixer_ChannelRemove(recoveryStreamHandle)
@@ -377,6 +383,12 @@ extension BASSRadioPlayer {
         #if DEBUG
         print("⏸️  STALL pos=\(String(format: "%.2f", secs))s dlBuf=\(dlBuf)/\(dlEnd) rebuffering=\(rebuf)%")
         #endif
+        // Start keepalive + background task at the first stall signal — maximises the window
+        // before iOS can suspend the app. Both are no-ops if already active.
+        #if os(iOS)
+        beginBackgroundReconnectTaskIfNeeded()
+        startSilenceKeepalive()
+        #endif
         DispatchQueue.main.async { [weak self] in
             self?.playbackState = .buffering
         }
@@ -399,7 +411,7 @@ extension BASSRadioPlayer {
         #if DEBUG
         print("🏁  BASS_SYNC_END fired for channel \(channel) — event-based restart")
         #endif
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        bassPollingQueue.async { [weak self] in
             self?.restartStream()
         }
     }
@@ -637,6 +649,10 @@ extension BASSRadioPlayer {
         // freeStream() resets dvrState → .live and cleans up DVR playback/recording.
         freeStream()
 
+        // Capture generation AFTER our own freeStream() so concurrent restarts that also
+        // called freeStream() will have incremented it, allowing us to detect the race.
+        let myGeneration = streamGeneration
+
         guard let current = qualities.first(where: { $0.format == activeFormat }),
               let cURL = current.url.cString(using: .utf8) else { return }
 
@@ -644,6 +660,13 @@ extension BASSRadioPlayer {
             BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 30000)
             BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)
         }
+        // Graduated connect timeout:
+        //   attempt 0 — 10s: first staleness-triggered try; network may just be flaky
+        //   attempt 1 — 5s:  NWPathMonitor restarts (path just reported satisfied) + first retry
+        //   attempt 2+ — 3s: fast-fail subsequent retries to cycle through budget quickly
+        // Always restore to the 10s default after BASS_StreamCreateURL returns.
+        let reconnectTimeout: DWORD = reconnectAttempt == 0 ? 10000 : reconnectAttempt == 1 ? 5000 : 3000
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), reconnectTimeout)
 
         let streamFlags = DWORD(BASS_STREAM_STATUS) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE)
         let newHandle = BASS_StreamCreateURL(cURL, 0, streamFlags, nil, nil)
@@ -652,6 +675,7 @@ extension BASSRadioPlayer {
             BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 25000)
             BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)
         }
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 10000)  // always restore
 
         guard newHandle != 0 else {
             let err = BASS_ErrorGetCode()
@@ -661,12 +685,26 @@ extension BASSRadioPlayer {
             scheduleReconnect()
             return
         }
+
+        // Guard against a concurrent restart that ran freeStream() while we were blocked in
+        // BASS_StreamCreateURL (e.g. switchQuality() on main thread, or NWPathMonitor +
+        // checkStreamStatus both firing simultaneously). The other restart's freeStream()
+        // incremented streamGeneration, so our generation is now stale — discard our handle.
+        guard streamGeneration == myGeneration else {
+            #if DEBUG
+            print("⏭ restartStream: stale generation (concurrent restart) — discarding handle \(newHandle)")
+            #endif
+            BASS_StreamFree(newHandle)
+            return
+        }
+
         reconnectAttempt = 0
         DispatchQueue.main.async { self.isReconnecting = false }
         #if os(iOS)
         // Stream URL connected — audio will start rendering shortly, handing off
-        // background execution to the audio background mode. Safe to end the task.
+        // background execution to the audio background mode. Safe to end tasks.
         endBackgroundReconnectTask()
+        stopSilenceKeepalive()
         #endif
 
         streamHandle = newHandle
@@ -813,6 +851,81 @@ extension BASSRadioPlayer {
             #endif
         }
     }
+
+    /// Start a silent looping AVAudioPlayer to keep the AVAudioSession active during reconnect.
+    /// iOS will not suspend an app that has an active .playback session with audio output,
+    /// even at volume 0.0 — this prevents suspension for tunnels longer than ~30s.
+    /// Safe to call repeatedly; no-ops if already running.
+    func startSilenceKeepalive() {
+        guard silenceKeepalivePlayer == nil else { return }
+        guard let data = Self.silentWAVData,
+              let player = try? AVAudioPlayer(data: data, fileTypeHint: AVFileType.wav.rawValue)
+        else {
+            #if DEBUG
+            print("⚠️ Silence keepalive: failed to create AVAudioPlayer")
+            #endif
+            return
+        }
+        player.numberOfLoops = -1
+        player.volume = 0.0
+        player.prepareToPlay()
+        player.play()
+        silenceKeepalivePlayer = player
+        #if DEBUG
+        print("🔇 Silence keepalive started — audio session stays alive during reconnect")
+        #endif
+    }
+
+    /// Stop the silence keepalive. Called when real audio resumes or playback is explicitly stopped.
+    func stopSilenceKeepalive() {
+        guard let player = silenceKeepalivePlayer else { return }
+        player.stop()
+        silenceKeepalivePlayer = nil
+        #if DEBUG
+        print("🔇 Silence keepalive stopped")
+        #endif
+    }
+
+    /// Minimal 1-second silent mono 16-bit WAV, built in memory — no bundle file required.
+    /// 44-byte RIFF/WAVE/fmt /data header + 88200 zero bytes (44.1 kHz, 1 channel, 16-bit PCM).
+    private static let silentWAVData: Data? = {
+        let sampleRate: UInt32 = 44100
+        let numChannels: UInt16 = 1
+        let bitsPerSample: UInt16 = 16
+        let numSamples = sampleRate               // 1 second
+        let dataSize = UInt32(numSamples) * UInt32(numChannels) * UInt32(bitsPerSample / 8)
+        let byteRate = sampleRate * UInt32(numChannels) * UInt32(bitsPerSample / 8)
+        let blockAlign = numChannels * (bitsPerSample / 8)
+
+        var wav = Data()
+        wav.reserveCapacity(44 + Int(dataSize))
+
+        func appendLE<T: FixedWidthInteger>(_ value: T) {
+            var v = value.littleEndian
+            wav.append(contentsOf: withUnsafeBytes(of: &v, Array.init))
+        }
+
+        // RIFF chunk
+        wav.append(contentsOf: "RIFF".utf8)
+        appendLE(UInt32(36 + dataSize))
+        wav.append(contentsOf: "WAVE".utf8)
+        // fmt  sub-chunk
+        wav.append(contentsOf: "fmt ".utf8)
+        appendLE(UInt32(16))          // sub-chunk size (PCM)
+        appendLE(UInt16(1))           // audio format (1 = PCM)
+        appendLE(numChannels)
+        appendLE(sampleRate)
+        appendLE(byteRate)
+        appendLE(blockAlign)
+        appendLE(bitsPerSample)
+        // data sub-chunk
+        wav.append(contentsOf: "data".utf8)
+        appendLE(dataSize)
+        wav.append(Data(count: Int(dataSize)))   // all zeros = silence
+
+        return wav
+    }()
+
     #endif
 
     func startNetworkMonitoring() {
@@ -829,7 +942,10 @@ extension BASSRadioPlayer {
                 print("🌐 Network restored — triggering immediate reconnect")
                 #endif
                 self.cancelReconnectTimer()
-                self.reconnectAttempt = 0
+                // Reset to 1 (not 0): gets the 5s graduated timeout rather than 10s,
+                // since the OS has just confirmed the path is satisfied and connection
+                // should be fast. Also resets the retry budget to ~12 fresh attempts.
+                self.reconnectAttempt = 1
                 self.restartStream()
             }
         }
@@ -841,7 +957,9 @@ extension BASSRadioPlayer {
         #if os(iOS)
         // Keep the app alive while audio output is absent (network loss while locked).
         // Without this, iOS suspends the app and reconnect timers never fire.
+        // Both are no-ops if already started (e.g. handleStallSync already called them).
         beginBackgroundReconnectTaskIfNeeded()
+        startSilenceKeepalive()
         #endif
         guard reconnectAttempt < reconnectMaxAttempts else {
             #if DEBUG
