@@ -2,7 +2,7 @@
 //  SettingsView.swift
 //  ZappaStream
 //
-//  Created by Datisit on 10/02/2026.
+//  Created by Darcy Taranto on 10/02/2026.
 //
 
 import SwiftUI

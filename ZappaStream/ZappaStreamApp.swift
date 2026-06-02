@@ -2,7 +2,7 @@
 //  ZappaStreamApp.swift
 //  ZappaStream
 //
-//  Created by Datisit on 02/02/2026.
+//  Created by Darcy Taranto on 02/02/2026.
 //
 
 import SwiftUI
