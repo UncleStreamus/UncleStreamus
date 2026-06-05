@@ -1530,17 +1530,18 @@ struct ContentView: View {
         // Only fetch if we don't already have this show (and same showTime)
         guard currentShow?.date != variantDate else { return }
 
+        bassPlayer.currentShowDate = variantDate
+
         // Determine whether to restore or reset FX based on show change and persistence settings
         let lastShowDate = UserDefaults.standard.string(forKey: "lastShowDateOnQuit")
         let showHasChanged = lastShowDate != nil && lastShowDate != variantDate
+        let fxRememberPerShow = UserDefaults.standard.bool(forKey: "fxRememberPerShow")
 
-        if showHasChanged {
-            // Show changed: decide based on "across shows" setting
-            if !fxPersistAcrossShows {
+        if fxRememberPerShow {
+            if !bassPlayer.restorePerShowFX(showDate: variantDate) {
                 bassPlayer.resetAllFX()
             }
-        } else if lastShowDate == nil {
-            // First run or no prior show: decide based on "across shows" setting
+        } else if showHasChanged || lastShowDate == nil {
             if !fxPersistAcrossShows {
                 bassPlayer.resetAllFX()
             }

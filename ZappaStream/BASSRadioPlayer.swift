@@ -50,6 +50,10 @@ enum PlaybackState {
     /// Currently active format ("MP3", "OGG", "AAC", "FLAC")
     var currentQuality: String = ""
 
+    /// Show date of the currently playing show; set by ContentView on every show load.
+    /// Used by saveFXToDefaults() to write per-show FX snapshots.
+    var currentShowDate: String? = nil
+
     // MARK: - BASS Handles
 
     var streamHandle: DWORD = 0

@@ -101,6 +101,7 @@ struct SettingsSectionBox<Content: View>: View {
 
 struct PlaybackSettingsView: View {
     @AppStorage("autoResumeOnLaunch") private var autoResumeOnLaunch: Bool = true
+    @AppStorage("fxRememberPerShow") private var fxRememberPerShow: Bool = false
     @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
     @AppStorage("fxPersistOnRestart") private var fxPersistOnRestart: Bool = false
     @AppStorage("dvrEnabled") private var dvrEnabled: Bool = true
@@ -172,10 +173,21 @@ struct PlaybackSettingsView: View {
             SettingsSectionHeader(title: "FX", systemImage: "slider.horizontal.3")
 
             SettingsSectionBox {
+                Toggle(isOn: $fxRememberPerShow) {
+                    Text("Remember FX per show")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text("Saves and recalls your FX settings for each show individually. Synced across devices via iCloud.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.bottom, 6)
+
                 Toggle(isOn: $fxPersistAcrossShows) {
                     Text("FX settings persist across shows")
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .disabled(fxRememberPerShow)
 
                 Text("By default, all FX are reset when a new show starts. Enable this to keep your settings — though consider that the same settings will probably not work for different shows.")
                     .font(.caption)

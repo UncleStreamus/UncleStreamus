@@ -5,6 +5,21 @@ import BassFX
 import BassMix
 #endif
 
+// MARK: - FX Snapshot
+
+struct FXSnapshot: Codable {
+    var eqLowGain: Float
+    var eqMidGain: Float
+    var eqHighGain: Float
+    var eqEnabled: Bool
+    var compressorOn: Bool
+    var compressorAmount: Float
+    var stereoWidth: Float
+    var stereoPan: Float
+    var stereoWidthEnabled: Bool
+    var masterBypassEnabled: Bool
+}
+
 // MARK: - Audio Effects & DSP
 
 extension BASSRadioPlayer {
@@ -692,6 +707,41 @@ extension BASSRadioPlayer {
         d.set(stereoPan,           forKey: "fx.stereoPan")
         d.set(stereoWidthEnabled,  forKey: "fx.stereoWidthEnabled")
         d.set(masterBypassEnabled, forKey: "fx.masterBypassEnabled")
+        if d.bool(forKey: "fxRememberPerShow"), let showDate = currentShowDate {
+            savePerShowFX(showDate: showDate)
+        }
+    }
+
+    func savePerShowFX(showDate: String) {
+        let snapshot = FXSnapshot(
+            eqLowGain: eqLowGain, eqMidGain: eqMidGain, eqHighGain: eqHighGain,
+            eqEnabled: eqEnabled, compressorOn: compressorOn, compressorAmount: compressorAmount,
+            stereoWidth: stereoWidth, stereoPan: stereoPan,
+            stereoWidthEnabled: stereoWidthEnabled, masterBypassEnabled: masterBypassEnabled
+        )
+        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        NSUbiquitousKeyValueStore.default.set(data, forKey: "fxPerShow.\(showDate)")
+        NSUbiquitousKeyValueStore.default.synchronize()
+    }
+
+    /// Restores FX from the per-show iCloud snapshot. Returns false if no snapshot exists for this show.
+    @discardableResult
+    func restorePerShowFX(showDate: String) -> Bool {
+        guard let data = NSUbiquitousKeyValueStore.default.data(forKey: "fxPerShow.\(showDate)"),
+              let snapshot = try? JSONDecoder().decode(FXSnapshot.self, from: data) else { return false }
+        eqLowGain          = snapshot.eqLowGain
+        eqMidGain          = snapshot.eqMidGain
+        eqHighGain         = snapshot.eqHighGain
+        eqEnabled          = snapshot.eqEnabled
+        compressorOn       = snapshot.compressorOn
+        compressorAmount   = snapshot.compressorAmount
+        stereoWidth        = snapshot.stereoWidth
+        stereoPan          = snapshot.stereoPan
+        stereoWidthEnabled = snapshot.stereoWidthEnabled
+        masterBypassEnabled = snapshot.masterBypassEnabled
+        updateEQ()
+        updateCompressor()
+        return true
     }
 
     func restoreFXFromDefaults() {
