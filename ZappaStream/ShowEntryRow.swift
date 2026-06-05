@@ -129,6 +129,14 @@ struct ShowEntryRow: View {
                     .scaledFont(.caption2)
                     .padding(.top, 8)
                 }
+
+                if let device = savedShow.deviceName {
+                    Text("Listened on \(device)")
+                        .scaledFont(.caption2)
+                        .foregroundColor(.secondary)
+                        .italic()
+                        .padding(.top, 4)
+                }
             }
         }
         .padding(8)

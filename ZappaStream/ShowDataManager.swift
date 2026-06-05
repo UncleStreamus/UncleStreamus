@@ -1,5 +1,8 @@
 import SwiftData
 import Foundation
+#if os(iOS)
+import UIKit
+#endif
 
 @Observable
 class ShowDataManager {
@@ -13,38 +16,38 @@ class ShowDataManager {
     // MARK: - History
 
     func recordListen(show: FZShow) {
-        let showDate = show.date
-        let descriptor = FetchDescriptor<SavedShow>(
-            predicate: #Predicate { $0.showDate == showDate }
-        )
-
-        if let existing = try? modelContext.fetch(descriptor).first {
-            existing.listenedAt = Date()
-        } else {
-            let saved = SavedShow.from(show, listenedAt: Date())
-            modelContext.insert(saved)
-        }
-
+        let saved = SavedShow.from(show, listenedAt: Date(), deviceName: currentDeviceName())
+        modelContext.insert(saved)
         do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
+    }
+
+    private func currentDeviceName() -> String {
+        #if os(macOS)
+        return Host.current().localizedName ?? "Mac"
+        #else
+        return UIDevice.current.name
+        #endif
     }
 
     // MARK: - Favorites
 
     func toggleFavorite(show: FZShow) {
         let showDate = show.date
-        let descriptor = FetchDescriptor<SavedShow>(
-            predicate: #Predicate { $0.showDate == showDate }
-        )
-
-        if let existing = try? modelContext.fetch(descriptor).first {
-            existing.isFavorite.toggle()
-            do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
-            favoriteVersion += 1
-        }
+        setFavorite(showDate: showDate)
     }
 
     func toggleFavorite(savedShow: SavedShow) {
-        savedShow.isFavorite.toggle()
+        setFavorite(showDate: savedShow.showDate)
+    }
+
+    private func setFavorite(showDate: String) {
+        let descriptor = FetchDescriptor<SavedShow>(
+            predicate: #Predicate { $0.showDate == showDate }
+        )
+        guard let records = try? modelContext.fetch(descriptor), !records.isEmpty else { return }
+        // Toggle: if any record is already a favourite → unfavourite all; otherwise favourite all
+        let newValue = !records.contains { $0.isFavorite }
+        records.forEach { $0.isFavorite = newValue }
         do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
         favoriteVersion += 1
     }

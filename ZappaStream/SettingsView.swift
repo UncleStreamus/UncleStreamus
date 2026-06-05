@@ -201,6 +201,11 @@ struct PlaybackSettingsView: View {
 
 struct SyncSettingsView: View {
     @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
+    @State private var showRestartBanner: Bool = false
+
+    private var iCloudAvailable: Bool {
+        FileManager.default.ubiquityIdentityToken != nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -208,15 +213,26 @@ struct SyncSettingsView: View {
 
             SettingsSectionBox {
                 Toggle("Enable iCloud Sync", isOn: $iCloudSyncEnabled)
-                    .disabled(true)  // Disabled until CloudKit is configured
+                    .disabled(!iCloudAvailable)
+                    .onChange(of: iCloudSyncEnabled) { _, _ in
+                        showRestartBanner = true
+                    }
 
-                Text("Sync your listening history and favourites across all your devices.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                if !iCloudAvailable {
+                    Text("Sign in to iCloud in System Settings to enable sync.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Sync your listening history and favourites across all your devices.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
 
-                Text("Coming soon")
-                    .font(.caption)
-                    .foregroundColor(.orange)
+                if showRestartBanner {
+                    Text("Restart ZappaStream to apply.")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
             }
 
             Spacer()
@@ -304,6 +320,7 @@ struct ShowDatabaseSettingsView: View {
 
 struct SavedDataSettingsView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.cacheModelContainer) private var cacheModelContainer
     @State private var showClearHistoryAlert = false
     @State private var showClearFavoritesAlert = false
 
@@ -365,7 +382,12 @@ struct SavedDataSettingsView: View {
                     .foregroundColor(.secondary)
             }
 
-            ShowDatabaseSettingsView()
+            if let cacheContainer = cacheModelContainer {
+                ShowDatabaseSettingsView()
+                    .modelContainer(cacheContainer)
+            } else {
+                ShowDatabaseSettingsView()
+            }
 
             Spacer()
         }

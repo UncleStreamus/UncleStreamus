@@ -15,6 +15,7 @@ private enum FooterSection { case bandInfo, officialReleases }
 
 struct ContentView_iOS: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.cacheModelContainer) private var cacheModelContainer
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
     @State private var showDataManager: ShowDataManager?
@@ -324,7 +325,8 @@ struct ContentView_iOS: View {
                 showDataManager = ShowDataManager(modelContext: modelContext)
             }
             if fzShowsDB == nil {
-                let db = FZShowsDatabase(modelContext: modelContext)
+                let cacheContext = cacheModelContainer.map { ModelContext($0) } ?? modelContext
+                let db = FZShowsDatabase(modelContext: cacheContext)
                 fzShowsDB = db
                 if db.totalCachedShows == 0 {
                     db.downloadAllPages()

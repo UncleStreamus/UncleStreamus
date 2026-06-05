@@ -23,29 +23,56 @@ struct ZappaStreamApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #endif
 
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([SavedShow.self, CachedFZShow.self, FZShowsPageRecord.self])
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let storeDir = appSupport.appendingPathComponent("ZappaStream", isDirectory: true)
-        let storeURL = storeDir.appendingPathComponent("ZappaStream.store")
-        #if os(macOS)
-        migrateLegacyStoreIfNeeded(into: storeDir)
-        #endif
+    // History container: SavedShow only, separate from cache so Z_METADATA never contains cache entity hashes.
+    // Both CloudKit-on and CloudKit-off configs use the same store file — data survives the sync toggle.
+    var historyModelContainer: ModelContainer = {
+        guard let groupContainer = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: "group.com.zappastream.shared"
+        ) else {
+            fatalError("App Group container unavailable — check entitlements and Developer Portal configuration.")
+        }
+        let storeDir = groupContainer.appendingPathComponent("ZappaStream", isDirectory: true)
+        let historyStoreURL = storeDir.appendingPathComponent("ZappaStream-history.store")
         try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
-        let config = ModelConfiguration(schema: schema, url: storeURL)
+
+        let iCloudAvailable = FileManager.default.ubiquityIdentityToken != nil
+        let iCloudEnabled = UserDefaults.standard.bool(forKey: "iCloudSyncEnabled") && iCloudAvailable
+        print("☁️ iCloudAvailable=\(iCloudAvailable) iCloudSyncEnabled=\(UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")) → cloudKit=\(iCloudEnabled ? "ON" : "OFF")")
+
+        let config = ModelConfiguration(
+            schema: Schema([SavedShow.self]),
+            url: historyStoreURL,
+            cloudKitDatabase: iCloudEnabled
+                ? .private("iCloud.com.zappastream.ZappaStream")
+                : .none
+        )
 
         do {
-            return try ModelContainer(for: schema, configurations: [config])
+            return try ModelContainer(for: Schema([SavedShow.self]), configurations: [config])
         } catch {
-            // Schema migration failure — back up the broken store and start fresh
-            print("⚠️ SwiftData store migration failed: \(error). Backing up and recreating.")
-            let backupURL = storeDir.appendingPathComponent("ZappaStream.store.bak")
-            try? FileManager.default.removeItem(at: backupURL)
-            try? FileManager.default.moveItem(at: storeURL, to: backupURL)
-            let freshConfig = ModelConfiguration(schema: schema, url: storeURL)
-            return (try? ModelContainer(for: schema, configurations: [freshConfig]))
-                ?? { fatalError("Could not create ModelContainer even after reset: \(error)") }()
+            // CloudKit config failed (e.g. entitlement misconfiguration) — fall back to local-only on the same
+            // store file so existing data is preserved.
+            print("⚠️ History store failed (\(error)) — retrying without CloudKit")
+            let fallback = ModelConfiguration(schema: Schema([SavedShow.self]), url: historyStoreURL, cloudKitDatabase: .none)
+            return (try? ModelContainer(for: Schema([SavedShow.self]), configurations: [fallback]))
+                ?? { fatalError("Could not create history ModelContainer: \(error)") }()
         }
+    }()
+
+    // Cache container: CachedFZShow + FZShowsPageRecord, local only. Never synced to CloudKit.
+    var cacheModelContainer: ModelContainer = {
+        guard let groupContainer = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: "group.com.zappastream.shared"
+        ) else { fatalError("App Group container unavailable.") }
+        let storeDir = groupContainer.appendingPathComponent("ZappaStream", isDirectory: true)
+        try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
+        let config = ModelConfiguration(
+            schema: Schema([CachedFZShow.self, FZShowsPageRecord.self]),
+            url: storeDir.appendingPathComponent("ZappaStreamCache.store"),
+            cloudKitDatabase: .none
+        )
+        return (try? ModelContainer(for: Schema([CachedFZShow.self, FZShowsPageRecord.self]), configurations: [config]))
+            ?? { fatalError("Could not create cache ModelContainer") }()
     }()
 
     var body: some Scene {
@@ -62,8 +89,9 @@ struct ZappaStreamApp: App {
     private var iOSScene: some Scene {
         WindowGroup {
             ContentView_iOS()
+                .environment(\.cacheModelContainer, cacheModelContainer)
         }
-        .modelContainer(sharedModelContainer)
+        .modelContainer(historyModelContainer)
     }
     #endif
 
@@ -99,8 +127,9 @@ struct ZappaStreamApp: App {
     private var macOSScene: some Scene {
         WindowGroup(id: "main") {
             ContentView()
+                .environment(\.cacheModelContainer, cacheModelContainer)
         }
-        .modelContainer(sharedModelContainer)
+        .modelContainer(historyModelContainer)
         .defaultSize(width: 350, height: 520)
         .commands {
             CommandMenu("Audio") {
@@ -143,50 +172,8 @@ struct ZappaStreamApp: App {
 
         Settings {
             SettingsView()
-                .modelContainer(sharedModelContainer)
-        }
-    }
-    #endif
-
-    // MARK: - Legacy Store Migration
-
-    // Copies the pre-sandbox store (~/Library/Application Support/ZappaStream/) into the
-    // sandboxed container path. Runs once on first launch; fails silently if the sandbox
-    // blocks access (expected for App Store installs with no prior data).
-    #if os(macOS)
-    private static func migrateLegacyStoreIfNeeded(into newDir: URL) {
-        let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: "sandboxStoreMigrationDone") else { return }
-        defer { defaults.set(true, forKey: "sandboxStoreMigrationDone") }
-
-        let fm = FileManager.default
-        let newStore = newDir.appendingPathComponent("ZappaStream.store")
-
-        // Derive the real (pre-sandbox) Application Support path from the container path.
-        // Under the sandbox, applicationSupportDirectory resolves to:
-        //   ~/Library/Containers/<bundle-id>/Data/Library/Application Support
-        // The real path is the portion before "/Library/Containers/".
-        let containerPath = newDir.deletingLastPathComponent().path
-        guard let containerRange = containerPath.range(of: "/Library/Containers/") else { return }
-        let realAppSupport = String(containerPath[..<containerRange.lowerBound]) + "/Library/Application Support"
-        let oldDir = URL(fileURLWithPath: realAppSupport).appendingPathComponent("ZappaStream")
-        let oldStore = oldDir.appendingPathComponent("ZappaStream.store")
-
-        guard oldStore.path != newStore.path,
-              fm.fileExists(atPath: oldStore.path) else { return }
-
-        // Don't overwrite a populated existing store.
-        if fm.fileExists(atPath: newStore.path),
-           let attrs = try? fm.attributesOfItem(atPath: newStore.path),
-           (attrs[.size] as? Int ?? 0) > 65536 { return }
-
-        try? fm.createDirectory(at: newDir, withIntermediateDirectories: true)
-        for suffix in ["", "-shm", "-wal"] {
-            let src = oldDir.appendingPathComponent("ZappaStream.store\(suffix)")
-            let dst = newDir.appendingPathComponent("ZappaStream.store\(suffix)")
-            guard fm.fileExists(atPath: src.path) else { continue }
-            try? fm.removeItem(at: dst)
-            try? fm.copyItem(at: src, to: dst)
+                .modelContainer(historyModelContainer)
+                .environment(\.cacheModelContainer, cacheModelContainer)
         }
     }
     #endif

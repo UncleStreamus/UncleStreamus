@@ -3,14 +3,13 @@ import SwiftData
 
 @Model
 final class CachedFZShow {
-    @Attribute(.unique) var showDate: String
-
-    var venue: String
+    var showDate: String = ""
+    var venue: String = ""
     var note: String?
-    var showInfo: String
-    var setlistData: Data
-    var acronymsData: Data
-    var url: String
+    var showInfo: String = ""
+    var setlistData: Data = Data()
+    var acronymsData: Data = Data()
+    var url: String = ""
 
     var city: String?
     var state: String?
@@ -20,8 +19,8 @@ final class CachedFZShow {
     var bandInfo: String?
 
     // Tracking fields
-    var pageFilename: String
-    var cachedAt: Date
+    var pageFilename: String = ""
+    var cachedAt: Date = Date()
 
     init(showDate: String, venue: String, note: String?, showInfo: String,
          setlistData: Data, acronymsData: Data, url: String,

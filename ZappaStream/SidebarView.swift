@@ -407,7 +407,11 @@ struct FavoritesListView: View {
     private var favorites: [SavedShow]
 
     private var filteredFavorites: [SavedShow] {
-        favorites.filtered(by: filterState)
+        // Deduplicate by showDate — the same show may have multiple listen records all marked
+        // as favourite; show only the most recently listened one per show date.
+        var seen = Set<String>()
+        let unique = favorites.filter { seen.insert($0.showDate).inserted }
+        return unique.filtered(by: filterState)
     }
 
     private var groupedFavorites: [(String, [SavedShow])] {

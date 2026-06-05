@@ -3,18 +3,18 @@ import SwiftData
 
 @Model
 final class SavedShow {
-    @Attribute(.unique) var showDate: String
-
-    var venue: String
+    var showDate: String = ""
+    var venue: String = ""
     var soundcheck: String?
     var note: String?
-    var showInfo: String
-    var setlistData: Data
-    var acronymsData: Data
-    var url: String
+    var showInfo: String = ""
+    var setlistData: Data = Data()
+    var acronymsData: Data = Data()
+    var url: String = ""
 
-    var isFavorite: Bool
+    var isFavorite: Bool = false
     var listenedAt: Date?
+    var deviceName: String?
 
     // Location fields
     var city: String?
@@ -30,7 +30,7 @@ final class SavedShow {
 
     init(showDate: String, venue: String, soundcheck: String?, note: String?,
          showInfo: String, setlistData: Data, acronymsData: Data, url: String,
-         isFavorite: Bool = false, listenedAt: Date? = nil,
+         isFavorite: Bool = false, listenedAt: Date? = nil, deviceName: String? = nil,
          city: String? = nil, state: String? = nil, country: String? = nil,
          period: String? = nil, tour: String? = nil, bandInfo: String? = nil) {
         self.showDate = showDate
@@ -43,6 +43,7 @@ final class SavedShow {
         self.url = url
         self.isFavorite = isFavorite
         self.listenedAt = listenedAt
+        self.deviceName = deviceName
         self.city = city
         self.state = state
         self.country = country
@@ -92,7 +93,7 @@ final class SavedShow {
         )
     }
 
-    static func from(_ show: FZShow, isFavorite: Bool = false, listenedAt: Date? = nil) -> SavedShow {
+    static func from(_ show: FZShow, isFavorite: Bool = false, listenedAt: Date? = nil, deviceName: String? = nil) -> SavedShow {
         let setlistData = (try? JSONEncoder().encode(show.setlist)) ?? Data()
         let acronymsCodable = show.acronyms.map { Acronym(short: $0.short, full: $0.full) }
         let acronymsData = (try? JSONEncoder().encode(acronymsCodable)) ?? Data()
@@ -108,6 +109,7 @@ final class SavedShow {
             url: show.url,
             isFavorite: isFavorite,
             listenedAt: listenedAt,
+            deviceName: deviceName,
             city: show.city,
             state: show.state,
             country: show.country,

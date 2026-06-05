@@ -6,6 +6,20 @@
 //
 
 import SwiftUI
+import SwiftData
+
+// MARK: - Cache Container Environment Key
+
+private struct CacheModelContainerKey: EnvironmentKey {
+    static let defaultValue: ModelContainer? = nil
+}
+
+extension EnvironmentValues {
+    var cacheModelContainer: ModelContainer? {
+        get { self[CacheModelContainerKey.self] }
+        set { self[CacheModelContainerKey.self] = newValue }
+    }
+}
 
 // MARK: - Constants
 

@@ -3,9 +3,9 @@ import SwiftData
 
 @Model
 final class FZShowsPageRecord {
-    @Attribute(.unique) var filename: String
-    var lastFetchedAt: Date
-    var showCount: Int
+    var filename: String = ""
+    var lastFetchedAt: Date = Date()
+    var showCount: Int = 0
 
     init(filename: String, lastFetchedAt: Date = Date(), showCount: Int = 0) {
         self.filename = filename
