@@ -578,7 +578,7 @@ struct FavoritesListView: View {
 
 private extension View {
     @ViewBuilder
-    func refreshable(enabled: Bool, action: @escaping () async -> Void) -> some View {
+    func refreshable(enabled: Bool, action: @escaping @Sendable () async -> Void) -> some View {
         if enabled {
             self.refreshable(action: action)
         } else {

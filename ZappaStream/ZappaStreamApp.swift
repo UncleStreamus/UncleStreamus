@@ -273,7 +273,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // Available streams (must match ContentView)
-    private let streamFormats = ["MP3", "AAC", "OGG", "FLAC"]
+    private let streamFormats = ["MP3", "OGG", "AAC", "FLAC"]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenubarIcon()
@@ -536,23 +536,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let window = NSApplication.shared.windows.first(where: {
             $0.identifier?.rawValue == "main" || $0.title.contains("Zappa")
         }) {
-            if window.isVisible && window.isKeyWindow {
-                // Window is visible and focused on current space — close it
+            // Ensure the window can move to the active space when shown, so
+            // makeKeyAndOrderFront places it here rather than switching spaces.
+            if !window.collectionBehavior.contains(.moveToActiveSpace) {
+                window.collectionBehavior.insert(.moveToActiveSpace)
+            }
+
+            if window.isVisible && window.isOnActiveSpace {
+                // Window is visible on the current space — close it (toggle off).
+                // Don't check isKeyWindow: clicking the status bar item shifts
+                // focus away from the window, so isKeyWindow is unreliable here.
                 window.close()
-            } else if window.isVisible && window.isOnActiveSpace {
-                // Visible on current space but not focused — bring to front
-                window.makeKeyAndOrderFront(nil)
-                NSApplication.shared.activate(ignoringOtherApps: true)
             } else {
-                // Window is on a different space (or hidden).
-                // orderOut detaches it from its current space so that the
-                // subsequent makeKeyAndOrderFront opens it on the active space
-                // instead of causing macOS to switch spaces.
+                // Window is on a different space (or hidden). orderOut detaches
+                // it from its current space; activate(false) brings the app
+                // forward without triggering a space switch.
                 if !window.isOnActiveSpace {
                     window.orderOut(nil)
                 }
                 window.makeKeyAndOrderFront(nil)
-                NSApplication.shared.activate(ignoringOtherApps: true)
+                NSApplication.shared.activate(ignoringOtherApps: false)
             }
         } else {
             // No window exists - create one by activating the app
