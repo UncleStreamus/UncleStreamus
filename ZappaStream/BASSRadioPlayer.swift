@@ -161,6 +161,7 @@ enum PlaybackState {
     var stereoDSP: HDSP = 0
     var limiterDSP: HDSP = 0
     var clickGuardDSP: HDSP = 0
+    var inputGainDSP: HDSP = 0
 
     // MARK: - Click Guard (OGG/FLAC/MP3)
     // OGG/FLAC: BASS_SYNC_OGG_CHANGE (MIXTIME) fires at bitstream boundaries — sample-accurate.

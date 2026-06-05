@@ -17,6 +17,24 @@ extension BASSRadioPlayer {
         // so no callback can fire on a deallocated self after removal.
         let userData = Unmanaged.passUnretained(self).toOpaque()
 
+        // Input gain: static -4 dB attenuation for bootleg recordings (typical RMS ~-10 dBFS).
+        // This brings levels in line with modern streaming standards and provides headroom
+        // for EQ boosts and other FX without constant limiter action.
+        // Priority 3: runs first, before EQ, compressor, and all other DSP.
+        inputGainDSP = BASS_ChannelSetDSP(
+            handle,
+            { _, _, buffer, length, _ in
+                guard let buffer = buffer else { return }
+                let samples = buffer.assumingMemoryBound(to: Float.self)
+                let count   = Int(length) / MemoryLayout<Float>.size
+                for i in 0..<count {
+                    samples[i] *= 0.6310  // –4 dB = 10^(–4/20)
+                }
+            },
+            userData,
+            3
+        )
+
         eqLowFX  = BASS_ChannelSetFX(handle, DWORD(BASS_FX_BFX_BQF), 0)
         eqMidFX  = BASS_ChannelSetFX(handle, DWORD(BASS_FX_BFX_BQF), 0)
         eqHighFX = BASS_ChannelSetFX(handle, DWORD(BASS_FX_BFX_BQF), 0)

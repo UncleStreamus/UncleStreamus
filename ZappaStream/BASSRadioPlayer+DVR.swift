@@ -571,6 +571,7 @@ extension BASSRadioPlayer {
         if eqMidFX       != 0 { BASS_ChannelRemoveFX(mixerHandle, eqMidFX);        eqMidFX       = 0 }
         if eqHighFX      != 0 { BASS_ChannelRemoveFX(mixerHandle, eqHighFX);       eqHighFX      = 0 }
         if compressorFX  != 0 { BASS_ChannelRemoveFX(mixerHandle, compressorFX);   compressorFX  = 0 }
+        if inputGainDSP  != 0 { BASS_ChannelRemoveDSP(mixerHandle, inputGainDSP);  inputGainDSP  = 0 }
         if levelMeterDSP != 0 { BASS_ChannelRemoveDSP(mixerHandle, levelMeterDSP); levelMeterDSP = 0 }
         if stereoDSP     != 0 { BASS_ChannelRemoveDSP(mixerHandle, stereoDSP);     stereoDSP     = 0 }
         if limiterDSP    != 0 { BASS_ChannelRemoveDSP(mixerHandle, limiterDSP);    limiterDSP    = 0 }
