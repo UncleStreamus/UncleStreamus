@@ -6,6 +6,10 @@ struct SidebarView: View {
     @Binding var selectedTab: SidebarTab
     @StateObject private var historyFilter = FilterState()
     @StateObject private var favoritesFilter = FilterState()
+    #if os(macOS)
+    @State private var isSyncing = false
+    @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
+    #endif
 
     enum SidebarTab {
         case history, favorites
@@ -13,11 +17,38 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("", selection: $selectedTab) {
-                Text("History").tag(SidebarTab.history)
-                Text("Favourites").tag(SidebarTab.favorites)
+            HStack(spacing: 8) {
+                Picker("", selection: $selectedTab) {
+                    Text("History").tag(SidebarTab.history)
+                    Text("Favourites").tag(SidebarTab.favorites)
+                }
+                .pickerStyle(.segmented)
+
+                #if os(macOS)
+                if iCloudSyncEnabled {
+                    Button {
+                        guard !isSyncing else { return }
+                        isSyncing = true
+                        Task {
+                            await showDataManager.triggerCloudKitSync()
+                            isSyncing = false
+                        }
+                    } label: {
+                        Group {
+                            if isSyncing {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                        }
+                        .frame(width: 14, height: 14)
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .help("Sync with iCloud")
+                }
+                #endif
             }
-            .pickerStyle(.segmented)
             .padding()
 
             Divider()
@@ -119,6 +150,7 @@ struct HistorySection {
 struct HistoryListView: View {
     var showDataManager: ShowDataManager
     @ObservedObject var filterState: FilterState
+    @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
     @State private var collapsedPeriods: Set<HistoryTimePeriod> = [
         .oneWeekAgo, .twoWeeksAgo, .threeWeeksAgo, .fourWeeksAgo, .oneMonthAgo, .older
     ]
@@ -379,6 +411,9 @@ struct HistoryListView: View {
                     .padding(.vertical, 4)
                 }
                 #if os(iOS)
+                .refreshable(enabled: iCloudSyncEnabled) {
+                    await showDataManager.triggerCloudKitSync()
+                }
                 .scrollDismissesKeyboard(.interactively)
                 #endif
             }
@@ -400,6 +435,7 @@ struct HistoryListView: View {
 struct FavoritesListView: View {
     var showDataManager: ShowDataManager
     @ObservedObject var filterState: FilterState
+    @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
     @State private var collapsedYears: Set<String> = []
 
     @Query(filter: #Predicate<SavedShow> { $0.isFavorite == true },
@@ -528,9 +564,25 @@ struct FavoritesListView: View {
                     .padding(.vertical, 4)
                 }
                 #if os(iOS)
+                .refreshable(enabled: iCloudSyncEnabled) {
+                    await showDataManager.triggerCloudKitSync()
+                }
                 .scrollDismissesKeyboard(.interactively)
                 #endif
             }
+        }
+    }
+}
+
+// MARK: - Helpers
+
+private extension View {
+    @ViewBuilder
+    func refreshable(enabled: Bool, action: @escaping () async -> Void) -> some View {
+        if enabled {
+            self.refreshable(action: action)
+        } else {
+            self
         }
     }
 }

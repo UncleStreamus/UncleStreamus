@@ -527,7 +527,7 @@ struct ContentView_iOS: View {
 
                     // Delay warning when using AAC stream - shows briefly then hides
                     if stream.format == "AAC" && showDelayWarning {
-                        Text("Info can be up to 1min behind when using AAC...")
+                        Text("Track info can be more than 1min behind when using AAC...")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                             .italic()
@@ -1435,7 +1435,7 @@ struct ContentView_iOS: View {
 
         if showWarning && stream.format != "MP3" {
             showDelayWarning = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
                 withAnimation {
                     self.showDelayWarning = false
                 }

@@ -16,6 +16,15 @@ class ShowDataManager {
     // MARK: - History
 
     func recordListen(show: FZShow) {
+        let showDate = show.date
+        let calendar = Calendar.current
+        let descriptor = FetchDescriptor<SavedShow>(
+            predicate: #Predicate { $0.showDate == showDate }
+        )
+        if let existing = try? modelContext.fetch(descriptor),
+           existing.contains(where: { $0.listenedAt.map { calendar.isDateInToday($0) } == true }) {
+            return
+        }
         let saved = SavedShow.from(show, listenedAt: Date(), deviceName: currentDeviceName())
         modelContext.insert(saved)
         do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
@@ -100,6 +109,14 @@ class ShowDataManager {
 
         do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
         favoriteVersion += 1
+    }
+
+    // MARK: - iCloud Sync
+
+    @MainActor
+    func triggerCloudKitSync() async {
+        try? modelContext.save()
+        try? await Task.sleep(for: .seconds(1.5))
     }
 
     // MARK: - Refresh Show Info
