@@ -37,6 +37,20 @@ struct SettingsView: View {
 
             Divider()
 
+            #if os(iOS)
+            ScrollView {
+                switch selectedTab {
+                case .playback:
+                    PlaybackSettingsView()
+                case .sync:
+                    SyncSettingsView()
+                case .savedData:
+                    SavedDataSettingsView()
+                case .credits:
+                    CreditsView()
+                }
+            }
+            #else
             switch selectedTab {
             case .playback:
                 PlaybackSettingsView()
@@ -47,9 +61,6 @@ struct SettingsView: View {
             case .credits:
                 CreditsView()
             }
-
-            #if os(iOS)
-            Spacer()
             #endif
         }
         #if os(macOS)
@@ -128,6 +139,7 @@ struct PlaybackSettingsView: View {
                 Text("Automatically continue playing when the app launches, if it was playing when you last quit.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Divider()
                     .padding(.vertical, 4)
@@ -140,6 +152,7 @@ struct PlaybackSettingsView: View {
                 Text("Keep the stream buffering when paused so you can resume from where you left off.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 HStack {
                     Text("Buffer window")
@@ -181,6 +194,7 @@ struct PlaybackSettingsView: View {
                 Text("Saves and recalls your FX settings for each show individually. Synced across devices via iCloud.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.bottom, 6)
 
                 Toggle(isOn: $fxPersistAcrossShows) {
@@ -192,6 +206,7 @@ struct PlaybackSettingsView: View {
                 Text("By default, all FX are reset when a new show starts. Enable this to keep your settings — though consider that the same settings will probably not work for different shows.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.bottom, 6)
 
                 Toggle(isOn: $fxPersistOnRestart) {
@@ -202,6 +217,7 @@ struct PlaybackSettingsView: View {
                 Text("Restore your last FX settings when the app launches.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
