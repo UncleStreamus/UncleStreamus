@@ -1488,11 +1488,12 @@ struct ContentView_iOS: View {
             nowPlayingCenter.playbackState = .stopped
         }
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isActuallyPlaying ? 1.0 : 0.0
-        // IsLiveStream=true causes iOS to ignore playbackRate=0 — the system keeps
-        // showing the last "playing" state (e.g. CarPlay/lock screen play-pause
-        // button stuck on "pause" after Stop). Tie it to the same condition as the
-        // rate so it's never true while the rate is 0 — covers DVR-pause AND full stop.
-        nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = isActuallyPlaying
+        // IsLiveStream=true causes iOS to ignore playbackRate=0, so clear it when DVR is
+        // paused so the lock screen and AirPods correctly reflect the paused state. Full
+        // stop doesn't need the same treatment — it genuinely is still a live stream
+        // (just not currently playing), and `playbackState` above is what now drives the
+        // play/pause icon authoritatively, so there's no risk of it getting stuck here.
+        nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = !dvrPaused
         // Marks "now" as the playhead position for a live item — recommended for live
         // streams, and also gives the system a fresh, changing value on every publish
         // so it has a reason to re-evaluate (and not cache) the displayed transport state.
