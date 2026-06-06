@@ -63,6 +63,14 @@ final class SavedShow {
         return decoded
     }
 
+    /// Updates the persisted setlist and its in-memory cache together — used by
+    /// one-time data migrations so a stale `_setlistCache` can't linger after
+    /// `setlistData` changes underneath it.
+    func applyMigratedSetlist(_ newSetlist: [String]) {
+        setlistData = (try? JSONEncoder().encode(newSetlist)) ?? setlistData
+        _setlistCache = newSetlist
+    }
+
     var acronyms: [Acronym] {
         if let cached = _acronymsCache { return cached }
         let decoded = (try? JSONDecoder().decode([Acronym].self, from: acronymsData)) ?? []

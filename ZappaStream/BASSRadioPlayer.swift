@@ -13,7 +13,7 @@ import AVFoundation
 
 // MARK: - Playback State
 
-enum PlaybackState {
+enum PlaybackState: Equatable {
     case stopped
     case connecting
     case playing

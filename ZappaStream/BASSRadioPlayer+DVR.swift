@@ -616,8 +616,13 @@ extension BASSRadioPlayer {
         BASS_ChannelSetAttribute(preMixerHandle, DWORD(BASS_ATTRIB_VOL), 0)
 
         // DVR playback stream is still in mixerHandle — no re-attachment needed.
-        // Ensure mixer is playing (no-op if already running).
-        BASS_ChannelPlay(mixerHandle, 0)
+        // Only restart the mixer if it should be active. In DVR paused state the
+        // mixer was intentionally paused by dvrPause(); unpausing it here causes
+        // BASS_MIXER_END to fire when the new stream's download buffer is briefly
+        // empty, stopping the mixer and halting the recording pump.
+        if dvrState != .paused {
+            BASS_ChannelPlay(mixerHandle, 0)
+        }
 
         DispatchQueue.main.async {
             self.playbackState = .playing

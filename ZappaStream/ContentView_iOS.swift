@@ -60,6 +60,7 @@ struct ContentView_iOS: View {
     @State private var sidebarNavigationActive: Bool = false
     @State private var contentBounceOffset: CGFloat = 0
     @State private var interruptionHandlerSetUp = false
+    @State private var carPlayObserversSetUp = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -342,6 +343,12 @@ struct ContentView_iOS: View {
                 setupInterruptionHandler()
                 interruptionHandlerSetUp = true
             }
+            if !carPlayObserversSetUp {
+                CarPlayBridge.shared.availableFormats = streams.map { .init(format: $0.format, label: $0.name) }
+                setupCarPlayObservers()
+                carPlayObserversSetUp = true
+            }
+            syncCarPlayBridge()
 
             // Auto-play if was playing when app quit (and auto-resume is enabled)
             let wasPlaying = UserDefaults.standard.bool(forKey: "wasPlayingOnQuit")
@@ -374,6 +381,25 @@ struct ContentView_iOS: View {
             bassPlayer.updateDVRBufferSize()
         }
         .onChange(of: bassPlayer.dvrState) { _, _ in
+            updateNowPlayingInfo()
+            syncCarPlayBridge()
+        }
+        .onChange(of: bassPlayer.isReconnecting) { _, _ in
+            updateNowPlayingInfo()
+        }
+        .onChange(of: bassPlayer.playbackState) { _, newState in
+            // Reconnect attempts exhausted (~1 min of failures): the engine has truly
+            // stopped, but `isPlaying` (intent-based, drives the big transport button on
+            // CarPlay/lock screen/in-app) was never reset — it stays "Pause" even though
+            // no audio is playing. Bring it back in sync once the engine gives up for real.
+            if newState == .stopped, isPlaying, !bassPlayer.isReconnecting,
+               bassPlayer.reconnectAttempt >= bassPlayer.reconnectMaxAttempts {
+                isPlaying = false
+                updateNowPlayingInfo()
+                syncCarPlayBridge()
+            }
+        }
+        .onChange(of: bassPlayer.preBufferProgress > 0) { _, _ in
             updateNowPlayingInfo()
         }
     }
@@ -575,6 +601,7 @@ struct ContentView_iOS: View {
                         if isPlaying {
                             playStream()
                         }
+                        syncCarPlayBridge()
                     }
                 }
 
@@ -903,7 +930,7 @@ struct ContentView_iOS: View {
                             }
                             .disabled(parsedTrack?.trackName == nil)
                             Spacer()
-                            Button("Setlist Info (FZShows)...") {
+                            Button("Setlist Context (FZShows)...") {
                                 if let url = URL(string: show.url) {
                                     // Strip E/L variant suffix — scroll-to search matches raw HTML dates
                                     let baseDate = show.date.components(separatedBy: " ").prefix(3).joined(separator: " ")
@@ -1281,6 +1308,7 @@ struct ContentView_iOS: View {
                 }
 
                 self.updateNowPlayingInfo()
+                self.syncCarPlayBridge()
             }
         }
 
@@ -1386,6 +1414,21 @@ struct ContentView_iOS: View {
         commandCenter.previousTrackCommand.isEnabled = false
     }
 
+    /// Transient status text ("Reconnecting...", "Buffering...") shown in place of the
+    /// track title — the only text CarPlay's Now Playing screen can display comes from
+    /// MPNowPlayingInfoCenter, so this also flashes briefly on the lock screen.
+    private var nowPlayingStatusOverride: String? {
+        if bassPlayer.isReconnecting {
+            return bassPlayer.reconnectAttempt > 1
+                ? "Reconnecting (attempt \(bassPlayer.reconnectAttempt))..."
+                : "Reconnecting..."
+        }
+        if let stream = selectedStream, stream.format == "FLAC", bassPlayer.preBufferProgress > 0 {
+            return "Buffering \(stream.name)..."
+        }
+        return nil
+    }
+
     private func updateNowPlayingInfo() {
         var nowPlayingInfo = [String: Any]()
 
@@ -1409,20 +1452,101 @@ struct ContentView_iOS: View {
             }
         } else {
             nowPlayingInfo[MPMediaItemPropertyTitle] = "ZappaStream"
-            nowPlayingInfo[MPMediaItemPropertyArtist] = "FZShows Radio"
+            nowPlayingInfo[MPMediaItemPropertyArtist] = "ZappaStream"
             #if DEBUG
             print("🎵 Now Playing: Default (no parsed track)")
             #endif
         }
 
+        if let statusOverride = nowPlayingStatusOverride {
+            nowPlayingInfo[MPMediaItemPropertyTitle] = statusOverride
+        }
+
         let dvrPaused = bassPlayer.dvrState == .paused
-        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = (isPlaying && !dvrPaused) ? 1.0 : 0.0
-        // IsLiveStream=true causes iOS to ignore playbackRate=0, so clear it when DVR is paused
-        // so the lock screen and AirPods correctly reflect the paused state.
-        nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = !dvrPaused
+        let isActuallyPlaying = isPlaying && !dvrPaused
+        // CarPlay/lock screen derive the big transport button's icon from which of
+        // playCommand/pauseCommand is currently *enabled* — not from a passive read of
+        // MPNowPlayingInfoPropertyPlaybackRate. Confirmed by debug logs: after Stop,
+        // tapping the (still "pause"-shaped) button fired `pauseCommand` even though
+        // isPlaying was already false, and vice versa while actively playing. Toggling
+        // these in lockstep with actual state keeps the displayed icon truthful.
+        let commandCenter = MPRemoteCommandCenter.shared()
+        commandCenter.playCommand.isEnabled = !isActuallyPlaying
+        commandCenter.pauseCommand.isEnabled = isActuallyPlaying
+        // The icon itself doesn't follow isEnabled or playbackRate — it's driven by this
+        // explicit, declarative signal (iOS 16+), the modern replacement for inferring
+        // play/pause from playbackRate. Without it the displayed icon is stuck wherever
+        // the system last left it optimistically after its own command fired, regardless
+        // of state changes that happen via Stop/the in-app controls/auto-resume.
+        let nowPlayingCenter = MPNowPlayingInfoCenter.default()
+        if isActuallyPlaying {
+            nowPlayingCenter.playbackState = .playing
+        } else if isPlaying {
+            // DVR paused (or DVR playback momentarily stalled) — still "in session", not stopped.
+            nowPlayingCenter.playbackState = .paused
+        } else {
+            nowPlayingCenter.playbackState = .stopped
+        }
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isActuallyPlaying ? 1.0 : 0.0
+        // IsLiveStream=true causes iOS to ignore playbackRate=0 — the system keeps
+        // showing the last "playing" state (e.g. CarPlay/lock screen play-pause
+        // button stuck on "pause" after Stop). Tie it to the same condition as the
+        // rate so it's never true while the rate is 0 — covers DVR-pause AND full stop.
+        nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = isActuallyPlaying
+        // Marks "now" as the playhead position for a live item — recommended for live
+        // streams, and also gives the system a fresh, changing value on every publish
+        // so it has a reason to re-evaluate (and not cache) the displayed transport state.
+        if isActuallyPlaying {
+            nowPlayingInfo[MPNowPlayingInfoPropertyCurrentPlaybackDate] = Date()
+        }
         nowPlayingInfo[MPMediaItemPropertyMediaType] = MPMediaType.music.rawValue
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+    }
+
+    // MARK: - CarPlay
+
+    /// Mirrors current state into `CarPlayBridge.shared` and notifies the CarPlay
+    /// scene delegate to refresh its templates. CarPlay runs in a separate scene and
+    /// can't read this view's `@State`, so this is the one-way data path to it —
+    /// the reverse path (CarPlay buttons → playback actions) is `setupCarPlayObservers()`.
+    private func syncCarPlayBridge() {
+        let bridge = CarPlayBridge.shared
+        bridge.isPlaying = isPlaying
+        bridge.dvrState = bassPlayer.dvrState
+        bridge.setlist = currentShow?.setlist ?? []
+        bridge.currentTrackIndex = currentShow != nil ? currentSetlistPosition : nil
+        bridge.selectedFormat = selectedStream?.format ?? lastStreamFormat
+        NotificationCenter.default.post(name: .carPlayDataChanged, object: nil)
+    }
+
+    /// Observes commands posted by `CarPlaySceneDelegate`'s buttons and routes them
+    /// to the actual `bassPlayer` instance — mirrors how the macOS menubar drives
+    /// `ContentView` via `togglePlayback`/`stopPlayback`/`selectStream`.
+    private func setupCarPlayObservers() {
+        let nc = NotificationCenter.default
+
+        nc.addObserver(forName: .carPlayStop, object: nil, queue: .main) { [self] _ in
+            stopStream()
+        }
+        nc.addObserver(forName: .carPlayGoLive, object: nil, queue: .main) { [self] _ in
+            bassPlayer.goLive()
+            updateNowPlayingInfo()
+            syncCarPlayBridge()
+        }
+        nc.addObserver(forName: .carPlaySelectFormat, object: nil, queue: .main) { [self] notification in
+            if let format = notification.userInfo?["format"] as? String,
+               let stream = streams.first(where: { $0.format == format }) {
+                selectedStream = stream
+            }
+        }
+        // CarPlay can connect after this app already published its initial Now
+        // Playing state (e.g. auto-resume on launch) — force a fresh republish so
+        // its transport controls never start out of sync with actual playback.
+        nc.addObserver(forName: .carPlaySceneDidConnect, object: nil, queue: .main) { [self] _ in
+            updateNowPlayingInfo()
+            syncCarPlayBridge()
+        }
     }
 
     func playStream(showWarning: Bool = true) {
@@ -1432,6 +1556,7 @@ struct ContentView_iOS: View {
         bassPlayer.play(format: stream.format, url: stream.url)
         isPlaying = true
         updateNowPlayingInfo()
+        syncCarPlayBridge()
 
         if showWarning && stream.format != "MP3" {
             showDelayWarning = true
@@ -1451,6 +1576,7 @@ struct ContentView_iOS: View {
         bassPlayer.stopWithFadeOut()
         isPlaying = false
         updateNowPlayingInfo()
+        syncCarPlayBridge()
         UserDefaults.standard.set(false, forKey: "wasPlayingOnQuit")
         // After the 0.4s fade, deactivate the session so other audio apps (Spotify,
         // Podcasts, Music) receive interruptionNotification .ended and auto-resume.
@@ -1512,6 +1638,7 @@ struct ContentView_iOS: View {
                     self.currentSetlistPosition = position
                 }
                 self.isFetchingShowInfo = false
+                self.syncCarPlayBridge()
 
                 if let show = show {
                     UserDefaults.standard.set(show.date, forKey: "lastShowDateOnQuit")

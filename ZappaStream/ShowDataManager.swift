@@ -11,6 +11,42 @@ class ShowDataManager {
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
+        DispatchQueue.main.async { [weak self] in self?.migrateRederivedSetlists() }
+    }
+
+    // MARK: - One-time Migrations
+
+    /// Re-derives `setlist` for every `SavedShow` by feeding its already-parsed
+    /// entries back through the current `parseSetlist` logic (see
+    /// `FZShowsFetcher.redrivedSetlist`). This retroactively fixes shows whose
+    /// setlists were split incorrectly by an older parser — e.g. standalone
+    /// "q:" quote entries, or songs glued together by a stray-paren cascade —
+    /// without re-fetching from zappateers. Runs once per device, guarded by
+    /// a UserDefaults flag (SavedShow syncs via CloudKit, but the migration
+    /// itself is local — each device that has ever opened the app migrates
+    /// its own copy once).
+    private static let rederiveSetlistsMigrationKey = "didRederiveSavedShowSetlists_v1"
+
+    private func migrateRederivedSetlists() {
+        guard !UserDefaults.standard.bool(forKey: Self.rederiveSetlistsMigrationKey) else { return }
+        guard let shows = try? modelContext.fetch(FetchDescriptor<SavedShow>()) else { return }
+
+        var changedCount = 0
+        for show in shows {
+            let original = (try? JSONDecoder().decode([String].self, from: show.setlistData)) ?? []
+            if let rederived = FZShowsFetcher.redrivedSetlist(from: original) {
+                show.applyMigratedSetlist(rederived)
+                changedCount += 1
+            }
+        }
+
+        if changedCount > 0 {
+            try? modelContext.save()
+        }
+        UserDefaults.standard.set(true, forKey: Self.rederiveSetlistsMigrationKey)
+        #if DEBUG
+        print("✅ ShowDataManager: re-derived setlists for \(changedCount) of \(shows.count) saved show(s)")
+        #endif
     }
 
     // MARK: - History

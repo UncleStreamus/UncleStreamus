@@ -50,6 +50,8 @@
 		BE024DE02F4A65D700B2C079 /* tags.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BE024DCD2F4A659300B2C079 /* tags.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		BE024DE32F4A67D800B2C079 /* BASSRadioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */; };
 		BE024DE42F4A67F600B2C079 /* BASSRadioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */; };
+		BE033A062FD3818A0061FEE3 /* CarPlaySceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE033A052FD3818A0061FEE3 /* CarPlaySceneDelegate.swift */; };
+		BE033A082FD3818A0061FEE5 /* CarPlayBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE033A072FD3818A0061FEE4 /* CarPlayBridge.swift */; };
 		BE1A341F2F30C6D600647B01 /* ZappaStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */; };
 		BE1A34212F30C6D600647B01 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A34202F30C6D600647B01 /* ContentView.swift */; };
 		BE1A34252F30C6D800647B01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE1A34242F30C6D800647B01 /* Assets.xcassets */; };
@@ -156,6 +158,8 @@
 		BE024DCD2F4A659300B2C079 /* tags.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = tags.xcframework; path = Frameworks/iOS/tags.xcframework; sourceTree = SOURCE_ROOT; };
 		BE024DE12F4A67D800B2C079 /* BASSBridgingHeader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BASSBridgingHeader.h; sourceTree = "<group>"; };
 		BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASSRadioPlayer.swift; sourceTree = "<group>"; };
+		BE033A052FD3818A0061FEE3 /* CarPlaySceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlaySceneDelegate.swift; sourceTree = "<group>"; };
+		BE033A072FD3818A0061FEE4 /* CarPlayBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlayBridge.swift; sourceTree = "<group>"; };
 		BE1A341B2F30C6D600647B01 /* ZappaStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZappaStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZappaStreamApp.swift; sourceTree = "<group>"; };
 		BE1A34202F30C6D600647B01 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -163,7 +167,6 @@
 		BE1A34262F30C6D800647B01 /* ZappaStream.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ZappaStream.entitlements; sourceTree = "<group>"; };
 		BE1A34282F30C6D800647B01 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		BE2FCA562F3CB6F60038E706 /* ZappaStream-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ZappaStream-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		CC3E00002F3E000000CC3E00 /* ZappaStream-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "ZappaStream-iOS.entitlements"; sourceTree = "<group>"; };
 		BE2FCA5E2F3CB6F70038E706 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BE2FCA612F3CB6F70038E706 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		BE2FCA662F3CB93F0038E706 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -184,6 +187,7 @@
 		CC01DC000001DC0100CC01DC /* DonlopeIndexCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DonlopeIndexCache.swift; sourceTree = "<group>"; };
 		CC02DC000002DC0200CC02DC /* TrackInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackInfoView.swift; sourceTree = "<group>"; };
 		CC0ADC00000ADC0A00CC0ADC /* SetlistInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetlistInfoView.swift; sourceTree = "<group>"; };
+		CC3E00002F3E000000CC3E00 /* ZappaStream-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "ZappaStream-iOS.entitlements"; sourceTree = "<group>"; };
 		CCEA788CAA6882C71E437FF1 /* FZShowsDatabase.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FZShowsDatabase.swift; sourceTree = "<group>"; };
 		DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FilterView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -270,6 +274,8 @@
 		BE1A341D2F30C6D600647B01 /* ZappaStream */ = {
 			isa = PBXGroup;
 			children = (
+				BE033A052FD3818A0061FEE3 /* CarPlaySceneDelegate.swift */,
+				BE033A072FD3818A0061FEE4 /* CarPlayBridge.swift */,
 				BEAA00002F34000100AA0001 /* Acronym.swift */,
 				BE1A34242F30C6D800647B01 /* Assets.xcassets */,
 				A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */,
@@ -527,6 +533,8 @@
 				BE2FCA6E2F3CBBCA0038E706 /* ParsedTrackInfo.swift in Sources */,
 				BE2FCA6F2F3CBBCA0038E706 /* FilterView.swift in Sources */,
 				BE2FCA702F3CBBCA0038E706 /* ShowEntryRow.swift in Sources */,
+				BE033A062FD3818A0061FEE3 /* CarPlaySceneDelegate.swift in Sources */,
+				BE033A082FD3818A0061FEE5 /* CarPlayBridge.swift in Sources */,
 				BE2FCA712F3CBBCA0038E706 /* TourPeriods.swift in Sources */,
 				BE2FCA722F3CBBCA0038E706 /* ShowDataManager.swift in Sources */,
 				BE2FCA732F3CBBCA0038E706 /* SidebarView.swift in Sources */,
@@ -730,7 +738,7 @@
 				CODE_SIGN_ENTITLEMENTS = ZappaStream/ZappaStream.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260528;
+				CURRENT_PROJECT_VERSION = 20260606;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
@@ -753,7 +761,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.zappastream.ZappaStream;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -772,7 +780,7 @@
 				CODE_SIGN_ENTITLEMENTS = ZappaStream/ZappaStream.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260528;
+				CURRENT_PROJECT_VERSION = 20260606;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
@@ -795,7 +803,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.zappastream.ZappaStream;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -814,7 +822,7 @@
 				CODE_SIGN_ENTITLEMENTS = "ZappaStream-iOS/ZappaStream-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260528;
+				CURRENT_PROJECT_VERSION = 20260606;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_PREVIEWS = YES;
@@ -823,7 +831,7 @@
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks/iOS/include";
 				INFOPLIST_FILE = "ZappaStream-iOS/Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = NO;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -833,7 +841,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.zappastream.ZappaStream-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -853,7 +861,7 @@
 				CODE_SIGN_ENTITLEMENTS = "ZappaStream-iOS/ZappaStream-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260528;
+				CURRENT_PROJECT_VERSION = 20260606;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_PREVIEWS = YES;
@@ -862,7 +870,7 @@
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks/iOS/include";
 				INFOPLIST_FILE = "ZappaStream-iOS/Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = NO;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -872,7 +880,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.zappastream.ZappaStream-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

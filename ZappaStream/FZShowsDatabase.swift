@@ -52,11 +52,42 @@ class FZShowsDatabase {
         self.modelContext = modelContext
         updateStats()
         log("Initialized — \(totalCachedShows) shows in database")
+        DispatchQueue.main.async { [weak self] in self?.migrateRederivedSetlists() }
     }
 
     private func log(_ message: String) {
         FZShowsLog.shared.append(message)
         print("📚 FZShowsDB: \(message)")
+    }
+
+    // MARK: - One-time Migrations
+
+    /// Re-derives `setlist` for every cached show by feeding its already-parsed
+    /// entries back through the current `parseSetlist` logic (see
+    /// `FZShowsFetcher.redrivedSetlist`). Retroactively fixes shows whose
+    /// setlists were split incorrectly by an older parser — e.g. standalone
+    /// "q:" quote entries, or songs glued together by a stray-paren cascade —
+    /// without re-downloading any pages. Runs once, guarded by a UserDefaults flag.
+    private static let rederiveSetlistsMigrationKey = "didRederiveCachedShowSetlists_v1"
+
+    private func migrateRederivedSetlists() {
+        guard !UserDefaults.standard.bool(forKey: Self.rederiveSetlistsMigrationKey) else { return }
+        guard let shows = try? modelContext.fetch(FetchDescriptor<CachedFZShow>()) else { return }
+
+        var changedCount = 0
+        for show in shows {
+            let original = (try? JSONDecoder().decode([String].self, from: show.setlistData)) ?? []
+            if let rederived = FZShowsFetcher.redrivedSetlist(from: original) {
+                show.setlistData = (try? JSONEncoder().encode(rederived)) ?? show.setlistData
+                changedCount += 1
+            }
+        }
+
+        if changedCount > 0 {
+            try? modelContext.save()
+        }
+        UserDefaults.standard.set(true, forKey: Self.rederiveSetlistsMigrationKey)
+        log("Re-derived setlists for \(changedCount) of \(shows.count) cached show(s)")
     }
 
     // MARK: - Lookup

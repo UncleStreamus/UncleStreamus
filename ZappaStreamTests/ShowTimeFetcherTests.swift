@@ -173,6 +173,50 @@ final class ShowTimeFetcherTests: XCTestCase {
         XCTAssertEqual(result[1], "Next Song Rocks")
     }
 
+    func testParseSetlist_strayClosingParenDoesNotCascade() {
+        // Real-world zappateers typo: an extra/stray ")" after "Babbette [YCDTOSA1]"
+        // used to drive parenDepth negative, gluing the rest of the setlist into
+        // one giant entry. Depth is now clamped at 0 so only the entry containing
+        // the stray paren is affected (it keeps the typo char, but later songs split correctly).
+        let result = FZShowsFetcher.parseSetlist(
+            "Babbette [YCDTOSA1]), Approximate, Montana (q: Louie Louie, Dragnet)[incl. info, YCDTOSA1], The Booger Man (q: Louie Louie)"
+        )
+        XCTAssertEqual(result, [
+            "Babbette [YCDTOSA1])",
+            "Approximate",
+            "Montana (q: Louie Louie, Dragnet)[incl. info, YCDTOSA1]",
+            "The Booger Man (q: Louie Louie)"
+        ])
+    }
+
+    func testParseSetlist_standaloneQuoteFoldedIntoPrecedingSong() {
+        let result = FZShowsFetcher.parseSetlist("Johnny's Theme, q: Duke Of Earl, Wonderful Wino")
+        XCTAssertEqual(result, ["Johnny's Theme (q: Duke Of Earl)", "Wonderful Wino"])
+    }
+
+    func testParseSetlist_standaloneQuoteAtStart_keptAsOwnEntry() {
+        let result = FZShowsFetcher.parseSetlist("q: Duke Of Earl, Wonderful Wino")
+        XCTAssertEqual(result, ["q: Duke Of Earl", "Wonderful Wino"])
+    }
+
+    // MARK: - FZShowsFetcher.redrivedSetlist (cache migration helper)
+
+    func testRedrivedSetlist_foldsStandaloneQuoteFromOldlySplitArray() {
+        // Shape an older parser would have produced (before "q:" folding existed)
+        let old = ["Johnny's Theme", "q: Duke Of Earl", "Wonderful Wino"]
+        let result = FZShowsFetcher.redrivedSetlist(from: old)
+        XCTAssertEqual(result, ["Johnny's Theme (q: Duke Of Earl)", "Wonderful Wino"])
+    }
+
+    func testRedrivedSetlist_returnsNilWhenAlreadyCorrect() {
+        let current = ["Johnny's Theme (q: Duke Of Earl)", "Wonderful Wino"]
+        XCTAssertNil(FZShowsFetcher.redrivedSetlist(from: current))
+    }
+
+    func testRedrivedSetlist_returnsNilForEmptyArray() {
+        XCTAssertNil(FZShowsFetcher.redrivedSetlist(from: []))
+    }
+
     func testParseSetlist_shortEntriesFiltered() {
         let result = FZShowsFetcher.parseSetlist("Montana, ok, Cosmik Debris")
         XCTAssertFalse(result.contains("ok"))

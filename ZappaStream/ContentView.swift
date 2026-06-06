@@ -971,7 +971,7 @@ struct ContentView: View {
                         }
                         .disabled(parsedTrack?.trackName == nil)
                         Spacer()
-                        Button("Setlist Info (FZShows)...") {
+                        Button("Setlist Context (FZShows)...") {
                             if let url = URL(string: show.url) {
                                 // Strip E/L variant suffix — scroll-to search matches raw HTML dates
                                 let baseDate = show.date.components(separatedBy: " ").prefix(3).joined(separator: " ")
@@ -1435,7 +1435,7 @@ struct ContentView: View {
             }
         } else {
             nowPlayingInfo[MPMediaItemPropertyTitle] = "ZappaStream"
-            nowPlayingInfo[MPMediaItemPropertyArtist] = "FZShows Radio"
+            nowPlayingInfo[MPMediaItemPropertyArtist] = "ZappaStream"
         }
 
         // Set playback state

@@ -16,5 +16,7 @@
 	</array>
 	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
 	<string>$(TeamIdentifierPrefix)com.zappastream.ZappaStream</string>
+	<key>com.apple.developer.carplay-audio</key>
+	<true/>
 </dict>
 </plist>

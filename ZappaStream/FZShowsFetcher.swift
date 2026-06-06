@@ -278,7 +278,11 @@ class FZShowsFetcher {
                 parenDepth += 1
                 currentSong.append(char)
             } else if char == ")" {
-                parenDepth -= 1
+                // Clamp at 0: a stray/extra closing paren in the source HTML (typos
+                // happen) would otherwise drive depth negative and never recover,
+                // causing every subsequent comma to be treated as "inside a group"
+                // and gluing the rest of the setlist into one giant entry.
+                parenDepth = max(0, parenDepth - 1)
                 currentSong.append(char)
             } else if char == "[" {
                 bracketDepth += 1
@@ -302,7 +306,37 @@ class FZShowsFetcher {
             songs.append(trimmed)
         }
 
-        return songs
+        return foldStandaloneQuotes(songs)
+    }
+
+    /// Some setlists list a quote as its own comma-separated entry (e.g.
+    /// "Johnny's Theme, q: Duke Of Earl, Wonderful Wino") rather than wrapping
+    /// it in parentheses on the preceding song. Fold those into the preceding
+    /// entry as "(q: ...)" so SongFormatter renders them as quotes instead of
+    /// standalone tracks. Entries with no preceding song are left as-is.
+    static func foldStandaloneQuotes(_ songs: [String]) -> [String] {
+        var merged: [String] = []
+        for song in songs {
+            if song.lowercased().hasPrefix("q:"), !merged.isEmpty {
+                merged[merged.count - 1] += " (\(song))"
+            } else {
+                merged.append(song)
+            }
+        }
+        return merged
+    }
+
+    /// Re-derives a setlist that was previously split by an older version of
+    /// `parseSetlist` by rejoining its entries and re-splitting with the
+    /// current logic. This lets a one-time migration fix already-cached shows
+    /// (e.g. standalone "q:" entries, or songs glued together by a stray
+    /// closing-paren cascade) without re-fetching from zappateers — and it
+    /// automatically benefits from any future `parseSetlist` improvements.
+    /// Returns nil if re-deriving produces the same result (no migration needed).
+    static func redrivedSetlist(from existing: [String]) -> [String]? {
+        guard !existing.isEmpty else { return nil }
+        let rederived = parseSetlist(existing.joined(separator: ", "))
+        return rederived != existing ? rederived : nil
     }
 
     static func parseShowFromHTML(html: String, filename: String, searchDate: String, originalDate: String,
