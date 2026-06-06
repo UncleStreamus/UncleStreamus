@@ -1488,12 +1488,16 @@ struct ContentView_iOS: View {
             nowPlayingCenter.playbackState = .stopped
         }
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isActuallyPlaying ? 1.0 : 0.0
-        // IsLiveStream=true causes iOS to ignore playbackRate=0, so clear it when DVR is
-        // paused so the lock screen and AirPods correctly reflect the paused state. Full
-        // stop doesn't need the same treatment — it genuinely is still a live stream
-        // (just not currently playing), and `playbackState` above is what now drives the
-        // play/pause icon authoritatively, so there's no risk of it getting stuck here.
-        nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = !dvrPaused
+        // Only the live edge is actually "live" — DVR playback (and pause) is behind
+        // the live edge, with its own "Go Live"/"Cut to Live" affordance, so showing
+        // the system's "Live" badge there would be misleading. This also clears
+        // IsLiveStream while DVR-paused, which has the side benefit of making iOS
+        // stop ignoring playbackRate=0 so the lock screen and AirPods correctly
+        // reflect the paused state. Full stop doesn't need the same treatment — it
+        // genuinely is still a live stream (just not currently playing), and
+        // `playbackState` above is what now drives the play/pause icon authoritatively,
+        // so there's no risk of it getting stuck here.
+        nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = bassPlayer.dvrState == .live
         // Marks "now" as the playhead position for a live item — recommended for live
         // streams, and also gives the system a fresh, changing value on every publish
         // so it has a reason to re-evaluate (and not cache) the displayed transport state.
