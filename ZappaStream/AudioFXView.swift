@@ -581,7 +581,7 @@ struct AudioFXView: View {
                         }
                         HStack {
                             Text("Gentle").font(.caption).foregroundColor(.secondary)
-                            FXHorizontalSlider(value: $player.compressorAmount, resetValue: 0.25,
+                            FXHorizontalSlider(value: $player.compressorAmount, resetValue: 0.0,
                                               onUpdate: player.updateCompressorAmount)
                             Text("Heavy").font(.caption).foregroundColor(.secondary)
                         }

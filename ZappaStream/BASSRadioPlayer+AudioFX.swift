@@ -682,7 +682,7 @@ extension BASSRadioPlayer {
         eqMidGain           = 0
         eqHighGain          = 0
         compressorOn        = false
-        compressorAmount    = 0.25
+        compressorAmount    = 0.0
         stereoWidthEnabled  = true
         stereoWidth         = 0.75
         stereoPan           = 0.5
