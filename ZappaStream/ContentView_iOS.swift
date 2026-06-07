@@ -29,7 +29,6 @@ struct ContentView_iOS: View {
     @State private var parsedTrack: ParsedTrackInfo?
     @State private var bassPlayer = BASSRadioPlayer()
     @State private var currentShow: FZShow?
-    @AppStorage("showInfoExpanded") private var showInfoExpanded: Bool = false
     @State private var isFetchingShowInfo: Bool = false
     @State private var availableWidth: CGFloat = 500
     @AppStorage("textScale") private var textScale: Double = 1.1
@@ -712,63 +711,47 @@ struct ContentView_iOS: View {
     private var showInfoSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Venue header - with bounce effect
-            Button {
-                if currentShow != nil {
-                    withAnimation {
-                        showInfoExpanded.toggle()
-                    }
-                }
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        if let show = currentShow {
-                            Text(show.venue)
-                                .scaledFont(.headline, weight: .semibold)
-                                .foregroundColor(.primary)
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    if let show = currentShow {
+                        Text(show.venue)
+                            .scaledFont(.headline, weight: .semibold)
+                            .foregroundColor(.primary)
 
-                            if let note = show.note {
-                                Text((try? AttributedString(markdown: note)) ?? AttributedString(note))
-                                    .scaledFont(.caption)
-                                    .foregroundColor(Color.red.opacity(0.8))
-                            }
+                        if let note = show.note {
+                            Text((try? AttributedString(markdown: note)) ?? AttributedString(note))
+                                .scaledFont(.caption)
+                                .foregroundColor(Color.red.opacity(0.8))
+                        }
 
-                            if !show.showInfo.isEmpty {
-                                Text(show.showInfo)
-                                    .scaledFont(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } else if isFetchingShowInfo {
-                            HStack(spacing: 6) {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                                Text("Loading show info...")
-                                    .scaledFont(.headline)
-                                    .foregroundColor(.gray)
-                            }
-                        } else {
-                            Text(showInfoPlaceholderText)
+                        if !show.showInfo.isEmpty {
+                            Text(show.showInfo)
+                                .scaledFont(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } else if isFetchingShowInfo {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Loading show info...")
                                 .scaledFont(.headline)
                                 .foregroundColor(.gray)
                         }
-                    }
-
-                    Spacer()
-
-                    if currentShow != nil {
-                        Image(systemName: showInfoExpanded ? "chevron.up" : "chevron.down")
-                            .foregroundColor(.secondary)
+                    } else {
+                        Text(showInfoPlaceholderText)
+                            .scaledFont(.headline)
+                            .foregroundColor(.gray)
                     }
                 }
-                .contentShape(Rectangle())
-                .padding()
-                .background(Color.blue.opacity(0.2))
-                .cornerRadius(12)
+
+                Spacer()
             }
-            .buttonStyle(.plain)
-            .disabled(currentShow == nil)
+            .padding()
+            .background(Color.blue.opacity(0.2))
+            .cornerRadius(12)
             .simultaneousGesture(contentBounceGesture)
 
-            if showInfoExpanded, let show = currentShow {
+            if let show = currentShow {
                 VStack(alignment: .leading, spacing: 0) {
                     // Setlist header
                     Text("Setlist:")
