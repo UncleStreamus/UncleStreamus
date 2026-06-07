@@ -1538,9 +1538,8 @@ struct ContentView: View {
         let fxRememberPerShow = UserDefaults.standard.bool(forKey: "fxRememberPerShow")
 
         if fxRememberPerShow {
-            if !bassPlayer.restorePerShowFX(showDate: variantDate) {
-                bassPlayer.resetAllFX()
-            }
+            bassPlayer.restorePerShowFX(showDate: variantDate)
+            // No reset on missing snapshot — keep current FX (user sets per-show on first listen)
         } else if showHasChanged || lastShowDate == nil {
             if !fxPersistAcrossShows {
                 bassPlayer.resetAllFX()

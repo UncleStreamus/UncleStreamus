@@ -364,6 +364,14 @@ struct ContentView_iOS: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background || newPhase == .inactive {
                 UserDefaults.standard.set(isPlaying, forKey: "wasPlayingOnQuit")
+                // Start the silence keepalive only on backgrounding while DVR is paused.
+                // Starting it in the foreground causes iOS to see active audio output and
+                // route AirPods/lock screen to pauseCommand (a no-op when paused), which
+                // breaks resume. In the foreground the app is never suspended, so the
+                // keepalive isn't needed there.
+                if bassPlayer.dvrState == .paused {
+                    bassPlayer.startSilenceKeepalive()
+                }
             }
             if newPhase == .active {
                 // Reconnect whenever the user intended to play but the stream isn't
@@ -374,6 +382,10 @@ struct ContentView_iOS: View {
                 if bassPlayer.isUserIntendedPlay {
                     bassPlayer.triggerImmediateReconnect()
                 }
+                // Stop keepalive on foreground: CoreAudio should be silent during DVR
+                // pause so iOS correctly routes AirPods/lock screen to playCommand.
+                // Safe to call even if keepalive is not running (no-ops via guard).
+                bassPlayer.stopSilenceKeepalive()
             }
         }
         .onChange(of: dvrBufferMinutes) { _, _ in
@@ -1471,16 +1483,12 @@ struct ContentView_iOS: View {
             nowPlayingCenter.playbackState = .stopped
         }
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isActuallyPlaying ? 1.0 : 0.0
-        // Only the live edge is actually "live" — DVR playback (and pause) is behind
-        // the live edge, with its own "Go Live"/"Cut to Live" affordance, so showing
-        // the system's "Live" badge there would be misleading. This also clears
-        // IsLiveStream while DVR-paused, which has the side benefit of making iOS
-        // stop ignoring playbackRate=0 so the lock screen and AirPods correctly
-        // reflect the paused state. Full stop doesn't need the same treatment — it
-        // genuinely is still a live stream (just not currently playing), and
-        // `playbackState` above is what now drives the play/pause icon authoritatively,
-        // so there's no risk of it getting stuck here.
-        nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = bassPlayer.dvrState == .live
+        // Only set IsLiveStream=true when actively at the live edge. iOS treats
+        // IsLiveStream=true as "broadcast in progress" — if left true while stopped,
+        // it can block AirPods/lock screen from offering a play command (interpreted
+        // as "the live broadcast ended"). Tying it to isActuallyPlaying ensures the
+        // play affordance is always available when stopped or DVR-paused.
+        nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = isActuallyPlaying
         // Marks "now" as the playhead position for a live item — recommended for live
         // streams, and also gives the system a fresh, changing value on every publish
         // so it has a reason to re-evaluate (and not cache) the displayed transport state.
@@ -1592,9 +1600,8 @@ struct ContentView_iOS: View {
         let fxRememberPerShow = UserDefaults.standard.bool(forKey: "fxRememberPerShow")
 
         if fxRememberPerShow {
-            if !bassPlayer.restorePerShowFX(showDate: variantDate) {
-                bassPlayer.resetAllFX()
-            }
+            bassPlayer.restorePerShowFX(showDate: variantDate)
+            // No reset on missing snapshot — keep current FX (user sets per-show on first listen)
         } else if showHasChanged || lastShowDate == nil {
             if !fxPersistAcrossShows {
                 bassPlayer.resetAllFX()
