@@ -94,6 +94,12 @@ extension BASSRadioPlayer {
             // while the output mixer is paused, ensuring WAV segments keep being written.
             BASS_ChannelPause(self.mixerHandle)
             self.startDVRRecordingPump()
+            // Keep the AVAudioSession alive (via silent audio output) so iOS does not
+            // suspend the app while DVR is paused — without this, the recording pump
+            // and BASS threads stop in background, freezing bufferedDuration.
+            #if os(iOS)
+            self.startSilenceKeepalive()
+            #endif
         }
         print("⏸️ DVR paused at t=\(String(format: "%.2f", dvrPauseTimestamp))s")
     }
@@ -145,6 +151,9 @@ extension BASSRadioPlayer {
             BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
             BASS_ChannelPause(ph)
             self.startDVRRecordingPump()
+            #if os(iOS)
+            self.startSilenceKeepalive()
+            #endif
         }
         print("⏸️ DVR playback paused at recording t=\(String(format: "%.2f", currentRecordingTime))s")
     }
@@ -159,6 +168,9 @@ extension BASSRadioPlayer {
             return
         }
         stopDVRRecordingPump()
+        #if os(iOS)
+        stopSilenceKeepalive()   // real DVR audio takes over as the keepalive
+        #endif
 
         let stream = buffer.createPlaybackStream(from: dvrPauseTimestamp)
         guard stream != 0 else {
@@ -234,6 +246,9 @@ extension BASSRadioPlayer {
     func goLive() {
         guard dvrState != .live else { return }
         stopDVRRecordingPump()
+        #if os(iOS)
+        stopSilenceKeepalive()   // live stream resumes real audio output
+        #endif
 
         // Stop DVR playback (freeing the stream auto-removes it from mixerHandle).
         if dvrPlaybackStream != 0 {
@@ -337,8 +352,12 @@ extension BASSRadioPlayer {
 
     func startBehindTimer() {
         dvrBehindTimer?.invalidate()
+        // Capture wall-clock snapshot so the .paused branch stays accurate even when the
+        // app is backgrounded and iOS suspends the audio session (freezing bufferedDuration).
+        dvrPauseWallTime = Date()
+        dvrPauseOffset   = behindLiveSeconds
         // Fires on the main runloop so UI updates happen on the main thread.
-        // Runs in both .paused (counts up as recording grows) and .playing (stays static).
+        // Runs in both .paused (counts up as time elapses) and .playing (stays static).
         dvrBehindTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self,
                   let buffer = self.streamBuffer,
@@ -346,11 +365,9 @@ extension BASSRadioPlayer {
 
             switch self.dvrState {
             case .paused:
-                // While paused, behind = how much has been recorded since the pause point.
-                // Buffer-full is signalled by StreamBuffer.setStopBeforeSegment callback —
-                // not detected here, so we just update the display.
-                let behind = max(0, buffer.bufferedDuration - self.dvrPauseTimestamp)
-                self.behindLiveSeconds = behind
+                // Use wall-clock delta so the counter keeps running even when the app is
+                // backgrounded and the recording pump (and thus bufferedDuration) is frozen.
+                self.behindLiveSeconds = self.dvrPauseOffset + Date().timeIntervalSince(self.dvrPauseWallTime)
             case .playing where self.dvrPlaybackStream != 0:
                 // While playing, behind = live recording head minus DVR playback position.
                 // Both advance at ~1 s/s, so this value stays roughly constant.

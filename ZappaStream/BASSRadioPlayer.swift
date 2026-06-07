@@ -317,6 +317,8 @@ enum PlaybackState: Equatable {
     var dvrNextStream:      DWORD          = 0   // pre-loaded next segment (gapless)
     var dvrPausedStreams:   [DWORD]        = []  // streams kept alive during dvrPausePlayback() fade-out
     var dvrPauseTimestamp:  Double         = 0
+    var dvrPauseWallTime:   Date           = .distantPast  // wall clock when DVR was (re-)paused
+    var dvrPauseOffset:     Double         = 0             // behindLiveSeconds at the moment of pause
     var dvrCurrentSegNum:   Int            = 0
     var dvrNextSegNum:      Int            = 0
     var dvrBehindTimer:     Timer?         = nil
