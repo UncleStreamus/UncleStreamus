@@ -364,11 +364,8 @@ struct ContentView_iOS: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background || newPhase == .inactive {
                 UserDefaults.standard.set(isPlaying, forKey: "wasPlayingOnQuit")
-                // Start the silence keepalive only on backgrounding while DVR is paused.
-                // Starting it in the foreground causes iOS to see active audio output and
-                // route AirPods/lock screen to pauseCommand (a no-op when paused), which
-                // breaks resume. In the foreground the app is never suspended, so the
-                // keepalive isn't needed there.
+                // Safety net: start keepalive on backgrounding if DVR is paused and it
+                // isn't already running (e.g. paused while already in background).
                 if bassPlayer.dvrState == .paused {
                     bassPlayer.startSilenceKeepalive()
                 }
@@ -382,18 +379,29 @@ struct ContentView_iOS: View {
                 if bassPlayer.isUserIntendedPlay {
                     bassPlayer.triggerImmediateReconnect()
                 }
-                // Stop keepalive on foreground: CoreAudio should be silent during DVR
-                // pause so iOS correctly routes AirPods/lock screen to playCommand.
-                // Safe to call even if keepalive is not running (no-ops via guard).
-                bassPlayer.stopSilenceKeepalive()
+                // Only stop the keepalive on foreground resume if DVR is no longer paused.
+                // If DVR is still paused, the keepalive must stay alive so the recording
+                // pump keeps filling the buffer. dvrResume()/goLive() stop it when the
+                // user actually plays.
+                if bassPlayer.dvrState != .paused {
+                    bassPlayer.stopSilenceKeepalive()
+                }
             }
         }
         .onChange(of: dvrBufferMinutes) { _, _ in
             bassPlayer.updateDVRBufferSize()
         }
-        .onChange(of: bassPlayer.dvrState) { _, _ in
+        .onChange(of: bassPlayer.dvrState) { _, newState in
             updateNowPlayingInfo()
             syncCarPlayBridge()
+            // Start the keepalive the moment DVR pauses (foreground or background) so
+            // the recording pump keeps the ring buffer filling regardless of scene phase.
+            // updateNowPlayingInfo() has already set pauseCommand.isEnabled=false and
+            // playbackState=.paused, so the lock screen and AirPods correctly show play.
+            // dvrResume()/goLive() call stopSilenceKeepalive() when audio resumes.
+            if newState == .paused {
+                bassPlayer.startSilenceKeepalive()
+            }
         }
         .onChange(of: bassPlayer.isReconnecting) { _, _ in
             updateNowPlayingInfo()

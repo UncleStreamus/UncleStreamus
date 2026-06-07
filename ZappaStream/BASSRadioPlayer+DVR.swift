@@ -94,12 +94,11 @@ extension BASSRadioPlayer {
             // while the output mixer is paused, ensuring WAV segments keep being written.
             BASS_ChannelPause(self.mixerHandle)
             self.startDVRRecordingPump()
-            // Keep the AVAudioSession alive (via silent audio output) so iOS does not
-            // suspend the app while DVR is paused — without this, the recording pump
-            // and BASS threads stop in background, freezing bufferedDuration.
-            #if os(iOS)
-            self.startSilenceKeepalive()
-            #endif
+            // Keepalive (silent AVAudioPlayer) is NOT started here — starting it in the
+            // foreground causes iOS to see active audio output and route AirPods/lock screen
+            // to pauseCommand (a no-op when already paused), breaking resume. ContentView_iOS
+            // starts the keepalive when the app transitions to background, which is the only
+            // time it's needed (foreground apps are never suspended by iOS).
         }
         print("⏸️ DVR paused at t=\(String(format: "%.2f", dvrPauseTimestamp))s")
     }
@@ -151,9 +150,7 @@ extension BASSRadioPlayer {
             BASS_ChannelSetAttribute(ph, DWORD(BASS_ATTRIB_VOL), 0)
             BASS_ChannelPause(ph)
             self.startDVRRecordingPump()
-            #if os(iOS)
-            self.startSilenceKeepalive()
-            #endif
+            // Keepalive deferred to background transition — see dvrPause() comment.
         }
         print("⏸️ DVR playback paused at recording t=\(String(format: "%.2f", currentRecordingTime))s")
     }
@@ -367,7 +364,11 @@ extension BASSRadioPlayer {
             case .paused:
                 // Use wall-clock delta so the counter keeps running even when the app is
                 // backgrounded and the recording pump (and thus bufferedDuration) is frozen.
-                self.behindLiveSeconds = self.dvrPauseOffset + Date().timeIntervalSince(self.dvrPauseWallTime)
+                // Cap at the buffer's max so the counter doesn't grow past what can ever be
+                // played back — handles the case where iOS suspended the recording pump before
+                // the ring filled and handleDVRBufferFull was never triggered.
+                let elapsed = self.dvrPauseOffset + Date().timeIntervalSince(self.dvrPauseWallTime)
+                self.behindLiveSeconds = min(elapsed, self.dvrMaxBufferSeconds)
             case .playing where self.dvrPlaybackStream != 0:
                 // While playing, behind = live recording head minus DVR playback position.
                 // Both advance at ~1 s/s, so this value stays roughly constant.
