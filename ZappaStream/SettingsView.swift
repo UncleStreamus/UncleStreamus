@@ -19,7 +19,7 @@ struct SettingsView: View {
             case .playback: return 500
             case .sync: return 200
             case .savedData: return 520
-            case .credits: return 280
+            case .credits: return 420
             }
         }
     }
@@ -463,6 +463,46 @@ struct CreditsView: View {
                 } label: {
                     HStack {
                         Text("Visit Zappateers")
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                    }
+                }
+            }
+
+            SettingsSectionHeader(title: "Audio Engine", systemImage: "waveform")
+
+            SettingsSectionBox {
+                Text("Audio playback and FX powered by BASS from un4seen.com.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Button {
+                    if let url = URL(string: "https://www.un4seen.com") {
+                        openURL(url)
+                    }
+                } label: {
+                    HStack {
+                        Text("Visit un4seen.com")
+                        Spacer()
+                        Image(systemName: "arrow.up.right.square")
+                    }
+                }
+            }
+
+            SettingsSectionHeader(title: "App", systemImage: "chevron.left.forwardslash.chevron.right")
+
+            SettingsSectionBox {
+                Text("ZappaStream is open source. Go here for general info and issue discussions.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Button {
+                    if let url = URL(string: "https://github.com/ZappaStream/ZappaStream") {
+                        openURL(url)
+                    }
+                } label: {
+                    HStack {
+                        Text("View on GitHub")
                         Spacer()
                         Image(systemName: "arrow.up.right.square")
                     }
