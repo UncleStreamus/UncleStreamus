@@ -859,6 +859,13 @@ extension BASSRadioPlayer {
     /// Safe to call repeatedly; no-ops if already running.
     func startSilenceKeepalive() {
         guard silenceKeepalivePlayer == nil else { return }
+        #if os(iOS)
+        // The keepalive only prevents *background* suspension. In the foreground iOS never suspends
+        // us, and an active silent player makes iOS believe audio is rendering — which (because we
+        // lack the private com.apple.mediaremote.set-playback-state entitlement) routes the
+        // AirPods/lock-screen button to pauseCommand even while DVR-paused, silently breaking resume.
+        guard !isAppInForeground else { return }
+        #endif
         guard let data = Self.silentWAVData,
               let player = try? AVAudioPlayer(data: data, fileTypeHint: AVFileType.wav.rawValue)
         else {

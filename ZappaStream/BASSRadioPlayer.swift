@@ -122,6 +122,14 @@ enum PlaybackState: Equatable {
     /// freeStream() and restartStream() must NOT touch this.
     var isUserIntendedPlay: Bool = false
 
+    #if os(iOS)
+    /// Tracks whether the app is in the foreground (`scenePhase == .active`). Updated from
+    /// ContentView_iOS's scenePhase handler. Used to suppress the silence keepalive in the
+    /// foreground, where it is unnecessary (foreground apps are never suspended) and harmful
+    /// (active silent audio makes iOS route the AirPods/lock-screen button to pauseCommand).
+    var isAppInForeground = true
+    #endif
+
     /// Timestamp of the last user-initiated play or stop. Used to debounce rapid double-taps.
     private var lastUserActionTime: Date = .distantPast
 

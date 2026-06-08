@@ -362,6 +362,10 @@ struct ContentView_iOS: View {
             fzShowsDB?.downloadAllPages()
         }
         .onChange(of: scenePhase) { _, newPhase in
+            // Track foreground state first so startSilenceKeepalive()'s foreground guard sees the
+            // correct value when the background-keepalive start below runs. Only .active counts as
+            // foreground; .inactive is treated as backgrounding (matches the check below).
+            bassPlayer.isAppInForeground = (newPhase == .active)
             if newPhase == .background || newPhase == .inactive {
                 UserDefaults.standard.set(isPlaying, forKey: "wasPlayingOnQuit")
                 // Safety net: start keepalive on backgrounding if DVR is paused and it
@@ -394,11 +398,13 @@ struct ContentView_iOS: View {
         .onChange(of: bassPlayer.dvrState) { _, newState in
             updateNowPlayingInfo()
             syncCarPlayBridge()
-            // Start the keepalive the moment DVR pauses (foreground or background) so
-            // the recording pump keeps the ring buffer filling regardless of scene phase.
-            // updateNowPlayingInfo() has already set pauseCommand.isEnabled=false and
-            // playbackState=.paused, so the lock screen and AirPods correctly show play.
-            // dvrResume()/goLive() call stopSilenceKeepalive() when audio resumes.
+            // Try to start the keepalive when DVR pauses so the recording pump keeps the ring
+            // buffer filling if/when the app is backgrounded. This is a NO-OP in the foreground:
+            // startSilenceKeepalive() guards on isAppInForeground because an active silent player
+            // makes iOS think audio is rendering and route the AirPods/lock-screen button to
+            // pauseCommand (a no-op while paused) — we can't correct that via playbackState, since
+            // the set-playback-state entitlement is private. The background case is also covered by
+            // the scenePhase handler above. dvrResume()/goLive() call stopSilenceKeepalive().
             if newState == .paused {
                 bassPlayer.startSilenceKeepalive()
             }
@@ -1360,17 +1366,25 @@ struct ContentView_iOS: View {
                 print("⏸️  remoteCmd PAUSE — isPlaying=\(self.isPlaying) dvrState=\(self.bassPlayer.dvrState)")
                 #endif
                 guard self.isPlaying else { return }
-                // Don't call checkUserActionAllowed for a no-op (already paused) — avoid
-                // consuming the debounce when iOS/AirPods send a stale pause while we're
-                // already paused, which would block the subsequent play press.
-                guard self.bassPlayer.dvrState != .paused else { return }
+                // If DVR is already paused, iOS routed a *resume* intent to pauseCommand: it can't
+                // read our paused state (no com.apple.mediaremote.set-playback-state entitlement),
+                // so once it last saw us "playing" it keeps sending pause. Treat it as resume. The
+                // 1.2s debounce blocks an iOS double-fired pause right after the real pause from
+                // accidentally resuming.
+                if self.bassPlayer.dvrState == .paused {
+                    guard self.bassPlayer.checkUserActionAllowed() else { return }
+                    configureAudioSession()
+                    self.bassPlayer.dvrResume()
+                    self.updateNowPlayingInfo()
+                    return
+                }
                 guard self.bassPlayer.checkUserActionAllowed() else { return }
                 switch self.bassPlayer.dvrState {
                 case .live:
                     if self.dvrEnabled { self.bassPlayer.dvrPause() } else { self.stopStream() }
                     self.updateNowPlayingInfo()
                 case .paused:
-                    break  // unreachable; guarded above
+                    break  // unreachable; handled above
                 case .playing:
                     self.bassPlayer.dvrPausePlayback()
                     self.updateNowPlayingInfo()
@@ -1476,11 +1490,22 @@ struct ContentView_iOS: View {
         let commandCenter = MPRemoteCommandCenter.shared()
         commandCenter.playCommand.isEnabled = !isActuallyPlaying
         commandCenter.pauseCommand.isEnabled = isActuallyPlaying
-        // The icon itself doesn't follow isEnabled or playbackRate — it's driven by this
-        // explicit, declarative signal (iOS 16+), the modern replacement for inferring
-        // play/pause from playbackRate. Without it the displayed icon is stuck wherever
-        // the system last left it optimistically after its own command fired, regardless
-        // of state changes that happen via Stop/the in-app controls/auto-resume.
+        // KNOWN LIMITATION (accepted — see memory ios_lockscreen_playstate_limitation.md):
+        // iOS *ignores* every playbackState write below — it requires the private
+        // `com.apple.mediaremote.set-playback-state` entitlement, which a third-party app
+        // cannot have (device logs: "Ignoring setPlaybackState because application does not
+        // contain entitlement…"). So the lock-screen/Control-Center transport icon is NOT
+        // driven by playbackState. iOS falls back to (a) playbackRate below and (b) its own
+        // observation of whether we're producing audio. While DVR-paused *and locked*, the
+        // silence keepalive is deliberately running (it must, to keep the recording pump
+        // filling the buffer in the background), so iOS sees active audio and shows the PAUSE
+        // icon even though we're paused. A direct lock-screen button tap flips the icon
+        // optimistically; an AirPods press does not, so the icon can lag when paused via
+        // AirPods while locked. This is a cosmetic-only issue — playback pause/resume itself
+        // is correct (the pauseCommand→resume branch in setupRemoteCommandCenter handles the
+        // case where iOS routes the resume press to pauseCommand). We still set playbackState
+        // and playbackRate because they're honored on platforms/contexts that DO read them
+        // (e.g. CarPlay) and cost nothing where they're ignored.
         let nowPlayingCenter = MPNowPlayingInfoCenter.default()
         if isActuallyPlaying {
             nowPlayingCenter.playbackState = .playing

@@ -94,11 +94,12 @@ extension BASSRadioPlayer {
             // while the output mixer is paused, ensuring WAV segments keep being written.
             BASS_ChannelPause(self.mixerHandle)
             self.startDVRRecordingPump()
-            // Keepalive (silent AVAudioPlayer) is NOT started here — starting it in the
-            // foreground causes iOS to see active audio output and route AirPods/lock screen
-            // to pauseCommand (a no-op when already paused), breaking resume. ContentView_iOS
-            // starts the keepalive when the app transitions to background, which is the only
-            // time it's needed (foreground apps are never suspended by iOS).
+            // Keepalive (silent AVAudioPlayer) is NOT started here. In the foreground it would
+            // make iOS see active audio output and route AirPods/lock screen to pauseCommand
+            // (a no-op when already paused), breaking resume. It's only needed in the background
+            // (foreground apps are never suspended by iOS); ContentView_iOS's scenePhase/dvrState
+            // handlers request it, and startSilenceKeepalive() centrally suppresses it whenever
+            // the app is in the foreground (guard on isAppInForeground).
         }
         print("⏸️ DVR paused at t=\(String(format: "%.2f", dvrPauseTimestamp))s")
     }
