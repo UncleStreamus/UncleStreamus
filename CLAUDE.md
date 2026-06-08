@@ -183,8 +183,9 @@ Platform-Specific:
 - `lastStreamFormat` — last stream format selected (default "MP3")
 - `wasPlayingOnQuit` — for auto-resume on launch
 - `autoResumeOnLaunch` — auto-resume setting (default true)
-- `fxPersistAcrossShows` — keep FX settings when show changes (default false)
-- `fxPersistOnRestart` — restore FX on app restart for same show (default false)
+- `fxRememberPerShow` — save/recall FX per show (default false); snapshots stored local-first in UserDefaults + mirrored to iCloud KVS
+- `fxPersistAcrossShows` — keep FX settings when show changes (default false); disabled when `fxRememberPerShow` is on
+- `fxPerShow.<showDate>` — per-show `FXSnapshot` JSON; written to both `UserDefaults.standard` and `NSUbiquitousKeyValueStore`
 - `dvrEnabled` — DVR mode on/off (default true, both platforms)
 - `dvrBufferMinutes` — DVR ring buffer size in minutes (default 15, both platforms)
 - `isSidebarVisible` — sidebar open state (macOS only)
@@ -225,11 +226,11 @@ Platform-Specific:
 - Falls back to scanning `currentShow.showInfo` HTML for AUD/SBD/FM/STAGE strings
 - Displayed as a blue badge in the track info card
 
-**FX Persistence Logic (on show change):**
-- `fxPersistAcrossShows=false`: `resetAllFX()` whenever show changes (default)
-- `fxPersistAcrossShows=true`: keep FX settings across shows
-- `fxPersistOnRestart=true`: if same show as when app quit, `restoreFXFromDefaults()` on next launch; otherwise `resetAllFX()`
-- Controlled by `fetchShowInfo()` comparing `lastShowDateOnQuit` to new show date
+**FX Persistence Logic (in `fetchShowInfo()`, both ContentViews):**
+- `fxRememberPerShow=true`: `restorePerShowFX(showDate:)` for the show's variant date applies a saved snapshot immediately. If the show has **no** snapshot, the reset to defaults is **deferred to the fetch completion** and only fires once a real show has loaded (`show != nil && !hasPerShowFX(variantDate)`) — so a transient Icecast metadata glitch that never resolves to a real show can't cause an audible mid-song FX dropout. Snapshots saved on every FX change via `saveFXToDefaults()` → `savePerShowFX()`. Covers both across-show and app-restart cases.
+- `fxRememberPerShow=false` + `fxPersistAcrossShows=false`: `resetAllFX()` (default)
+- `fxRememberPerShow=false` + `fxPersistAcrossShows=true`: keep FX settings across shows
+- **Per-show storage:** `savePerShowFX()` writes the `FXSnapshot` JSON to both `UserDefaults.standard` (synchronous source of truth — reliable at launch) and `NSUbiquitousKeyValueStore` (cross-device mirror). `restorePerShowFX()` reads UserDefaults first, falling back to KVS and caching any cloud-only snapshot locally. `PerShowFXSync.start()` (called from `ZappaStreamApp.init`) calls `synchronize()` and observes `didChangeExternallyNotification` to mirror cloud changes into UserDefaults.
 
 **Audio Effects DSP Pipeline:**
 - **3-Band EQ** (via `BASS_FX_BFX_PEAKEQ`):
@@ -357,7 +358,7 @@ Platform-Specific:
 | `BASSRadioPlayer.swift` | Core `@Observable` class: state properties, BASS handles, `PlaybackState` enum, `init` (global BASS config), `deinit`, `play()`, `stop()`, `stopWithFadeOut()`, stream quality list |
 | `BASSRadioPlayer+Playback.swift` | Stream lifecycle — `switchQuality()`, `freeStream()`, `restartStream()`, FLAC two-mixer pipeline, pre-buffer sequence, auto-restart, fade-in/out timers, `triggerImmediateReconnect()` |
 | `BASSRadioPlayer+Metadata.swift` | Metadata polling — `startMetadataPolling()`, `pollMetadata()`, `fetchIcecastMetadata()`, `publishTitle()`, stall detection |
-| `BASSRadioPlayer+AudioFX.swift` | DSP pipeline — `applyEffects()`, EQ, adaptive compressor, stereo M/S + freq-spreading + APF mono synthesis, soft limiter, click guard, `flushEffects()`, `resetAllFX()`, `restoreFXFromDefaults()`, `masterBypassEnabled` |
+| `BASSRadioPlayer+AudioFX.swift` | DSP pipeline — `applyEffects()`, EQ, adaptive compressor, stereo M/S + freq-spreading + APF mono synthesis, soft limiter, click guard, `flushEffects()`, `resetAllFX()`, `savePerShowFX()`/`restorePerShowFX()`, `PerShowFXSync`, `masterBypassEnabled` |
 | `BASSRadioPlayer+DVR.swift` | DVR ring buffer (both platforms) — `dvrPause()`, `dvrResume()`, `dvrPausePlayback()`, `goLive()`, `handleDVRStreamEnd()`, `behindLiveSeconds`, `updateDVRBufferSize()`, recording DSP |
 | `ParsedTrackInfo.swift` | Metadata parsing (4 formats), date/location/track extraction via regex |
 | `FZShowsFetcher.swift` | HTML scraping for zappateers.com setlists, exceptions dict, fallback to rehearsals.html |
@@ -393,7 +394,7 @@ Platform-Specific:
 - **UI state:** `ShowDataManager.uiState` — now-playing selection and highlight
 - **Menubar (macOS):** `ZappaStreamApp.setupMenubar()` — icon and popover setup
 - **Media controls (both):** `ContentView` / `ContentView_iOS` → `setupRemoteCommandCenter()`
-- **FX persistence:** `fetchShowInfo()` in both ContentViews — `fxPersistAcrossShows`/`fxPersistOnRestart` logic
+- **FX persistence:** `fetchShowInfo()` in both ContentViews — `fxRememberPerShow` (per-show snapshots) / `fxPersistAcrossShows` logic
 - **Track position matching:** `findCurrentTrackPosition()` — handles duplicate song names
 - **iOS layout:** `ContentView_iOS.body` — iPad inline sidebar vs iPhone overlay via `horizontalSizeClass`
 
@@ -419,7 +420,7 @@ Platform-Specific:
 2. Add corresponding DSP logic in `applyEffects()` or a new DSP callback
 3. Add UI control in `AudioFXView.swift` (shared; Canvas-based sliders)
 4. Update `isFXBeingUsed` if the new control should trigger the FX indicator
-5. Update `resetAllFX()` and `restoreFXFromDefaults()`
+5. Update `resetAllFX()` and the `FXSnapshot` struct (used by `savePerShowFX()`/`restorePerShowFX()`)
 
 **Diagnosing stream issues:**
 - Check `playbackState` — should progress `.connecting` → `.buffering` → `.playing`
@@ -478,6 +479,6 @@ All tests cover pure/stateless business logic. `BASSRadioPlayer` has no unit tes
 
 **Stream keeps restarting:** AAC restarts on buffer underrun; OGG needs 2 consecutive STOPPED polls; FLAC uses proactive recovery. After 12 attempts (~1 min) state → `.stopped`.
 
-**FX not persisting across shows:** Check `fxPersistAcrossShows` setting (default off). Also check `fxPersistOnRestart` for same-show-on-restart behaviour.
+**FX not persisting across shows:** Check `fxPersistAcrossShows` setting (default off). For per-show memory, check `fxRememberPerShow` — snapshots persist in `UserDefaults` (`fxPerShow.<showDate>` keys) and mirror to iCloud KVS, so they survive app restart even without iCloud.
 
 **DVR going live prematurely:** Check `preloadDVRNextSegment` guard (`bufferedDuration - nextTs >= 2.0`). Verify `BASS_ChannelPlay(mixerHandle, 0)` is called outside the `if nextStream != 0` block in `handleDVRStreamEndMixtime`.

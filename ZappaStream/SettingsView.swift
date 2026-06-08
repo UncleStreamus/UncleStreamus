@@ -114,7 +114,6 @@ struct PlaybackSettingsView: View {
     @AppStorage("autoResumeOnLaunch") private var autoResumeOnLaunch: Bool = true
     @AppStorage("fxRememberPerShow") private var fxRememberPerShow: Bool = false
     @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
-    @AppStorage("fxPersistOnRestart") private var fxPersistOnRestart: Bool = false
     @AppStorage("dvrEnabled") private var dvrEnabled: Bool = true
     @AppStorage("dvrBufferMinutes") private var dvrBufferMinutes: Int = 15
 
@@ -204,17 +203,6 @@ struct PlaybackSettingsView: View {
                 .disabled(fxRememberPerShow)
 
                 Text("By default, all FX are reset when a new show starts. Enable this to keep your settings — though consider that the same settings will probably not work for different shows.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.bottom, 6)
-
-                Toggle(isOn: $fxPersistOnRestart) {
-                    Text("FX settings persist on app restart")
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Text("Restore your last FX settings when the app launches.")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

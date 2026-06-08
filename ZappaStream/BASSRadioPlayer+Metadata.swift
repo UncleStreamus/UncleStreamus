@@ -269,20 +269,33 @@ extension BASSRadioPlayer {
             } else if lastKnownStreamBytes > 0,
                       lastPositionAdvanceTime > 0,
                       now - lastPositionAdvanceTime > 4.0,
-                      !isReconnecting,
-                      dvrState == .live {
+                      !isReconnecting {
+                // Decode position frozen while BASS still reports PLAYING and the download buffer
+                // has data — the canonical AAC + AudioToolbox "can't decode this packet" loop
+                // (device log: "Packet with multiple raw data blocks - unsupported" /
+                // "ScanForPackets (AAC) failed"). A fresh connection resyncs past the bad frame.
+                // This must ALSO fire during DVR pause/playback: there the recording pump drives
+                // decode, so a stall freezes the ring buffer (bufferedDuration stops growing) with
+                // no other recovery — the observed multi-minute DVR stall. Use the DVR-aware
+                // partial restart so the ring buffer survives; restartStream() would destroy it.
                 #if DEBUG
-                print("🔄 Stream stale: pos stuck at \(bytes)B for \(String(format:"%.1f", now - lastPositionAdvanceTime))s — restarting")
+                print("🔄 Stream stale: pos stuck at \(bytes)B for \(String(format:"%.1f", now - lastPositionAdvanceTime))s (dvrState=\(dvrState)) — restarting")
                 #endif
-                #if os(iOS)
-                beginBackgroundReconnectTaskIfNeeded()
-                startSilenceKeepalive()
-                #endif
-                DispatchQueue.main.async { [weak self] in
-                    self?.isReconnecting = true
-                    self?.playbackState = .buffering
+                if dvrState == .live {
+                    #if os(iOS)
+                    beginBackgroundReconnectTaskIfNeeded()
+                    startSilenceKeepalive()
+                    #endif
+                    DispatchQueue.main.async { [weak self] in
+                        self?.isReconnecting = true
+                        self?.playbackState = .buffering
+                    }
+                    bassPollingQueue.async { [weak self] in self?.restartStream() }
+                } else {
+                    // partialRestartLiveChannel() resets lastKnownStreamBytes/lastPositionAdvanceTime
+                    // so the fresh (position-0) stream doesn't immediately re-trigger this check.
+                    bassPollingQueue.async { [weak self] in self?.partialRestartLiveChannel() }
                 }
-                bassPollingQueue.async { [weak self] in self?.restartStream() }
             }
         }
     }

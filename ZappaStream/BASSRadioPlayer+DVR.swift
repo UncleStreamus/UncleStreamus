@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 #if os(macOS)
 import Bass
 import BassMix
@@ -102,6 +103,9 @@ extension BASSRadioPlayer {
             // the app is in the foreground (guard on isAppInForeground).
         }
         print("⏸️ DVR paused at t=\(String(format: "%.2f", dvrPauseTimestamp))s")
+        #if DEBUG
+        logDVRDiag("pause")   // baseline snapshot at the moment of pause
+        #endif
     }
 
     /// Pause DVR playback (while in .playing state).
@@ -237,6 +241,9 @@ extension BASSRadioPlayer {
         startBehindTimer()
         startDVRMetadataPolling()
         print("▶️  DVR playback started from t=\(String(format: "%.2f", dvrPauseTimestamp))s")
+        #if DEBUG
+        logDVRDiag("resume")   // state at the moment playback resumes — compare buffered vs the paused tick
+        #endif
     }
 
     /// Exit DVR mode and return to the live stream immediately.
@@ -363,13 +370,20 @@ extension BASSRadioPlayer {
 
             switch self.dvrState {
             case .paused:
-                // Use wall-clock delta so the counter keeps running even when the app is
-                // backgrounded and the recording pump (and thus bufferedDuration) is frozen.
-                // Cap at the buffer's max so the counter doesn't grow past what can ever be
-                // played back — handles the case where iOS suspended the recording pump before
-                // the ring filled and handleDVRBufferFull was never triggered.
-                let elapsed = self.dvrPauseOffset + Date().timeIntervalSince(self.dvrPauseWallTime)
-                self.behindLiveSeconds = min(elapsed, self.dvrMaxBufferSeconds)
+                // Show actual playable content from the pause point — not an optimistic
+                // wall-clock guess. If background recording was suspended, this reflects the
+                // smaller real buffer and matches what dvrResume()/.playing shows, so there is
+                // no jump when the user presses play. Same measure as handleDVRBufferFull and
+                // the .playing branch below. Capped at the buffer max as a safety bound.
+                let recorded = max(0, buffer.bufferedDuration - self.dvrPauseTimestamp)
+                self.behindLiveSeconds = min(recorded, self.dvrMaxBufferSeconds)
+                #if DEBUG
+                // Snapshot roughly every 30 s; the timer fires ~1/s. While foregrounded `buffered`
+                // should climb in step; the moment it flatlines marks where recording stopped.
+                if Int(Date().timeIntervalSince(self.dvrPauseWallTime)) % 30 == 0 {
+                    self.logDVRDiag("paused-tick")
+                }
+                #endif
             case .playing where self.dvrPlaybackStream != 0:
                 // While playing, behind = live recording head minus DVR playback position.
                 // Both advance at ~1 s/s, so this value stays roughly constant.
@@ -601,6 +615,11 @@ extension BASSRadioPlayer {
         if streamHandle   != 0 { BASS_StreamFree(streamHandle);    streamHandle   = 0 }
         stallSync = 0; endSync = 0; oggChangeSync = 0
         recordingDSP = 0; clickGuardDSP = 0; cgFadeBuffersRemaining = 0
+        // Re-baseline the decode-position staleness tracker (mirrors freeStream()). The new
+        // stream starts at position 0, so without this the checkStreamStatus staleness check
+        // would see bytes <= old lastKnownStreamBytes and re-fire immediately, looping restarts.
+        lastKnownStreamBytes = 0
+        lastPositionAdvanceTime = 0
 
         // Reconnect live stream.
         let streamFlags = DWORD(BASS_STREAM_STATUS) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE)
@@ -679,10 +698,26 @@ extension BASSRadioPlayer {
     func startDVRRecordingPump() {
         stopDVRRecordingPump()
         guard preMixerHandle != 0 else { return }
+        #if DEBUG
+        dvrPumpLastTick = Date()
+        dvrPumpTickCount = 0
+        #endif
         let src = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInitiated))
         src.schedule(deadline: .now() + 0.1, repeating: .milliseconds(100), leeway: .milliseconds(10))
         src.setEventHandler { [weak self] in
             guard let self, self.preMixerHandle != 0 else { return }
+            #if DEBUG
+            // Pump-gap detection: the timer fires every 100 ms while the app runs. A gap far
+            // larger than that means the app was suspended (iOS froze the DispatchSource), which
+            // also froze the recording DSP — the smoking gun for DVR background-recording loss.
+            let now = Date()
+            let gap = now.timeIntervalSince(self.dvrPumpLastTick)
+            if gap > 1.0 {
+                print("⚠️ DVR pump gap of \(String(format: "%.1f", gap))s after \(self.dvrPumpTickCount) ticks (app likely suspended)")
+            }
+            self.dvrPumpLastTick = now
+            self.dvrPumpTickCount += 1
+            #endif
             self.dvrRecordingPumpBuf.withUnsafeMutableBytes { ptr in
                 _ = BASS_ChannelGetData(self.preMixerHandle, ptr.baseAddress!, DWORD(ptr.count))
             }
@@ -697,6 +732,43 @@ extension BASSRadioPlayer {
         dvrRecordingPumpSource?.cancel()
         dvrRecordingPumpSource = nil
         print("🎙️ DVR recording pump stopped")
+    }
+
+    // MARK: - DVR Diagnostics (DEBUG only)
+
+    /// Print a one-line snapshot of all DVR/keepalive/stream state relevant to the
+    /// background-recording investigation. Compile out entirely in release builds.
+    ///
+    /// Reading the output: the `→background`/`→foreground` pair brackets the suspended window —
+    /// compare `buffered` and wall time across them. While paused-and-foregrounded `buffered`
+    /// should climb ~1 s per second; the moment it flatlines is where recording stopped.
+    /// `fg` shows `isAppInForeground` — `keepalive=nil` is EXPECTED while `fg=true` (it is
+    /// suppressed in the foreground by design); only `fg=false` with the keepalive not playing
+    /// signals a real background-suspension risk.
+    func logDVRDiag(_ tag: String) {
+        #if DEBUG
+        let buffered = streamBuffer?.bufferedDuration ?? 0
+        let recorded = max(0, buffered - dvrPauseTimestamp)
+        let wallElapsed = dvrPauseWallTime == .distantPast ? 0 : Date().timeIntervalSince(dvrPauseWallTime)
+        let streamActive = streamHandle != 0 ? BASS_ChannelIsActive(streamHandle) : DWORD(BASS_ACTIVE_STOPPED)
+        let mixerActive  = mixerHandle  != 0 ? BASS_ChannelIsActive(mixerHandle)  : DWORD(BASS_ACTIVE_STOPPED)
+        let dlBuf  = streamHandle != 0 ? BASS_StreamGetFilePosition(streamHandle, DWORD(BASS_FILEPOS_BUFFER))   : 0
+        let dlTot  = streamHandle != 0 ? BASS_StreamGetFilePosition(streamHandle, DWORD(BASS_FILEPOS_DOWNLOAD)) : 0
+
+        var line = "📊 DVR[\(tag)] state=\(dvrState) buffered=\(String(format: "%.1f", buffered))s"
+            + " pauseTs=\(String(format: "%.1f", dvrPauseTimestamp))s recorded=\(String(format: "%.1f", recorded))s"
+            + " wallElapsed=\(String(format: "%.1f", wallElapsed))s behind=\(String(format: "%.1f", behindLiveSeconds))s"
+            + " streamActive=\(streamActive) mixerActive=\(mixerActive) dlBuf=\(dlBuf) dlTot=\(dlTot)"
+
+        #if os(iOS)
+        let kaPlaying = silenceKeepalivePlayer?.isPlaying ?? false
+        let session = AVAudioSession.sharedInstance()
+        line += " fg=\(isAppInForeground) keepalive=\(silenceKeepalivePlayer == nil ? "nil" : (kaPlaying ? "playing" : "stopped"))"
+            + " avCat=\(session.category.rawValue) otherAudio=\(session.isOtherAudioPlaying)"
+        #endif
+
+        print(line)
+        #endif
     }
 
     /// Start polling the metadata journal for DVR playback position every 3 s.

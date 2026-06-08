@@ -20,6 +20,37 @@ struct FXSnapshot: Codable {
     var masterBypassEnabled: Bool
 }
 
+// MARK: - Per-Show FX iCloud Sync
+
+/// Keeps per-show FX snapshots (`fxPerShow.*`) in sync between iCloud KVS and the
+/// local UserDefaults cache that `restorePerShowFX` reads. Call `start()` once at launch.
+enum PerShowFXSync {
+    private static let keyPrefix = "fxPerShow."
+    private static var observer: NSObjectProtocol?
+
+    static func start() {
+        guard observer == nil else { return }
+        let store = NSUbiquitousKeyValueStore.default
+        // Observe before synchronize() so we don't miss the initial pull.
+        observer = NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: store,
+            queue: .main
+        ) { note in
+            let changedKeys = note.userInfo?[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String]
+            // If we don't know which keys changed, mirror all per-show keys.
+            let keys = changedKeys?.filter { $0.hasPrefix(keyPrefix) }
+                ?? store.dictionaryRepresentation.keys.filter { $0.hasPrefix(keyPrefix) }
+            for key in keys {
+                if let data = store.data(forKey: key) {
+                    UserDefaults.standard.set(data, forKey: key)
+                }
+            }
+        }
+        store.synchronize()
+    }
+}
+
 // MARK: - Audio Effects & DSP
 
 extension BASSRadioPlayer {
@@ -696,18 +727,9 @@ extension BASSRadioPlayer {
     }
 
     func saveFXToDefaults() {
-        let d = UserDefaults.standard
-        d.set(eqLowGain,           forKey: "fx.eqLowGain")
-        d.set(eqMidGain,           forKey: "fx.eqMidGain")
-        d.set(eqHighGain,          forKey: "fx.eqHighGain")
-        d.set(eqEnabled,           forKey: "fx.eqEnabled")
-        d.set(compressorOn,        forKey: "fx.compressorOn")
-        d.set(compressorAmount,    forKey: "fx.compressorAmount")
-        d.set(stereoWidth,         forKey: "fx.stereoWidth")
-        d.set(stereoPan,           forKey: "fx.stereoPan")
-        d.set(stereoWidthEnabled,  forKey: "fx.stereoWidthEnabled")
-        d.set(masterBypassEnabled, forKey: "fx.masterBypassEnabled")
-        if d.bool(forKey: "fxRememberPerShow"), let showDate = currentShowDate {
+        // Per-show snapshots are the only persisted FX state. (Global "restore on
+        // app restart" was removed — per-show memory covers the restart case.)
+        if UserDefaults.standard.bool(forKey: "fxRememberPerShow"), let showDate = currentShowDate {
             savePerShowFX(showDate: showDate)
         }
     }
@@ -720,15 +742,33 @@ extension BASSRadioPlayer {
             stereoWidthEnabled: stereoWidthEnabled, masterBypassEnabled: masterBypassEnabled
         )
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
-        NSUbiquitousKeyValueStore.default.set(data, forKey: "fxPerShow.\(showDate)")
+        let key = "fxPerShow.\(showDate)"
+        // Local UserDefaults is the synchronous source of truth (always survives a
+        // restart). Mirror to iCloud KVS for cross-device sync.
+        UserDefaults.standard.set(data, forKey: key)
+        NSUbiquitousKeyValueStore.default.set(data, forKey: key)
         NSUbiquitousKeyValueStore.default.synchronize()
     }
 
-    /// Restores FX from the per-show iCloud snapshot. Returns false if no snapshot exists for this show.
+    /// Whether a per-show FX snapshot exists for this show (no side effects).
+    func hasPerShowFX(showDate: String) -> Bool {
+        let key = "fxPerShow.\(showDate)"
+        return UserDefaults.standard.data(forKey: key) != nil
+            || NSUbiquitousKeyValueStore.default.data(forKey: key) != nil
+    }
+
+    /// Restores FX from the per-show snapshot. Returns false if no snapshot exists for this show.
+    /// Reads local UserDefaults first (reliable at launch); falls back to the iCloud
+    /// KVS and caches any cloud-only snapshot back into UserDefaults.
     @discardableResult
     func restorePerShowFX(showDate: String) -> Bool {
-        guard let data = NSUbiquitousKeyValueStore.default.data(forKey: "fxPerShow.\(showDate)"),
-              let snapshot = try? JSONDecoder().decode(FXSnapshot.self, from: data) else { return false }
+        let key = "fxPerShow.\(showDate)"
+        var data = UserDefaults.standard.data(forKey: key)
+        if data == nil, let cloudData = NSUbiquitousKeyValueStore.default.data(forKey: key) {
+            UserDefaults.standard.set(cloudData, forKey: key)
+            data = cloudData
+        }
+        guard let data, let snapshot = try? JSONDecoder().decode(FXSnapshot.self, from: data) else { return false }
         eqLowGain          = snapshot.eqLowGain
         eqMidGain          = snapshot.eqMidGain
         eqHighGain         = snapshot.eqHighGain
@@ -742,23 +782,6 @@ extension BASSRadioPlayer {
         updateEQ()
         updateCompressor()
         return true
-    }
-
-    func restoreFXFromDefaults() {
-        let d = UserDefaults.standard
-        guard d.object(forKey: "fx.eqLowGain") != nil else { return }
-        eqLowGain           = d.float(forKey: "fx.eqLowGain")
-        eqMidGain           = d.float(forKey: "fx.eqMidGain")
-        eqHighGain          = d.float(forKey: "fx.eqHighGain")
-        eqEnabled           = d.bool(forKey: "fx.eqEnabled")
-        compressorOn        = d.bool(forKey: "fx.compressorOn")
-        compressorAmount    = d.float(forKey: "fx.compressorAmount")
-        stereoWidth         = d.float(forKey: "fx.stereoWidth")
-        stereoPan           = d.float(forKey: "fx.stereoPan")
-        stereoWidthEnabled  = d.bool(forKey: "fx.stereoWidthEnabled")
-        masterBypassEnabled = d.bool(forKey: "fx.masterBypassEnabled")
-        updateEQ()
-        updateCompressor()
     }
 
     func updateMasterBypass() {

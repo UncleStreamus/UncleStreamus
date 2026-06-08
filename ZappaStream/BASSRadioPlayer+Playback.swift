@@ -18,6 +18,7 @@ extension BASSRadioPlayer {
 
     func switchQuality(_ format: String) {
         guard let entry = qualities.first(where: { $0.format == format }) else { return }
+        initBASS()  // no-op after first call; runs BASS_Init against the already-configured audio session
         isUserIntendedPlay = true
         cancelReconnectTimer()
         reconnectAttempt = 0

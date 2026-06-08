@@ -146,6 +146,14 @@ enum PlaybackState: Equatable {
     var dvrRecordingPumpSource: DispatchSourceTimer?
     var dvrRecordingPumpBuf = [UInt8](repeating: 0, count: 35280) // 100ms at 44.1kHz stereo float32
 
+    #if DEBUG
+    // Diagnostics for the DVR background-recording investigation (see plan
+    // cosmic-doodling-sifakis). Track recording-pump liveness so we can detect when iOS
+    // suspended the app (pump gap) vs the stream stalling. Reset each time the pump starts.
+    var dvrPumpLastTick: Date = .distantPast
+    var dvrPumpTickCount: Int = 0
+    #endif
+
     // 3s retry interval, giving up after 12 attempts (~1 minute total).
     let reconnectRetryInterval: TimeInterval = 3
     let reconnectMaxAttempts: Int = 12
@@ -238,7 +246,9 @@ enum PlaybackState: Equatable {
     func setMasterVolume(_ volume: Float) {
         masterVolume = max(0.0, min(1.0, volume))
         UserDefaults.standard.set(masterVolume, forKey: "masterVolume")
-        BASS_SetConfig(DWORD(BASS_CONFIG_GVOL_STREAM), DWORD(masterVolume * 10000))
+        if bassInitialized {
+            BASS_SetConfig(DWORD(BASS_CONFIG_GVOL_STREAM), DWORD(masterVolume * 10000))
+        }
     }
 
     func volumeUp() { setMasterVolume(masterVolume + 0.1) }
@@ -381,34 +391,37 @@ enum PlaybackState: Equatable {
 
     override init() {
         super.init()
+        // BASS_Init is deferred to the first switchQuality() call (via initBASS()) so it runs
+        // after configureAudioSession() has set .playback + .allowBluetoothA2DP. Running it
+        // here — before the audio session is configured — causes BASS to open its RemoteIO
+        // output unit against the default .soloAmbient session, producing garbled or misrouted
+        // audio on AirPods when a new build is installed over a running one.
+        startNetworkMonitoring()
+    }
 
-        // Update thread period: 20ms balances decode efficiency vs responsiveness.
-        // Too fast (5ms) = excessive context-switch overhead for CPU-heavy FLAC decode.
-        // Too slow (100ms default) = long gaps between buffer refills.
+    /// Initialize BASS against the current AVAudioSession. Called once from switchQuality()
+    /// before any stream is created, guaranteeing the audio session is configured first.
+    private var bassInitialized = false
+
+    func initBASS() {
+        guard !bassInitialized else { return }
+        bassInitialized = true
+
         BASS_SetConfig(DWORD(BASS_CONFIG_UPDATEPERIOD), 20)
-        // Two update threads: FLAC decode is CPU-heavy and runs on the update thread alongside
-        // mixer rendering + DSP chain. A second thread lets BASS parallelise decode and render,
-        // preventing decode slowdowns from starving the mixer output buffer.
         BASS_SetConfig(DWORD(BASS_CONFIG_UPDATETHREADS), 2)
-        // Larger device output buffer (default ~40ms → 500ms): last-resort defense before
-        // hardware. Adds trivial latency for a radio stream but absorbs any upstream hiccup.
-        // 500ms provides extra protection when the mixer output buffer hits 0ms during FLAC decode stalls.
         BASS_SetConfig(DWORD(BASS_CONFIG_DEV_BUFFER), 500)
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 25000)  // 25s download buffer for mobile resilience
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)    // Wait for 50% of net buffer before starting (~reduces initial stutter)
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 25000)
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 10000)
-        // Max playback buffer (caps BASS_ATTRIB_BUFFER). Try 15s — BASS may clamp to 5s
-        // internally, but if it accepts it the FLAC mixer gets more runway.
         BASS_SetConfig(DWORD(BASS_CONFIG_BUFFER), 15000)
         #if os(iOS)
-        // Let our Swift configureAudioSession() own the AVAudioSession entirely.
-        // Without this, BASS reconfigures the session on channel play, breaking MPNowPlayingInfoCenter.
         BASS_SetConfig(DWORD(BASS_CONFIG_IOS_SESSION), DWORD(BASS_IOS_SESSION_DISABLE))
         #endif
         guard BASS_Init(-1, 44100, 0, nil, nil) != 0 else {
             #if DEBUG
             print("❌  BASS_Init failed — error: \(BASS_ErrorGetCode())")
             #endif
+            bassInitialized = false
             return
         }
         BASS_Start()
@@ -416,12 +429,7 @@ enum PlaybackState: Equatable {
         #if DEBUG
         print("✅  BASS initialised")
         #endif
-        startNetworkMonitoring()
 
-        // Try to register the FLAC plugin so BASS_StreamCreateURL auto-detects FLAC.
-        // With static linking (Swift Package), BASS_PluginLoad may find the plugin in the
-        // Frameworks directory. If this succeeds, FLAC streams get full BASS_ATTRIB_BUFFER
-        // support and proper download buffering.
         let pluginPaths = ["bassflac", "libbassflac.dylib", "libbassflac"]
         for path in pluginPaths {
             let h = BASS_PluginLoad(path, 0)
@@ -432,12 +440,11 @@ enum PlaybackState: Equatable {
                 break
             }
         }
-        // If none loaded, BASS_FLAC_StreamCreateURL fallback still works (just without buffer support)
     }
 
     deinit {
         stop()
-        BASS_Free()
+        if bassInitialized { BASS_Free() }
     }
 
     // MARK: - Public Playback Interface
@@ -595,6 +602,7 @@ enum PlaybackState: Equatable {
     /// BASS_ChannelPause (DVR pause/resume cycle) + freeStream + new stream start, BASS
     /// can report ACTIVE_PLAYING while its RemoteIO unit outputs silence.
     func reconnectOutputToAudioSession() {
+        guard bassInitialized else { return }
         BASS_Stop()
         BASS_Start()
     }
@@ -619,4 +627,5 @@ enum PlaybackState: Equatable {
         print("🔊 BASS output reconnected to new audio route (dvrState=\(dvrState))")
         #endif
     }
+
 }

@@ -75,6 +75,10 @@ struct ZappaStreamApp: App {
             ?? { fatalError("Could not create cache ModelContainer") }()
     }()
 
+    init() {
+        PerShowFXSync.start()
+    }
+
     var body: some Scene {
         #if os(macOS)
         macOSScene

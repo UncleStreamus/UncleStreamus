@@ -35,7 +35,6 @@ struct ContentView_iOS: View {
     @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "MP3"
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
     @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
-    @AppStorage("fxPersistOnRestart") private var fxPersistOnRestart: Bool = false
     @AppStorage("dvrEnabled") private var dvrEnabled: Bool = true
     @AppStorage("dvrBufferMinutes") private var dvrBufferMinutes: Int = 15
     @State private var expandedFooterSection: FooterSection? = nil
@@ -373,8 +372,16 @@ struct ContentView_iOS: View {
                 if bassPlayer.dvrState == .paused {
                     bassPlayer.startSilenceKeepalive()
                 }
+                #if DEBUG
+                // Logged AFTER the keepalive-start above so the snapshot confirms the keepalive
+                // actually started for the background window (the linchpin of recording survival).
+                if bassPlayer.dvrState == .paused { bassPlayer.logDVRDiag("→background") }
+                #endif
             }
             if newPhase == .active {
+                #if DEBUG
+                if bassPlayer.dvrState == .paused { bassPlayer.logDVRDiag("→foreground") }
+                #endif
                 // Reconnect whenever the user intended to play but the stream isn't
                 // healthy — covers both zero handles (app was suspended during reconnect
                 // backoff) and stalled/stopped handles (BASS timed out but handles
@@ -1156,6 +1163,13 @@ struct ContentView_iOS: View {
                   let typeValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
             if type == .began {
+                #if DEBUG
+                // Interruption is the prime suspect for DVR background-recording loss: another app
+                // (e.g. a video call) claiming the session stops our silence keepalive, after which
+                // iOS suspends us and the recording pump freezes. Snapshot to capture that moment.
+                print("🔔 AVAudioSession interruption BEGAN — dvrState=\(bassPlayer.dvrState)")
+                bassPlayer.logDVRDiag("interrupt-began")
+                #endif
                 // Stop audio immediately on interruption (phone call, Siri, another app
                 // claiming the session). Use DVR-aware pause so the ring buffer keeps
                 // recording through the call; user can catch up when it ends.
@@ -1171,6 +1185,10 @@ struct ContentView_iOS: View {
             } else if type == .ended {
                 let opts = AVAudioSession.InterruptionOptions(
                     rawValue: notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0)
+                #if DEBUG
+                print("🔔 AVAudioSession interruption ENDED — shouldResume=\(opts.contains(.shouldResume)) dvrState=\(bassPlayer.dvrState) userIntendedPlay=\(bassPlayer.isUserIntendedPlay)")
+                bassPlayer.logDVRDiag("interrupt-ended")
+                #endif
                 if opts.contains(.shouldResume) && bassPlayer.isUserIntendedPlay {
                     configureAudioSession()
                     bassPlayer.triggerImmediateReconnect()
@@ -1240,6 +1258,11 @@ struct ContentView_iOS: View {
             #if DEBUG
             print("🎧 Route change: Bluetooth device available — re-activating audio session")
             #endif
+            // Re-set category here: on launch after a process kill (e.g. Xcode install-over),
+            // the -50 session lock from the Bluetooth transition prevents setCategory from
+            // succeeding in configureAudioSession(). By the time this routeChange fires the
+            // lock is released, so we set it now to enable A2DP before restarting BASS.
+            try? session.setCategory(.playback, mode: .default, options: [.allowBluetoothA2DP, .allowAirPlay])
             try? session.setActive(true)
             bassPlayer.restartOutputAfterRouteChange()
         }
@@ -1627,25 +1650,16 @@ struct ContentView_iOS: View {
 
         bassPlayer.currentShowDate = variantDate
 
-        // Determine whether to restore or reset FX based on show change and persistence settings
-        let lastShowDate = UserDefaults.standard.string(forKey: "lastShowDateOnQuit")
-        let showHasChanged = lastShowDate != nil && lastShowDate != variantDate
+        // Determine whether to restore or reset FX based on persistence settings
         let fxRememberPerShow = UserDefaults.standard.bool(forKey: "fxRememberPerShow")
-
         if fxRememberPerShow {
+            // Returning to a show with saved FX: restore immediately. If there's no
+            // snapshot yet, the reset to defaults is deferred to the fetch completion
+            // below, so a one-poll metadata glitch (wrong date) that never resolves to
+            // a real show can't cause an audible mid-song FX dropout.
             bassPlayer.restorePerShowFX(showDate: variantDate)
-            // No reset on missing snapshot — keep current FX (user sets per-show on first listen)
-        } else if showHasChanged || lastShowDate == nil {
-            if !fxPersistAcrossShows {
-                bassPlayer.resetAllFX()
-            }
-        } else {
-            // Same show as when app quit: restore FX if "persist on restart" is enabled
-            if fxPersistOnRestart {
-                bassPlayer.restoreFXFromDefaults()
-            } else {
-                bassPlayer.resetAllFX()
-            }
+        } else if !fxPersistAcrossShows {
+            bassPlayer.resetAllFX()
         }
 
         isFetchingShowInfo = true
@@ -1668,9 +1682,15 @@ struct ContentView_iOS: View {
                 self.isFetchingShowInfo = false
                 self.syncCarPlayBridge()
 
-                if let show = show {
-                    UserDefaults.standard.set(show.date, forKey: "lastShowDateOnQuit")
+                // Per-show FX: now that a real show has loaded, reset to defaults if it
+                // has no saved snapshot (a genuine new show). Deferring to here means a
+                // transient metadata glitch that returns no show never resets the FX.
+                if show != nil, fxRememberPerShow,
+                   !self.bassPlayer.hasPerShowFX(showDate: variantDate) {
+                    self.bassPlayer.resetAllFX()
+                }
 
+                if let show = show {
                     // If parsed metadata lacks location, fill in from FZShow
                     if let parsed = self.parsedTrack, parsed.city == nil || parsed.state == nil {
                         let updatedParsed = ParsedTrackInfo(

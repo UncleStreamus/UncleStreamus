@@ -28,7 +28,6 @@ struct ContentView: View {
     @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "MP3"
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
     @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
-    @AppStorage("fxPersistOnRestart") private var fxPersistOnRestart: Bool = false
     @State private var panelOpen: Bool = false  // Local state for panel visibility
     @State private var expandedFooterSection: FooterSection? = nil
     @State private var contentBounceOffset: CGFloat = 0
@@ -1337,20 +1336,9 @@ struct ContentView: View {
         ) { _ in
             let currentlyPlaying = self.isPlaying
             UserDefaults.standard.set(currentlyPlaying, forKey: "wasPlayingOnQuit")
-
-            // Save the current show's date for FX persistence logic on restart
-            if let showDate = self.currentShow?.date {
-                UserDefaults.standard.set(showDate, forKey: "lastShowDateOnQuit")
-            } else if let parsedDate = self.parsedTrack?.date {
-                UserDefaults.standard.set(parsedDate, forKey: "lastShowDateOnQuit")
-            }
-
             UserDefaults.standard.synchronize()
             #if DEBUG
             print("💾 willTerminate - saving playing state: \(currentlyPlaying)")
-            if let showDate = self.currentShow?.date {
-                print("💾 willTerminate - saving show date: \(showDate)")
-            }
             #endif
         }
     }
@@ -1532,25 +1520,16 @@ struct ContentView: View {
 
         bassPlayer.currentShowDate = variantDate
 
-        // Determine whether to restore or reset FX based on show change and persistence settings
-        let lastShowDate = UserDefaults.standard.string(forKey: "lastShowDateOnQuit")
-        let showHasChanged = lastShowDate != nil && lastShowDate != variantDate
+        // Determine whether to restore or reset FX based on persistence settings
         let fxRememberPerShow = UserDefaults.standard.bool(forKey: "fxRememberPerShow")
-
         if fxRememberPerShow {
+            // Returning to a show with saved FX: restore immediately. If there's no
+            // snapshot yet, the reset to defaults is deferred to the fetch completion
+            // below, so a one-poll metadata glitch (wrong date) that never resolves to
+            // a real show can't cause an audible mid-song FX dropout.
             bassPlayer.restorePerShowFX(showDate: variantDate)
-            // No reset on missing snapshot — keep current FX (user sets per-show on first listen)
-        } else if showHasChanged || lastShowDate == nil {
-            if !fxPersistAcrossShows {
-                bassPlayer.resetAllFX()
-            }
-        } else {
-            // Same show as when app quit: restore FX if "persist on restart" is enabled
-            if fxPersistOnRestart {
-                bassPlayer.restoreFXFromDefaults()
-            } else {
-                bassPlayer.resetAllFX()
-            }
+        } else if !fxPersistAcrossShows {
+            bassPlayer.resetAllFX()
         }
 
         isFetchingShowInfo = true
@@ -1572,10 +1551,12 @@ struct ContentView: View {
                 }
                 self.isFetchingShowInfo = false
 
-                // Always persist the current show date so it's available on next launch
-                // (even if the app is killed without a graceful willTerminate)
-                if let show = show {
-                    UserDefaults.standard.set(show.date, forKey: "lastShowDateOnQuit")
+                // Per-show FX: now that a real show has loaded, reset to defaults if it
+                // has no saved snapshot (a genuine new show). Deferring to here means a
+                // transient metadata glitch that returns no show never resets the FX.
+                if show != nil, fxRememberPerShow,
+                   !self.bassPlayer.hasPerShowFX(showDate: variantDate) {
+                    self.bassPlayer.resetAllFX()
                 }
 
                 if let show = show {
