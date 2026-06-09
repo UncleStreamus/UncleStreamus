@@ -25,7 +25,7 @@ struct ContentView: View {
     @State private var availableWidth: CGFloat = 500
     @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = false
     @AppStorage("textScale") private var textScale: Double = 1.1
-    @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "MP3"
+    @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "OGG"
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
     @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
     @State private var panelOpen: Bool = false  // Local state for panel visibility
@@ -125,7 +125,7 @@ struct ContentView: View {
             // Auto-play if stream was playing when app was last quit (and auto-resume is enabled)
             // Read directly from UserDefaults to ensure we get the persisted value
             let wasPlaying = UserDefaults.standard.bool(forKey: "wasPlayingOnQuit")
-            let autoResumeEnabled = UserDefaults.standard.object(forKey: "autoResumeOnLaunch") as? Bool ?? true
+            let autoResumeEnabled = UserDefaults.standard.object(forKey: "autoResumeOnLaunch") as? Bool ?? false
             #if DEBUG
             print("🚀 Launch - was playing: \(wasPlaying), auto-resume enabled: \(autoResumeEnabled)")
             #endif

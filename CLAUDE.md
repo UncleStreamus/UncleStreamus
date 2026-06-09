@@ -182,7 +182,7 @@ Platform-Specific:
 - `textScale` — font scale multiplier (default 1.1)
 - `lastStreamFormat` — last stream format selected (default "MP3")
 - `wasPlayingOnQuit` — for auto-resume on launch
-- `autoResumeOnLaunch` — auto-resume setting (default true)
+- `autoResumeOnLaunch` — auto-resume setting (default false)
 - `fxRememberPerShow` — save/recall FX per show (default false); snapshots stored local-first in UserDefaults + mirrored to iCloud KVS
 - `fxPersistAcrossShows` — keep FX settings when show changes (default false); disabled when `fxRememberPerShow` is on
 - `fxPerShow.<showDate>` — per-show `FXSnapshot` JSON; written to both `UserDefaults.standard` and `NSUbiquitousKeyValueStore`

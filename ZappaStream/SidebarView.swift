@@ -8,7 +8,7 @@ struct SidebarView: View {
     @StateObject private var favoritesFilter = FilterState()
     #if os(macOS)
     @State private var isSyncing = false
-    @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
+    @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = true
     #endif
 
     enum SidebarTab {
@@ -150,7 +150,7 @@ struct HistorySection {
 struct HistoryListView: View {
     var showDataManager: ShowDataManager
     @ObservedObject var filterState: FilterState
-    @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
+    @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = true
     @State private var collapsedPeriods: Set<HistoryTimePeriod> = [
         .oneWeekAgo, .twoWeeksAgo, .threeWeeksAgo, .fourWeeksAgo, .oneMonthAgo, .older
     ]
@@ -435,7 +435,7 @@ struct HistoryListView: View {
 struct FavoritesListView: View {
     var showDataManager: ShowDataManager
     @ObservedObject var filterState: FilterState
-    @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
+    @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = true
     @State private var collapsedYears: Set<String> = []
 
     @Query(filter: #Predicate<SavedShow> { $0.isFavorite == true },

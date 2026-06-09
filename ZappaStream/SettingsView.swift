@@ -111,8 +111,8 @@ struct SettingsSectionBox<Content: View>: View {
 // MARK: - Playback Settings
 
 struct PlaybackSettingsView: View {
-    @AppStorage("autoResumeOnLaunch") private var autoResumeOnLaunch: Bool = true
-    @AppStorage("fxRememberPerShow") private var fxRememberPerShow: Bool = false
+    @AppStorage("autoResumeOnLaunch") private var autoResumeOnLaunch: Bool = false
+    @AppStorage("fxRememberPerShow") private var fxRememberPerShow: Bool = true
     @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
     @AppStorage("dvrEnabled") private var dvrEnabled: Bool = true
     @AppStorage("dvrBufferMinutes") private var dvrBufferMinutes: Int = 15
@@ -216,7 +216,7 @@ struct PlaybackSettingsView: View {
 // MARK: - Sync Settings
 
 struct SyncSettingsView: View {
-    @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = false
+    @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = true
     @State private var showRestartBanner: Bool = false
 
     private var iCloudAvailable: Bool {

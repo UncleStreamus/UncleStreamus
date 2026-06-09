@@ -32,7 +32,7 @@ struct ContentView_iOS: View {
     @State private var isFetchingShowInfo: Bool = false
     @State private var availableWidth: CGFloat = 500
     @AppStorage("textScale") private var textScale: Double = 1.1
-    @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "MP3"
+    @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "OGG"
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
     @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
     @AppStorage("dvrEnabled") private var dvrEnabled: Bool = true
@@ -350,7 +350,7 @@ struct ContentView_iOS: View {
 
             // Auto-play if was playing when app quit (and auto-resume is enabled)
             let wasPlaying = UserDefaults.standard.bool(forKey: "wasPlayingOnQuit")
-            let autoResumeEnabled = UserDefaults.standard.object(forKey: "autoResumeOnLaunch") as? Bool ?? true
+            let autoResumeEnabled = UserDefaults.standard.object(forKey: "autoResumeOnLaunch") as? Bool ?? false
             if wasPlaying && autoResumeEnabled {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.playStream()
