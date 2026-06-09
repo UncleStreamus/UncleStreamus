@@ -140,7 +140,7 @@ struct ContentView_iOS: View {
                             } else {
                                 showInfoSection
                                     .padding(.horizontal)
-                                    .padding(.top, 16)
+                                    .padding(.top, 8)
                                     .padding(.bottom, 8)
                                     .transition(.opacity)
                             }
@@ -530,7 +530,7 @@ struct ContentView_iOS: View {
                 HStack(spacing: 8) {
                     if bassPlayer.dvrState != .live {
                         Text("\(dvrFormattedBehind(bassPlayer.behindLiveSeconds)) / \(dvrFormattedBehind(bassPlayer.dvrMaxBufferSeconds))")
-                            .font(.caption)
+                            .scaledFont(.caption)
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                         Button("Go Live") { bassPlayer.goLive(); updateNowPlayingInfo() }
@@ -539,7 +539,7 @@ struct ContentView_iOS: View {
                             .controlSize(.small)
                     } else {
                         Text("● LIVE")
-                            .font(.caption.weight(.semibold))
+                            .scaledFont(.caption, weight: .semibold)
                             .foregroundStyle(.red)
                     }
                 }
@@ -557,7 +557,7 @@ struct ContentView_iOS: View {
                             Text(bassPlayer.reconnectAttempt > 1
                                  ? "Reconnecting (attempt \(bassPlayer.reconnectAttempt))..."
                                  : "Reconnecting...")
-                                .font(.caption2).foregroundStyle(.secondary)
+                                .scaledFont(.caption2).foregroundStyle(.secondary)
                         }
                         .transition(.opacity)
                     } else {
@@ -571,7 +571,7 @@ struct ContentView_iOS: View {
                         return "Streaming \(stream.name)"
                     }()
                     Text(streamStatusText)
-                        .font(.caption2)
+                        .scaledFont(.caption2)
                         .foregroundColor(.secondary)
 
                     // FLAC pre-buffer loading bar: fills 0→100% over 7s then disappears
@@ -595,13 +595,13 @@ struct ContentView_iOS: View {
                     if stream.format == "AAC" && !delayWarningDismissed {
                         HStack(spacing: 4) {
                             Text("Track info can be more than 1min behind when using AAC...")
-                                .font(.caption2)
+                                .scaledFont(.caption2)
                                 .foregroundColor(.secondary)
                                 .italic()
                             Button("Dismiss") {
                                 withAnimation { delayWarningDismissed = true }
                             }
-                            .font(.caption2)
+                            .scaledFont(.caption2)
                             .buttonStyle(.plain)
                         }
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -633,11 +633,11 @@ struct ContentView_iOS: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "antenna.radiowaves.left.and.right")
-                            .font(.caption)
+                            .scaledFont(.caption)
                         Text(selectedStream?.format ?? "Stream")
-                            .font(.subheadline.weight(.medium))
+                            .scaledFont(.subheadline, weight: .medium)
                         Image(systemName: "chevron.up.chevron.down")
-                            .font(.caption2)
+                            .scaledFont(.caption2)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
@@ -660,9 +660,9 @@ struct ContentView_iOS: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "slider.horizontal.3")
-                            .font(.caption)
+                            .scaledFont(.caption)
                         Text("FX")
-                            .font(.subheadline.weight(.medium))
+                            .scaledFont(.subheadline, weight: .medium)
                     }
                     .frame(width: horizontalSizeClass == .regular ? 240 : nil)
                     .padding(.horizontal, horizontalSizeClass == .regular ? 0 : 12)
@@ -715,9 +715,9 @@ struct ContentView_iOS: View {
                     HStack(spacing: 4) {
                         let activelyPlaying = isPlaying && bassPlayer.dvrState != .paused
                         Image(systemName: activelyPlaying ? (dvrEnabled ? "pause.fill" : "stop.fill") : "play.fill")
-                            .font(.body)
+                            .scaledFont(.body)
                         Text(activelyPlaying ? (dvrEnabled ? "Pause" : "Stop") : "Play")
-                            .font(.subheadline.weight(.medium))
+                            .scaledFont(.subheadline, weight: .medium)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
@@ -735,9 +735,9 @@ struct ContentView_iOS: View {
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "stop.fill")
-                                .font(.body)
+                                .scaledFont(.body)
                             Text("Stop")
-                                .font(.subheadline.weight(.medium))
+                                .scaledFont(.subheadline, weight: .medium)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)

@@ -51,11 +51,35 @@ private struct ScaledFontModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         #if os(iOS)
-        // Use iOS native text styles for standard readability
-        content.font(.system(style, weight: weight))
+        let font: Font
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            let base = UIFont.preferredFont(forTextStyle: uiTextStyle(for: style)).pointSize
+            font = .system(size: base * (1.2 / 1.1), weight: weight)
+        } else {
+            font = .system(style, weight: weight)
+        }
+        return content.font(font)
         #else
-        // Keep custom scaled sizes for macOS
-        content.font(.system(size: FontSizeMap.baseSize(for: style) * fontScale, weight: weight))
+        return content.font(.system(size: FontSizeMap.baseSize(for: style) * fontScale, weight: weight))
         #endif
     }
 }
+
+#if os(iOS)
+private func uiTextStyle(for style: Font.TextStyle) -> UIFont.TextStyle {
+    switch style {
+    case .largeTitle:    return .largeTitle
+    case .title:         return .title1
+    case .title2:        return .title2
+    case .title3:        return .title3
+    case .headline:      return .headline
+    case .subheadline:   return .subheadline
+    case .body:          return .body
+    case .callout:       return .callout
+    case .footnote:      return .footnote
+    case .caption:       return .caption1
+    case .caption2:      return .caption2
+    @unknown default:    return .body
+    }
+}
+#endif
