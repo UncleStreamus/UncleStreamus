@@ -286,7 +286,9 @@ struct ContentView_iOS: View {
                         }
                     }
             }
-            .presentationDetents([.fraction(0.78), .large])
+            .presentationDetents(horizontalSizeClass == .regular
+                ? [.fraction(0.88), .large]
+                : [.fraction(0.78), .large])
             .presentationDragIndicator(.visible)
         }
         .sheet(item: $safariURL) { item in
