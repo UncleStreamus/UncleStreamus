@@ -46,13 +46,12 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 
 **iOS/iPadOS:**
 - Lock screen and Control Center integration
+- CarPlay support
 - Landscape mode on iPad
 - Adaptive layout for all screen sizes
 
 
 ### Planned Features
-
-- CarPlay support — ready to go, pending Apple approval
 
 - More inline data about the period, tour, band etc
 
