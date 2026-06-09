@@ -738,7 +738,7 @@
 				CODE_SIGN_ENTITLEMENTS = ZappaStream/ZappaStream.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260607;
+				CURRENT_PROJECT_VERSION = 20260609;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
@@ -761,7 +761,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MARKETING_VERSION = 1.4.2;
+				MARKETING_VERSION = 1.4.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.zappastream.ZappaStream;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -780,7 +780,7 @@
 				CODE_SIGN_ENTITLEMENTS = ZappaStream/ZappaStream.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260607;
+				CURRENT_PROJECT_VERSION = 20260609;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
@@ -803,7 +803,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MARKETING_VERSION = 1.4.2;
+				MARKETING_VERSION = 1.4.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.zappastream.ZappaStream;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
@@ -822,7 +822,7 @@
 				CODE_SIGN_ENTITLEMENTS = "ZappaStream-iOS/ZappaStream-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260607;
+				CURRENT_PROJECT_VERSION = 20260609;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_PREVIEWS = YES;
@@ -841,7 +841,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.2;
+				MARKETING_VERSION = 1.4.3;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.zappastream.ZappaStream-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -861,7 +861,7 @@
 				CODE_SIGN_ENTITLEMENTS = "ZappaStream-iOS/ZappaStream-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260607;
+				CURRENT_PROJECT_VERSION = 20260609;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_PREVIEWS = YES;
@@ -880,7 +880,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.2;
+				MARKETING_VERSION = 1.4.3;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.zappastream.ZappaStream-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
