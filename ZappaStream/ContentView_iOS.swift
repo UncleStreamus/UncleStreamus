@@ -43,7 +43,7 @@ struct ContentView_iOS: View {
     @State private var showFXPane: Bool = false
     @State private var showTrackInfoPane: Bool = false
     @State private var bugReportData: BugReportData?
-    @State private var showDelayWarning: Bool = false  // Temporarily show delay warning for non-MP3 streams
+    @AppStorage("delayWarningDismissed") private var delayWarningDismissed: Bool = false
     @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
     @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -561,18 +561,26 @@ struct ContentView_iOS: View {
                         }
                         .transition(.opacity)
                     } else {
-                    let isBuffering = stream.format == "FLAC" && bassPlayer.preBufferProgress > 0
-                    Text("\(isBuffering ? "Buffering" : "Streaming") \(stream.name)")
+                    let isFlacBuffering = stream.format == "FLAC" && bassPlayer.preBufferProgress > 0
+                    let streamStatusText: String = {
+                        if isFlacBuffering { return "Buffering FLAC…" }
+                        if dvrEnabled && bassPlayer.dvrBufferFull && bassPlayer.dvrState == .playing { return "Draining buffer" }
+                        if dvrEnabled && bassPlayer.dvrBufferFull { return "Buffer full" }
+                        if dvrEnabled && bassPlayer.dvrState == .playing { return "Playing from buffer" }
+                        if dvrEnabled && bassPlayer.dvrState == .paused { return "Stream paused – recording to buffer" }
+                        return "Streaming \(stream.name)"
+                    }()
+                    Text(streamStatusText)
                         .font(.caption2)
                         .foregroundColor(.secondary)
 
                     // FLAC pre-buffer loading bar: fills 0→100% over 7s then disappears
-                    if isBuffering {
+                    if isFlacBuffering {
                         ProgressView(value: bassPlayer.preBufferProgress)
                             .progressViewStyle(.linear)
                             .tint(colorScheme == .dark ? .secondary : .blue)
                             .transition(.opacity.combined(with: .move(edge: .top)))
-                            .animation(.easeInOut(duration: 0.3), value: isBuffering)
+                            .animation(.easeInOut(duration: 0.3), value: isFlacBuffering)
                     }
 
                     // Show database first-launch download progress bar
@@ -583,19 +591,28 @@ struct ContentView_iOS: View {
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
 
-                    // Delay warning when using AAC stream - shows briefly then hides
-                    if stream.format == "AAC" && showDelayWarning {
-                        Text("Track info can be more than 1min behind when using AAC...")
+                    // Delay warning when using AAC stream - permanent until dismissed
+                    if stream.format == "AAC" && !delayWarningDismissed {
+                        HStack(spacing: 4) {
+                            Text("Track info can be more than 1min behind when using AAC...")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .italic()
+                            Button("Dismiss") {
+                                withAnimation { delayWarningDismissed = true }
+                            }
                             .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .italic()
-                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .buttonStyle(.plain)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
                     } // end else (!isReconnecting)
                 }
-                .animation(.easeInOut(duration: 0.3), value: showDelayWarning)
+                .animation(.easeInOut(duration: 0.3), value: delayWarningDismissed)
                 .animation(.easeInOut(duration: 0.3), value: bassPlayer.isReconnecting)
                 .padding(.top, 4)
+                .padding(.bottom, 4)
             }
 
             HStack(spacing: 10) {
@@ -1609,17 +1626,6 @@ struct ContentView_iOS: View {
         isPlaying = true
         updateNowPlayingInfo()
         syncCarPlayBridge()
-
-        if showWarning && stream.format != "MP3" {
-            showDelayWarning = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                withAnimation {
-                    self.showDelayWarning = false
-                }
-            }
-        } else if stream.format == "MP3" {
-            showDelayWarning = false
-        }
 
         UserDefaults.standard.set(true, forKey: "wasPlayingOnQuit")
     }

@@ -77,6 +77,9 @@ struct ZappaStreamApp: App {
 
     init() {
         PerShowFXSync.start()
+        #if DEBUG
+        UserDefaults.standard.removeObject(forKey: "delayWarningDismissed")
+        #endif
     }
 
     var body: some Scene {
