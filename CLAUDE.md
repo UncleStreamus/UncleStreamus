@@ -180,10 +180,11 @@ Platform-Specific:
 **Key AppStorage Keys (both platforms unless noted):**
 - `showInfoExpanded` — setlist expand/collapse state
 - `textScale` — font scale multiplier (default 1.1)
-- `lastStreamFormat` — last stream format selected (default "MP3")
+- `lastStreamFormat` — last stream format selected (default "OGG")
 - `wasPlayingOnQuit` — for auto-resume on launch
 - `autoResumeOnLaunch` — auto-resume setting (default false)
-- `fxRememberPerShow` — save/recall FX per show (default false); snapshots stored local-first in UserDefaults + mirrored to iCloud KVS
+- `iCloudSyncEnabled` — sync history/favorites via CloudKit (default true)
+- `fxRememberPerShow` — save/recall FX per show (default true); snapshots stored local-first in UserDefaults + mirrored to iCloud KVS
 - `fxPersistAcrossShows` — keep FX settings when show changes (default false); disabled when `fxRememberPerShow` is on
 - `fxPerShow.<showDate>` — per-show `FXSnapshot` JSON; written to both `UserDefaults.standard` and `NSUbiquitousKeyValueStore`
 - `dvrEnabled` — DVR mode on/off (default true, both platforms)
