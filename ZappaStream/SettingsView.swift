@@ -19,10 +19,10 @@ struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .playback
     #if os(macOS)
     @State private var tabContentHeight: CGFloat = 500
-    @State private var hasInitialTabHeight = false
+    @State private var measuredHeights: [SettingsTab: CGFloat] = [:]
     #endif
 
-    enum SettingsTab {
+    enum SettingsTab: Hashable {
         case playback, sync, savedData, credits
     }
 
@@ -57,16 +57,21 @@ struct SettingsView: View {
                 .animation(nil, value: selectedTab)
                 .frame(height: tabContentHeight)
                 .background(
-                    tabContent
-                        .frame(width: 400)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .hidden()
-                        .background(GeometryReader { geo in
-                            Color.clear.preference(
-                                key: TabContentHeightKey.self,
-                                value: geo.size.height
-                            )
-                        })
+                    // Only render the measurement layer for tabs not yet measured.
+                    Group {
+                        if measuredHeights[selectedTab] == nil {
+                            tabContent
+                                .frame(width: 400)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .hidden()
+                                .background(GeometryReader { geo in
+                                    Color.clear.preference(
+                                        key: TabContentHeightKey.self,
+                                        value: geo.size.height
+                                    )
+                                })
+                        }
+                    }
                 )
             #endif
         }
@@ -74,13 +79,12 @@ struct SettingsView: View {
         .frame(width: 400)
         .onPreferenceChange(TabContentHeightKey.self) { newHeight in
             guard newHeight > 0 else { return }
-            if hasInitialTabHeight {
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                    tabContentHeight = newHeight
-                }
-            } else {
-                tabContentHeight = newHeight
-                hasInitialTabHeight = true
+            measuredHeights[selectedTab] = newHeight
+            tabContentHeight = newHeight
+        }
+        .onChange(of: selectedTab) { _, tab in
+            if let cached = measuredHeights[tab] {
+                tabContentHeight = cached
             }
         }
         #endif
