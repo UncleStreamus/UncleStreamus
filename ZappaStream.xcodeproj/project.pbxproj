@@ -175,6 +175,7 @@
 		BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfo.swift; sourceTree = "<group>"; };
 		BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stream.swift; sourceTree = "<group>"; };
 		BEA501FE2FD98D8A00C2A02F /* ZappaStreamTests.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ZappaStreamTests.entitlements; sourceTree = "<group>"; };
+		BEA501FF2FD9904000C2A02F /* ZappaStream-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "ZappaStream-Debug.entitlements"; path = "ZappaStream/ZappaStream-Debug.entitlements"; sourceTree = "<group>"; };
 		BEAA00002F34000100AA0001 /* Acronym.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Acronym.swift; sourceTree = "<group>"; };
 		BEAA00022F34000100AA0003 /* SavedShow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedShow.swift; sourceTree = "<group>"; };
 		BEAA00042F34000100AA0005 /* ShowDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDataManager.swift; sourceTree = "<group>"; };
@@ -255,6 +256,7 @@
 		BE1A34122F30C6D600647B01 = {
 			isa = PBXGroup;
 			children = (
+				BEA501FF2FD9904000C2A02F /* ZappaStream-Debug.entitlements */,
 				BE1A341D2F30C6D600647B01 /* ZappaStream */,
 				BE2FCA572F3CB6F60038E706 /* ZappaStream-iOS */,
 				AAAA00602FAA006000AA0060 /* ZappaStreamTests */,
@@ -739,7 +741,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = ZappaStream/ZappaStream.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "ZappaStream/ZappaStream-Debug.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20260609;
