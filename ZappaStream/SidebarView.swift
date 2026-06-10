@@ -162,7 +162,17 @@ struct HistoryListView: View {
     private var history: [SavedShow]
 
     private var filteredHistory: [SavedShow] {
-        history.filtered(by: filterState)
+        // history sorted by listenedAt desc; collapse only same-show + same calendar day pairs
+        // (CloudKit race safety net). A second listen to the same show on a different day is a
+        // distinct event and must be preserved.
+        let calendar = Calendar.current
+        var seen = Set<String>()
+        let unique = history.filter { show in
+            guard let date = show.listenedAt else { return true }
+            let key = "\(show.showDate)|\(calendar.startOfDay(for: date).timeIntervalSince1970)"
+            return seen.insert(key).inserted
+        }
+        return unique.filtered(by: filterState)
     }
 
     private func updateCache() {

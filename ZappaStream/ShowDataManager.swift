@@ -11,7 +11,53 @@ class ShowDataManager {
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
-        DispatchQueue.main.async { [weak self] in self?.migrateRederivedSetlists() }
+        DispatchQueue.main.async { [weak self] in
+            self?.deduplicateSavedShows()
+            self?.migrateRederivedSetlists()
+        }
+    }
+
+    // MARK: - Deduplication
+
+    /// Removes duplicate SavedShow records that represent the same show listened to on the same
+    /// calendar date — a natural consequence of CloudKit syncing records created independently on
+    /// multiple devices before they could see each other. Records for the same show on *different*
+    /// dates are kept (they represent distinct listen events). Keeps the record with the most recent
+    /// listenedAt timestamp; preserves isFavorite from any duplicate. Runs every launch (fast O(n)
+    /// scan) so it handles new CloudKit-sourced duplicates too.
+    private func deduplicateSavedShows() {
+        guard let all = try? modelContext.fetch(FetchDescriptor<SavedShow>()) else { return }
+        let calendar = Calendar.current
+
+        // Key: showDate + calendar day of listenedAt (or a nil sentinel for unfavourited non-listens)
+        var byKey: [String: [SavedShow]] = [:]
+        for show in all {
+            let dayKey: String
+            if let date = show.listenedAt {
+                let d = calendar.dateComponents([.year, .month, .day], from: date)
+                dayKey = "\(d.year ?? 0)-\(d.month ?? 0)-\(d.day ?? 0)"
+            } else {
+                dayKey = "nil"
+            }
+            byKey["\(show.showDate)|\(dayKey)", default: []].append(show)
+        }
+
+        var deletedCount = 0
+        for duplicates in byKey.values where duplicates.count > 1 {
+            let sorted = duplicates.sorted {
+                ($0.listenedAt ?? .distantPast) > ($1.listenedAt ?? .distantPast)
+            }
+            let keeper = sorted[0]
+            if sorted.dropFirst().contains(where: { $0.isFavorite }) { keeper.isFavorite = true }
+            for dupe in sorted.dropFirst() { modelContext.delete(dupe); deletedCount += 1 }
+        }
+
+        if deletedCount > 0 {
+            try? modelContext.save()
+            #if DEBUG
+            print("✅ ShowDataManager: removed \(deletedCount) duplicate show record(s)")
+            #endif
+        }
     }
 
     // MARK: - One-time Migrations
@@ -57,12 +103,22 @@ class ShowDataManager {
         let descriptor = FetchDescriptor<SavedShow>(
             predicate: #Predicate { $0.showDate == showDate }
         )
-        if let existing = try? modelContext.fetch(descriptor),
-           existing.contains(where: { $0.listenedAt.map { calendar.isDateInToday($0) } == true }) {
-            return
+        let existing = (try? modelContext.fetch(descriptor)) ?? []
+
+        // Only upsert into a record from today — a record from a previous date is a distinct listen event
+        let todayRecords = existing.filter {
+            $0.listenedAt.map { calendar.isDateInToday($0) } == true
         }
-        let saved = SavedShow.from(show, listenedAt: Date(), deviceName: currentDeviceName())
-        modelContext.insert(saved)
+
+        if let keeper = todayRecords.first {
+            // Same show, same calendar day — update device tag and clean up any same-day duplicates
+            keeper.deviceName = currentDeviceName()
+            keeper.listenedAt = Date()
+            for dupe in todayRecords.dropFirst() { modelContext.delete(dupe) }
+        } else {
+            // New calendar day (or first ever listen) — insert a fresh record
+            modelContext.insert(SavedShow.from(show, listenedAt: Date(), deviceName: currentDeviceName()))
+        }
         do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
     }
 

@@ -36,8 +36,12 @@ struct ZappaStreamApp: App {
         try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
 
         let iCloudAvailable = FileManager.default.ubiquityIdentityToken != nil
-        let iCloudEnabled = UserDefaults.standard.bool(forKey: "iCloudSyncEnabled") && iCloudAvailable
-        print("☁️ iCloudAvailable=\(iCloudAvailable) iCloudSyncEnabled=\(UserDefaults.standard.bool(forKey: "iCloudSyncEnabled")) → cloudKit=\(iCloudEnabled ? "ON" : "OFF")")
+        // UserDefaults.bool(forKey:) returns false for absent keys, but the intended default is
+        // true (matching the @AppStorage default). The model container is created before any view
+        // renders, so @AppStorage hasn't had a chance to write its default yet on a fresh install.
+        let iCloudSyncPref = (UserDefaults.standard.object(forKey: "iCloudSyncEnabled") as? Bool) ?? true
+        let iCloudEnabled = iCloudSyncPref && iCloudAvailable
+        print("☁️ iCloudAvailable=\(iCloudAvailable) iCloudSyncEnabled=\(iCloudSyncPref) → cloudKit=\(iCloudEnabled ? "ON" : "OFF")")
 
         let config = ModelConfiguration(
             schema: Schema([SavedShow.self]),
