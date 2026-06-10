@@ -26,6 +26,9 @@ struct ZappaStreamApp: App {
     // History container: SavedShow only, separate from cache so Z_METADATA never contains cache entity hashes.
     // Both CloudKit-on and CloudKit-off configs use the same store file — data survives the sync toggle.
     var historyModelContainer: ModelContainer = {
+        guard ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil else {
+            return try! ModelContainer(for: Schema([SavedShow.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        }
         guard let groupContainer = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: "group.com.zappastream.shared"
         ) else {
@@ -65,6 +68,9 @@ struct ZappaStreamApp: App {
 
     // Cache container: CachedFZShow + FZShowsPageRecord, local only. Never synced to CloudKit.
     var cacheModelContainer: ModelContainer = {
+        guard ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil else {
+            return try! ModelContainer(for: Schema([CachedFZShow.self, FZShowsPageRecord.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        }
         guard let groupContainer = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: "group.com.zappastream.shared"
         ) else { fatalError("App Group container unavailable.") }
@@ -289,6 +295,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let streamFormats = ["MP3", "OGG", "AAC", "FLAC"]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil else { return }
         setupMenubarIcon()
         setupStatusMenu()
         setupObservers()
