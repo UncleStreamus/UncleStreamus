@@ -80,7 +80,9 @@ struct ZappaStreamApp: App {
     }()
 
     init() {
-        PerShowFXSync.start()
+        if ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil {
+            PerShowFXSync.start()
+        }
         #if DEBUG
         UserDefaults.standard.removeObject(forKey: "delayWarningDismissed")
         #endif
