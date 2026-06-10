@@ -86,6 +86,7 @@
 		BEAA00092F34000100AA0009 /* ShowEntryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00082F34000100AA0009 /* ShowEntryRow.swift */; };
 		BEB8D8F22FC4F7B100286967 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BEB8D8F12FC4F7B100286967 /* PrivacyInfo.xcprivacy */; };
 		BEB8D8F32FC4F7B100286967 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BEB8D8F12FC4F7B100286967 /* PrivacyInfo.xcprivacy */; };
+		BEAC1C0620261010BEAC1C06 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = BEAC1C0520261010BEAC1C05 /* AppIcon.icns */; };
 		BEE59E1F2F3223DB00230D3D /* FZShowsFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */; };
 		BEF8E53E2F3A873A000B6773 /* MarqueeText.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */; };
 		C3A1F8B52F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */; };
@@ -174,14 +175,15 @@
 		BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentView_iOS.swift; sourceTree = "<group>"; };
 		BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfo.swift; sourceTree = "<group>"; };
 		BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stream.swift; sourceTree = "<group>"; };
-		BEA501FE2FD98D8A00C2A02F /* ZappaStreamTests.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ZappaStreamTests.entitlements; sourceTree = "<group>"; };
-		BEA501FF2FD9904000C2A02F /* ZappaStream-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "ZappaStream-Debug.entitlements"; path = "ZappaStream/ZappaStream-Debug.entitlements"; sourceTree = "<group>"; };
 		BEAA00002F34000100AA0001 /* Acronym.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Acronym.swift; sourceTree = "<group>"; };
 		BEAA00022F34000100AA0003 /* SavedShow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedShow.swift; sourceTree = "<group>"; };
 		BEAA00042F34000100AA0005 /* ShowDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDataManager.swift; sourceTree = "<group>"; };
 		BEAA00062F34000100AA0007 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		BEAA00082F34000100AA0009 /* ShowEntryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowEntryRow.swift; sourceTree = "<group>"; };
+		BEA501FE2FD98D8A00C2A02F /* ZappaStreamTests.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ZappaStreamTests.entitlements; sourceTree = "<group>"; };
+		BEA501FF2FD9904000C2A02F /* ZappaStream-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "ZappaStream-Debug.entitlements"; path = "ZappaStream/ZappaStream-Debug.entitlements"; sourceTree = "<group>"; };
 		BEB8D8F12FC4F7B100286967 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		BEAC1C0520261010BEAC1C05 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		BED5C49B2F30D50C009DB6FE /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsFetcher.swift; sourceTree = "<group>"; };
 		BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MarqueeText.swift; sourceTree = "<group>"; };
@@ -256,7 +258,6 @@
 		BE1A34122F30C6D600647B01 = {
 			isa = PBXGroup;
 			children = (
-				BEA501FF2FD9904000C2A02F /* ZappaStream-Debug.entitlements */,
 				BE1A341D2F30C6D600647B01 /* ZappaStream */,
 				BE2FCA572F3CB6F60038E706 /* ZappaStream-iOS */,
 				AAAA00602FAA006000AA0060 /* ZappaStreamTests */,
@@ -316,6 +317,8 @@
 				CCEA788CAA6882C71E437FF1 /* FZShowsDatabase.swift */,
 				AFAF780DA29F39C724E66902 /* FZShowsPageRecord.swift */,
 				BEB8D8F12FC4F7B100286967 /* PrivacyInfo.xcprivacy */,
+				BEAC1C0520261010BEAC1C05 /* AppIcon.icns */,
+				BEA501FF2FD9904000C2A02F /* ZappaStream-Debug.entitlements */,
 			);
 			path = ZappaStream;
 			sourceTree = "<group>";
@@ -461,6 +464,7 @@
 				BEB8D8F22FC4F7B100286967 /* PrivacyInfo.xcprivacy in Resources */,
 				BE1A34292F30C6D800647B01 /* Preview Assets.xcassets in Resources */,
 				BE1A34252F30C6D800647B01 /* Assets.xcassets in Resources */,
+				BEAC1C0620261010BEAC1C06 /* AppIcon.icns in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -739,7 +743,6 @@
 		BE1A342D2F30C6D800647B01 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "ZappaStream/ZappaStream-Debug.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
@@ -782,7 +785,6 @@
 		BE1A342E2F30C6D800647B01 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = ZappaStream/ZappaStream.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
@@ -796,7 +798,6 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				"INFOPLIST_FILE[sdk=macosx*]" = ZappaStream/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ZappaStream;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -806,6 +807,7 @@
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_CFBundleDisplayName = ZappaStream;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
@@ -947,7 +949,7 @@
 /* Begin XCRemoteSwiftPackageReference section */
 		BE024DBB2F4A655500B2C079 /* XCRemoteSwiftPackageReference "CBass" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ZappaStream/CBass.git";
+			repositoryURL = "https://github.com/Treata11/CBass.git";
 			requirement = {
 				branch = main;
 				kind = branch;
