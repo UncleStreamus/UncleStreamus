@@ -8,19 +8,30 @@
 import SwiftUI
 import SwiftData
 
+private struct TabContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .playback
+    #if os(macOS)
+    @State private var tabContentHeight: CGFloat = 500
+    @State private var hasInitialTabHeight = false
+    #endif
 
     enum SettingsTab {
         case playback, sync, savedData, credits
+    }
 
-        var height: CGFloat {
-            switch self {
-            case .playback: return 500
-            case .sync: return 200
-            case .savedData: return 520
-            case .credits: return 420
-            }
+    @ViewBuilder private var tabContent: some View {
+        switch selectedTab {
+        case .playback: PlaybackSettingsView()
+        case .sync: SyncSettingsView()
+        case .savedData: SavedDataSettingsView()
+        case .credits: CreditsView()
         }
     }
 
@@ -39,38 +50,41 @@ struct SettingsView: View {
 
             #if os(iOS)
             ScrollView {
-                switch selectedTab {
-                case .playback:
-                    PlaybackSettingsView()
-                case .sync:
-                    SyncSettingsView()
-                case .savedData:
-                    SavedDataSettingsView()
-                case .credits:
-                    CreditsView()
-                }
+                tabContent
             }
             #else
-            switch selectedTab {
-            case .playback:
-                PlaybackSettingsView()
-            case .sync:
-                SyncSettingsView()
-            case .savedData:
-                SavedDataSettingsView()
-            case .credits:
-                CreditsView()
-            }
+            tabContent
+                .animation(nil, value: selectedTab)
+                .frame(height: tabContentHeight)
+                .background(
+                    tabContent
+                        .frame(width: 400)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .hidden()
+                        .background(GeometryReader { geo in
+                            Color.clear.preference(
+                                key: TabContentHeightKey.self,
+                                value: geo.size.height
+                            )
+                        })
+                )
             #endif
         }
         #if os(macOS)
         .frame(width: 400)
-        .frame(height: selectedTab.height)
+        .onPreferenceChange(TabContentHeightKey.self) { newHeight in
+            guard newHeight > 0 else { return }
+            if hasInitialTabHeight {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                    tabContentHeight = newHeight
+                }
+            } else {
+                tabContentHeight = newHeight
+                hasInitialTabHeight = true
+            }
+        }
         #endif
         .navigationTitle("Settings")
-        .transaction { transaction in
-            transaction.animation = nil
-        }
     }
 }
 
@@ -208,8 +222,8 @@ struct PlaybackSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Spacer()
         }
+        .padding(.bottom, 16)
     }
 }
 
@@ -251,8 +265,8 @@ struct SyncSettingsView: View {
                 }
             }
 
-            Spacer()
         }
+        .padding(.bottom, 16)
     }
 }
 
@@ -405,8 +419,8 @@ struct SavedDataSettingsView: View {
                 ShowDatabaseSettingsView()
             }
 
-            Spacer()
         }
+        .padding(.bottom, 16)
     }
 }
 
@@ -497,8 +511,8 @@ struct CreditsView: View {
                 }
             }
 
-            Spacer()
         }
+        .padding(.bottom, 16)
     }
 }
 
