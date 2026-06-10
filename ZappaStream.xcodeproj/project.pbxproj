@@ -174,6 +174,7 @@
 		BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentView_iOS.swift; sourceTree = "<group>"; };
 		BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfo.swift; sourceTree = "<group>"; };
 		BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stream.swift; sourceTree = "<group>"; };
+		BEA501FE2FD98D8A00C2A02F /* ZappaStreamTests.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ZappaStreamTests.entitlements; sourceTree = "<group>"; };
 		BEAA00002F34000100AA0001 /* Acronym.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Acronym.swift; sourceTree = "<group>"; };
 		BEAA00022F34000100AA0003 /* SavedShow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedShow.swift; sourceTree = "<group>"; };
 		BEAA00042F34000100AA0005 /* ShowDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDataManager.swift; sourceTree = "<group>"; };
@@ -232,6 +233,7 @@
 		AAAA00602FAA006000AA0060 /* ZappaStreamTests */ = {
 			isa = PBXGroup;
 			children = (
+				BEA501FE2FD98D8A00C2A02F /* ZappaStreamTests.entitlements */,
 				AAAA00012FAA000100AA0001 /* ParsedTrackInfoTests.swift */,
 				AAAA00022FAA000200AA0002 /* TourMappingTests.swift */,
 				AAAA00032FAA000300AA0003 /* ShowTimeFetcherTests.swift */,
@@ -578,6 +580,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_ENTITLEMENTS = ZappaStreamTests/ZappaStreamTests.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = M94NB5JY3R;
@@ -596,6 +599,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_ENTITLEMENTS = ZappaStreamTests/ZappaStreamTests.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = M94NB5JY3R;
