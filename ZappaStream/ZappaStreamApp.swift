@@ -38,6 +38,31 @@ struct ZappaStreamApp: App {
         let historyStoreURL = storeDir.appendingPathComponent("ZappaStream-history.store")
         try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
 
+        // Pre-launch store protection: backup before CloudKit can wipe, and auto-restore
+        // if CloudKit performed a zone-reset that emptied the store.
+        if let backupURL = StoreProtection.backupURL {
+            if UserDefaults.standard.bool(forKey: "pendingStoreRestoreFromBackup") {
+                UserDefaults.standard.removeObject(forKey: "pendingStoreRestoreFromBackup")
+                StoreProtection.restoreAndClearMetadata(from: backupURL, to: historyStoreURL)
+                print("🔄 Applied pending restore from backup")
+            } else {
+                let count = StoreProtection.countRecords(at: historyStoreURL)
+                if count > 0 {
+                    StoreProtection.backup(from: historyStoreURL, to: backupURL)
+                } else if count == 0 {
+                    let backupCount = StoreProtection.countRecords(at: backupURL)
+                    if backupCount > 0 {
+                        StoreProtection.restoreAndClearMetadata(from: backupURL, to: historyStoreURL)
+                        print("🛡️ Auto-restored \(backupCount) records from backup (store was empty)")
+                    }
+                }
+            }
+        }
+
+        // One-time cleanup: delete stale subscriptions left by the old bundle ID so
+        // NSPersistentCloudKitContainer setup no longer fails with CKError.partialFailure.
+        StoreProtection.cleanupStaleSubscriptionsIfNeeded()
+
         let iCloudAvailable = FileManager.default.ubiquityIdentityToken != nil
         // UserDefaults.bool(forKey:) returns false for absent keys, but the intended default is
         // true (matching the @AppStorage default). The model container is created before any view

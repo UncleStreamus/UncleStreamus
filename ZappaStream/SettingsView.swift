@@ -236,6 +236,7 @@ struct PlaybackSettingsView: View {
 struct SyncSettingsView: View {
     @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = true
     @State private var showRestartBanner: Bool = false
+    @State private var backupCount: Int = -1
 
     private var iCloudAvailable: Bool {
         FileManager.default.ubiquityIdentityToken != nil
@@ -262,6 +263,27 @@ struct SyncSettingsView: View {
                         .foregroundColor(.secondary)
                 }
 
+                if backupCount > 0 {
+                    Divider()
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Backup: \(backupCount) show\(backupCount == 1 ? "" : "s")")
+                                .font(.callout)
+                            Text("Restore history from last backup (requires restart).")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Button("Restore") {
+                            UserDefaults.standard.set(true, forKey: "pendingStoreRestoreFromBackup")
+                            showRestartBanner = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                        .controlSize(.small)
+                    }
+                }
+
                 if showRestartBanner {
                     Text("Restart ZappaStream to apply.")
                         .font(.caption)
@@ -271,6 +293,11 @@ struct SyncSettingsView: View {
 
         }
         .padding(.bottom, 16)
+        .onAppear {
+            if let url = StoreProtection.backupURL {
+                backupCount = StoreProtection.countRecords(at: url)
+            }
+        }
     }
 }
 

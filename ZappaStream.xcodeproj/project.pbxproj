@@ -82,6 +82,8 @@
 		BEAA00012F34000100AA0001 /* Acronym.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00002F34000100AA0001 /* Acronym.swift */; };
 		BEAA00032F34000100AA0003 /* SavedShow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00022F34000100AA0003 /* SavedShow.swift */; };
 		BEAA00052F34000100AA0005 /* ShowDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00042F34000100AA0005 /* ShowDataManager.swift */; };
+		BE5A1F012F5A1F0100BE5A11 /* StoreProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */; };
+		BE5A1F022F5A1F0200BE5A12 /* StoreProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */; };
 		BEAA00072F34000100AA0007 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00062F34000100AA0007 /* SidebarView.swift */; };
 		BEAA00092F34000100AA0009 /* ShowEntryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00082F34000100AA0009 /* ShowEntryRow.swift */; };
 		BEB8D8F22FC4F7B100286967 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BEB8D8F12FC4F7B100286967 /* PrivacyInfo.xcprivacy */; };
@@ -178,6 +180,7 @@
 		BEAA00002F34000100AA0001 /* Acronym.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Acronym.swift; sourceTree = "<group>"; };
 		BEAA00022F34000100AA0003 /* SavedShow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedShow.swift; sourceTree = "<group>"; };
 		BEAA00042F34000100AA0005 /* ShowDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDataManager.swift; sourceTree = "<group>"; };
+		BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreProtection.swift; sourceTree = "<group>"; };
 		BEAA00062F34000100AA0007 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		BEAA00082F34000100AA0009 /* ShowEntryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowEntryRow.swift; sourceTree = "<group>"; };
 		BEA501FE2FD98D8A00C2A02F /* ZappaStreamTests.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ZappaStreamTests.entitlements; sourceTree = "<group>"; };
@@ -304,6 +307,7 @@
 				CC0ADC00000ADC0A00CC0ADC /* SetlistInfoView.swift */,
 				5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */,
 				BEAA00042F34000100AA0005 /* ShowDataManager.swift */,
+				BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */,
 				BEAA00082F34000100AA0009 /* ShowEntryRow.swift */,
 				BEAA00062F34000100AA0007 /* SidebarView.swift */,
 				752DBEE239607630EF9BE524 /* SongFormatter.swift */,
@@ -505,6 +509,7 @@
 				BEAA00012F34000100AA0001 /* Acronym.swift in Sources */,
 				BEAA00032F34000100AA0003 /* SavedShow.swift in Sources */,
 				BEAA00052F34000100AA0005 /* ShowDataManager.swift in Sources */,
+				BE5A1F012F5A1F0100BE5A11 /* StoreProtection.swift in Sources */,
 				BE2FCA6C2F3CBBC90038E706 /* ContentView_iOS.swift in Sources */,
 				BEAA00072F34000100AA0007 /* SidebarView.swift in Sources */,
 				BEAA00092F34000100AA0009 /* ShowEntryRow.swift in Sources */,
@@ -545,6 +550,7 @@
 				BE033A082FD3818A0061FEE5 /* CarPlayBridge.swift in Sources */,
 				BE2FCA712F3CBBCA0038E706 /* TourPeriods.swift in Sources */,
 				BE2FCA722F3CBBCA0038E706 /* ShowDataManager.swift in Sources */,
+				BE5A1F022F5A1F0200BE5A12 /* StoreProtection.swift in Sources */,
 				BE2FCA732F3CBBCA0038E706 /* SidebarView.swift in Sources */,
 				BE2FCA742F3CBBCA0038E706 /* ZappaStreamApp.swift in Sources */,
 				BE2FCA752F3CBBCA0038E706 /* Acronym.swift in Sources */,
@@ -747,7 +753,7 @@
 				CODE_SIGN_ENTITLEMENTS = "ZappaStream/ZappaStream-Debug.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260610;
+				CURRENT_PROJECT_VERSION = 20260611;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
@@ -789,7 +795,7 @@
 				CODE_SIGN_ENTITLEMENTS = ZappaStream/ZappaStream.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260610;
+				CURRENT_PROJECT_VERSION = 20260611;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
@@ -832,7 +838,7 @@
 				CODE_SIGN_ENTITLEMENTS = "ZappaStream-iOS/ZappaStream-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260610;
+				CURRENT_PROJECT_VERSION = 20260611;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_PREVIEWS = YES;
@@ -872,7 +878,7 @@
 				CODE_SIGN_ENTITLEMENTS = "ZappaStream-iOS/ZappaStream-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260610;
+				CURRENT_PROJECT_VERSION = 20260611;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_PREVIEWS = YES;
