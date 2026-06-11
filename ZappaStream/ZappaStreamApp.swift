@@ -59,8 +59,11 @@ struct ZappaStreamApp: App {
             }
         }
 
-        // One-time cleanup: delete stale subscriptions left by the old bundle ID so
-        // NSPersistentCloudKitContainer setup no longer fails with CKError.partialFailure.
+        // One-time nuclear reset: delete the entire CloudKit zone so NSPersistentCloudKitContainer
+        // starts with a completely blank slate — fresh zone, fresh subscription, full re-upload.
+        // Supersedes the subscription-only cleanup; both flags are independent so old devices that
+        // already ran subscription cleanup will still run the zone reset on their next launch.
+        StoreProtection.resetCloudKitZoneIfNeeded(storeURL: historyStoreURL)
         StoreProtection.cleanupStaleSubscriptionsIfNeeded()
 
         let iCloudAvailable = FileManager.default.ubiquityIdentityToken != nil

@@ -88,6 +88,53 @@ enum StoreProtection {
         "ACHANGE", "ATRANSACTION", "ATRANSACTIONSTRING"
     ]
 
+    // Deletes the entire private CloudKit zone so NSPersistentCloudKitContainer starts with a
+    // completely blank slate on the next launch — fresh zone, fresh subscription, full re-upload.
+    // Safe because local ZSAVEDSHOW records are untouched; they'll be re-exported automatically.
+    // Also clears all local ANSCK metadata so the container treats every local record as new.
+    // Blocks up to 10 s (one-time hit at launch).
+    static func resetCloudKitZoneIfNeeded(storeURL: URL) {
+        let key = "ckZoneResetDone_v1"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        guard FileManager.default.ubiquityIdentityToken != nil else { return }
+
+        let privateDB = CKContainer(identifier: "iCloud.com.zappastream.ZappaStream").privateCloudDatabase
+        let zoneID = CKRecordZone.ID(
+            zoneName: "com.apple.coredata.cloudkit.zone",
+            ownerName: CKCurrentUserDefaultName
+        )
+
+        let sem = DispatchSemaphore(value: 0)
+        let op = CKModifyRecordZonesOperation(recordZonesToSave: nil, recordZoneIDsToDelete: [zoneID])
+        op.modifyRecordZonesResultBlock = { result in
+            switch result {
+            case .success:
+                print("☁️ CloudKit zone deleted — fresh start")
+                UserDefaults.standard.set(true, forKey: key)
+            case .failure(let error):
+                let ckErr = error as? CKError
+                if ckErr?.code == .zoneNotFound {
+                    print("☁️ CloudKit zone not found — already clean")
+                    UserDefaults.standard.set(true, forKey: key)
+                } else {
+                    print("⚠️ CloudKit zone delete error: \(error)")
+                }
+            }
+            sem.signal()
+        }
+        privateDB.add(op)
+
+        guard sem.wait(timeout: .now() + 10) == .success else {
+            print("⚠️ CloudKit zone delete timed out — will retry next launch")
+            return
+        }
+
+        // Zone is gone — wipe all local ANSCK metadata so the container re-uploads everything.
+        guard UserDefaults.standard.bool(forKey: key) else { return }
+        clearCloudKitMetadata(at: storeURL)
+        print("☁️ Local CloudKit metadata cleared — ready for fresh export")
+    }
+
     // Deletes all existing CloudKit subscriptions from the private database — one-time fix for
     // the stale subscription left behind by the old bundle ID (com.zappastream.ZappaStream-iOS).
     // That subscription pointed to a dead APNS token and was blocking NSPersistentCloudKitContainer
