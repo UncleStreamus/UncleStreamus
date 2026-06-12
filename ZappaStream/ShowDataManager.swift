@@ -71,7 +71,7 @@ class ShowDataManager {
     /// a UserDefaults flag (SavedShow syncs via CloudKit, but the migration
     /// itself is local — each device that has ever opened the app migrates
     /// its own copy once).
-    private static let rederiveSetlistsMigrationKey = "didRederiveSavedShowSetlists_v1"
+    private static let rederiveSetlistsMigrationKey = "didRederiveSavedShowSetlists_v2"
 
     private func migrateRederivedSetlists() {
         guard !UserDefaults.standard.bool(forKey: Self.rederiveSetlistsMigrationKey) else { return }

@@ -166,6 +166,17 @@ final class ShowTimeFetcherTests: XCTestCase {
         XCTAssertEqual(result[1], "Broken Hearts Are For Assholes")
     }
 
+    func testParseSetlist_commaInsideBracketsInsideParens_notSplit() {
+        // 1988-05-09: "I Am The Walrus* (incl. Jam [Bavarian Sunset, TRF])"
+        // The comma between "Bavarian Sunset" and "TRF" is inside both a paren and a bracket.
+        let result = FZShowsFetcher.parseSetlist(
+            "I Am The Walrus* (incl. Jam [Bavarian Sunset, TRF]), Sofa (q: Lohengrin)"
+        )
+        XCTAssertEqual(result.count, 2)
+        XCTAssertEqual(result[0], "I Am The Walrus* (incl. Jam [Bavarian Sunset, TRF])")
+        XCTAssertEqual(result[1], "Sofa (q: Lohengrin)")
+    }
+
     func testParseSetlist_nestedBrackets_resetDepth() {
         let result = FZShowsFetcher.parseSetlist("Song [parts in ZA, [FZPTMOFZ]], Next Song Rocks")
         XCTAssertEqual(result.count, 2)

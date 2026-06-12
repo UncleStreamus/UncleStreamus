@@ -68,7 +68,7 @@ class FZShowsDatabase {
     /// setlists were split incorrectly by an older parser — e.g. standalone
     /// "q:" quote entries, or songs glued together by a stray-paren cascade —
     /// without re-downloading any pages. Runs once, guarded by a UserDefaults flag.
-    private static let rederiveSetlistsMigrationKey = "didRederiveCachedShowSetlists_v1"
+    private static let rederiveSetlistsMigrationKey = "didRederiveCachedShowSetlists_v2"
 
     private func migrateRederivedSetlists() {
         guard !UserDefaults.standard.bool(forKey: Self.rederiveSetlistsMigrationKey) else { return }
