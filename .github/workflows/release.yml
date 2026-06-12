@@ -11,7 +11,35 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build release notes
+        id: notes
+        run: |
+          CURRENT_TAG="${{ github.ref_name }}"
+          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${CURRENT_TAG}$" | head -1)
+
+          if [ -z "$PREV_TAG" ]; then
+            COMMITS=$(git log --pretty=format:'%s' --no-merges)
+          else
+            COMMITS=$(git log "${PREV_TAG}..HEAD" --pretty=format:'%s' --no-merges)
+          fi
+
+          NEW=$(echo "$COMMITS"      | grep '^Add:'     | sed 's/^Add: /- /'     | sort)
+          IMPROVED=$(echo "$COMMITS" | grep '^Improve:' | sed 's/^Improve: /- /' | sort)
+          FIXED=$(echo "$COMMITS"    | grep '^Fix:'     | sed 's/^Fix: /- /'     | sort)
+
+          NOTES=""
+          [ -n "$NEW" ]      && NOTES="${NOTES}### New\n${NEW}\n\n"
+          [ -n "$IMPROVED" ] && NOTES="${NOTES}### Improved\n${IMPROVED}\n\n"
+          [ -n "$FIXED" ]    && NOTES="${NOTES}### Fixed\n${FIXED}\n\n"
+          [ -z "$NOTES" ]    && NOTES="_No user-facing changes since ${PREV_TAG}._"
+
+          printf '%b' "$NOTES" > /tmp/release_notes.md
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: /tmp/release_notes.md
