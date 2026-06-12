@@ -131,6 +131,15 @@ class FZShowsFetcher {
         "1972 12 12": ShowException(searchDate: "1972 12 09", sectionKeywords: nil, altFilename: nil),  // Wrong date, actually 12 09
         "1972 12 12 E": ShowException(searchDate: "1972 12 09", sectionKeywords: ["Early"], altFilename: nil),
         "1972 12 12 L": ShowException(searchDate: "1972 12 09", sectionKeywords: ["Late"], altFilename: nil),
+
+        // === 1973 11 23 Massey Hall, Toronto ===
+        // Circulates as "Toronto 11 24" and "Edmonton 11 26"; zappateers notes both as wrong dates
+        "1973 11 24": ShowException(searchDate: "1973 11 23", sectionKeywords: nil, altFilename: nil),
+        "1973 11 24 E": ShowException(searchDate: "1973 11 23", sectionKeywords: ["Early"], altFilename: nil),
+        "1973 11 24 L": ShowException(searchDate: "1973 11 23", sectionKeywords: ["Late"], altFilename: nil),
+        "1973 11 26": ShowException(searchDate: "1973 11 23", sectionKeywords: nil, altFilename: nil),
+        "1973 11 26 E": ShowException(searchDate: "1973 11 23", sectionKeywords: ["Early"], altFilename: nil),
+        "1973 11 26 L": ShowException(searchDate: "1973 11 23", sectionKeywords: ["Late"], altFilename: nil),
     ]
 
     // MARK: - Tour Page Mapping
