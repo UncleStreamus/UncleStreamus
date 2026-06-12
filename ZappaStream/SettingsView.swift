@@ -237,9 +237,37 @@ struct SyncSettingsView: View {
     @AppStorage("iCloudSyncEnabled") private var iCloudSyncEnabled: Bool = true
     @State private var showRestartBanner: Bool = false
     @State private var backupCount: Int = -1
+    @State private var backupFavouriteCount: Int = -1
+    @State private var backupDate: Date? = nil
+    @State private var showRestoreAlert: Bool = false
+    @State private var isLocalExpanded: Bool = false
+
+    @Query private var allShows: [SavedShow]
+    @Query(filter: #Predicate<SavedShow> { $0.isFavorite }) private var favouriteShows: [SavedShow]
 
     private var iCloudAvailable: Bool {
         FileManager.default.ubiquityIdentityToken != nil
+    }
+
+    private var formattedBackupDate: String {
+        guard let date = backupDate else { return "" }
+        let f = DateFormatter()
+        f.dateFormat = "dd MM yyyy"
+        return f.string(from: date)
+    }
+
+    private var currentSummary: String {
+        let s = allShows.count
+        let f = favouriteShows.count
+        return "\(s) show\(s == 1 ? "" : "s"), \(f) favourite\(f == 1 ? "" : "s")"
+    }
+
+    private var backupSummary: String {
+        let s = backupCount
+        let f = backupFavouriteCount
+        var result = "\(s) show\(s == 1 ? "" : "s")"
+        if f >= 0 { result += ", \(f) favourite\(f == 1 ? "" : "s")" }
+        return result
     }
 
     var body: some View {
@@ -263,31 +291,64 @@ struct SyncSettingsView: View {
                         .foregroundColor(.secondary)
                 }
 
-                if backupCount > 0 {
-                    Divider()
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Backup: \(backupCount) show\(backupCount == 1 ? "" : "s")")
-                                .font(.callout)
-                            Text("Restore history from last backup (requires restart).")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Button("Restore") {
-                            UserDefaults.standard.set(true, forKey: "pendingStoreRestoreFromBackup")
-                            showRestartBanner = true
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.orange)
-                        .controlSize(.small)
-                    }
-                }
-
                 if showRestartBanner {
                     Text("Restart ZappaStream to apply.")
                         .font(.caption)
                         .foregroundColor(.orange)
+                }
+            }
+
+            SettingsSectionHeader(title: "Local", systemImage: "internaldrive")
+
+            SettingsSectionBox {
+                DisclosureGroup(isExpanded: $isLocalExpanded) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if backupCount > 0 {
+                            Text("Each time you open ZappaStream, a snapshot of your history and favourites is automatically saved to this device. This backup is stored locally — it is not affected by iCloud and cannot be wiped by a sync error.\n\nYour backup contains \(backupSummary). Restoring will replace your current history (\(currentSummary)) with this snapshot. CloudKit sync metadata is cleared at the same time so the restored records are re-uploaded on the next launch rather than being overwritten again. The app must restart to apply the restore.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            HStack {
+                                Spacer()
+                                Button("Restore\u{2026}") {
+                                    showRestoreAlert = true
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.orange)
+                                .controlSize(.small)
+                                .alert("Restore History from Backup", isPresented: $showRestoreAlert) {
+                                    Button("Cancel", role: .cancel) { }
+                                    Button("Restore", role: .destructive) {
+                                        UserDefaults.standard.set(true, forKey: "pendingStoreRestoreFromBackup")
+                                        showRestartBanner = true
+                                    }
+                                } message: {
+                                    Text("This will replace your current listening history (\(currentSummary)) with the local backup (\(backupSummary)\(backupDate != nil ? " · \(formattedBackupDate)" : "")). Your current history will be lost. The app must restart to apply.")
+                                }
+                            }
+
+                            if showRestartBanner {
+                                Text("Restart ZappaStream to apply.")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+                        } else {
+                            Text("No backup available yet. A snapshot will be saved automatically the next time you open the app with listening history present.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.top, 4)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Backup")
+                        if backupCount > 0, backupDate != nil {
+                            Text("\(backupSummary) \u{00B7} \(formattedBackupDate)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
             }
 
@@ -296,6 +357,9 @@ struct SyncSettingsView: View {
         .onAppear {
             if let url = StoreProtection.backupURL {
                 backupCount = StoreProtection.countRecords(at: url)
+                backupFavouriteCount = StoreProtection.countFavorites(at: url)
+                let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+                backupDate = attrs?[.modificationDate] as? Date
             }
         }
     }

@@ -17,14 +17,20 @@ enum StoreProtection {
     // Returns the number of ZSAVEDSHOW rows in a SQLite store, or -1 if the file doesn't
     // exist or can't be read. Safe to call while no other process has the file open.
     static func countRecords(at url: URL) -> Int {
+        return countRows(at: url, sql: "SELECT COUNT(*) FROM ZSAVEDSHOW")
+    }
+
+    static func countFavorites(at url: URL) -> Int {
+        return countRows(at: url, sql: "SELECT COUNT(*) FROM ZSAVEDSHOW WHERE ZISFAVORITE = 1")
+    }
+
+    private static func countRows(at url: URL, sql: String) -> Int {
         guard FileManager.default.fileExists(atPath: url.path) else { return -1 }
         var db: OpaquePointer?
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return -1 }
         defer { sqlite3_close(db) }
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM ZSAVEDSHOW", -1, &stmt, nil) == SQLITE_OK else {
-            return -1
-        }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return -1 }
         defer { sqlite3_finalize(stmt) }
         return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int(stmt, 0)) : -1
     }
