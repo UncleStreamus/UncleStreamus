@@ -7,6 +7,13 @@
     <key>teamID</key>
     <string>M94NB5JY3R</string>
     <key>signingStyle</key>
-    <string>automatic</string>
+    <string>manual</string>
+    <key>signingCertificate</key>
+    <string>Developer ID Application</string>
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.zappastream.ZappaStream</key>
+        <string>ZappaStream Developer ID</string>
+    </dict>
 </dict>
 </plist>

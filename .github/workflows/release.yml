@@ -72,20 +72,23 @@ jobs:
           API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
         run: echo "$API_KEY" > $RUNNER_TEMP/api_key.p8
 
-      - name: Archive
+      - name: Install provisioning profile
         env:
-          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          PROFILE_BASE64: ${{ secrets.MACOS_PROVISIONING_PROFILE }}
+        run: |
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILE_DIR"
+          echo "$PROFILE_BASE64" | base64 --decode > "$PROFILE_DIR/ZappaStream.provisionprofile"
+
+      - name: Archive
         run: |
           xcodebuild archive \
             -scheme ZappaStream \
             -configuration Release \
             -archivePath $RUNNER_TEMP/ZappaStream.xcarchive \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath $RUNNER_TEMP/api_key.p8 \
-            -authenticationKeyID "$KEY_ID" \
-            -authenticationKeyIssuerID "$ISSUER_ID" \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            PROVISIONING_PROFILE_SPECIFIER="ZappaStream Developer ID" \
             DEVELOPMENT_TEAM=M94NB5JY3R
 
       - name: Export
