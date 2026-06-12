@@ -67,13 +67,24 @@ jobs:
           security list-keychain -d user -s $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple: -s -k "" $KEYCHAIN_PATH
 
+      - name: Write App Store Connect API key
+        env:
+          API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: echo "$API_KEY" > $RUNNER_TEMP/api_key.p8
+
       - name: Archive
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           xcodebuild archive \
             -scheme ZappaStream \
             -configuration Release \
             -archivePath $RUNNER_TEMP/ZappaStream.xcarchive \
             -allowProvisioningUpdates \
+            -authenticationKeyPath $RUNNER_TEMP/api_key.p8 \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER_ID" \
             CODE_SIGN_STYLE=Automatic \
             DEVELOPMENT_TEAM=M94NB5JY3R
 
@@ -96,9 +107,7 @@ jobs:
         env:
           KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
         run: |
-          echo "$API_KEY" > $RUNNER_TEMP/api_key.p8
           xcrun notarytool submit "$RUNNER_TEMP/ZappaStream.dmg" \
             --key $RUNNER_TEMP/api_key.p8 \
             --key-id "$KEY_ID" \
