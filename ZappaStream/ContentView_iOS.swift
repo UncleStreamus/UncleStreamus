@@ -666,8 +666,8 @@ struct ContentView_iOS: View {
                         Text("FX")
                             .scaledFont(.subheadline, weight: .medium)
                     }
-                    .frame(width: horizontalSizeClass == .regular ? 240 : nil)
-                    .padding(.horizontal, horizontalSizeClass == .regular ? 0 : 12)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(
                         showFXPane
