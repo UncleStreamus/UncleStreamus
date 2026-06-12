@@ -449,6 +449,14 @@ struct SavedDataSettingsView: View {
     @State private var showClearHistoryAlert = false
     @State private var showClearFavoritesAlert = false
 
+    @Query(filter: #Predicate<SavedShow> { $0.listenedAt != nil },
+           sort: \SavedShow.listenedAt, order: .reverse)
+    private var allHistory: [SavedShow]
+
+    @Query(filter: #Predicate<SavedShow> { $0.isFavorite == true },
+           sort: \SavedShow.showDate, order: .reverse)
+    private var allFavourites: [SavedShow]
+
     private var showDataManager: ShowDataManager {
         ShowDataManager(modelContext: modelContext)
     }
@@ -458,6 +466,18 @@ struct SavedDataSettingsView: View {
             SettingsSectionHeader(title: "History", systemImage: "clock")
 
             SettingsSectionBox {
+                ExportRow(title: "Export History...") {
+                    let content = ShowExporter.exportText(
+                        shows: allHistory,
+                        sectionName: "History",
+                        includeListenDate: true,
+                        filterDescription: nil
+                    )
+                    return (content: content, filename: ShowExporter.suggestedFilename(section: "History"))
+                }
+
+                Divider()
+
                 Button(role: .destructive) {
                     showClearHistoryAlert = true
                 } label: {
@@ -484,6 +504,18 @@ struct SavedDataSettingsView: View {
             SettingsSectionHeader(title: "Favourites", systemImage: "star")
 
             SettingsSectionBox {
+                ExportRow(title: "Export Favourites...") {
+                    let content = ShowExporter.exportText(
+                        shows: allFavourites,
+                        sectionName: "Favourites",
+                        includeListenDate: false,
+                        filterDescription: nil
+                    )
+                    return (content: content, filename: ShowExporter.suggestedFilename(section: "Favourites"))
+                }
+
+                Divider()
+
                 Button(role: .destructive) {
                     showClearFavoritesAlert = true
                 } label: {

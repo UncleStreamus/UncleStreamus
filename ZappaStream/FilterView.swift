@@ -51,6 +51,18 @@ class FilterState: ObservableObject {
         clear()
         clearSearch()
     }
+
+    var exportDescription: String? {
+        var parts: [String] = []
+        if let p = selectedPeriod { parts.append("Period: \(p)") }
+        if let t = selectedTour { parts.append("Tour: \(t)") }
+        if let co = selectedCountry { parts.append("Country: \(co)") }
+        if let s = selectedState { parts.append("State: \(s)") }
+        if let ci = selectedCity { parts.append("City: \(ci)") }
+        let trimmed = debouncedSearchText.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty { parts.append("Search: \"\(trimmed)\"") }
+        return parts.isEmpty ? nil : parts.joined(separator: "  ·  ")
+    }
 }
 
 /// Dropdown filter button with popover
@@ -140,9 +152,22 @@ struct GroupedDropdown: View {
 }
 
 /// Filter bar for the sidebar
-struct FilterBar: View {
+struct FilterBar<TrailingContent: View>: View {
     @ObservedObject var filterState: FilterState
     let shows: [SavedShow]
+    let trailingContent: TrailingContent
+
+    init(filterState: FilterState, shows: [SavedShow]) where TrailingContent == EmptyView {
+        _filterState = ObservedObject(wrappedValue: filterState)
+        self.shows = shows
+        self.trailingContent = EmptyView()
+    }
+
+    init(filterState: FilterState, shows: [SavedShow], @ViewBuilder trailing: () -> TrailingContent) {
+        _filterState = ObservedObject(wrappedValue: filterState)
+        self.shows = shows
+        self.trailingContent = trailing()
+    }
 
     // Extract unique values from shows
     private var periods: [String] {
@@ -344,6 +369,8 @@ struct FilterBar: View {
                     .cornerRadius(6)
                 }
                 .buttonStyle(.plain)
+
+                trailingContent
             }
 
             if isExpanded {

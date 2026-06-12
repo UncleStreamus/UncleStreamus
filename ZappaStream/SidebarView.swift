@@ -311,11 +311,25 @@ struct HistoryListView: View {
         return sections
     }
 
+    private func exportButton() -> some View {
+        ExportButton {
+            let content = ShowExporter.exportText(
+                shows: filteredHistory,
+                sectionName: "History",
+                includeListenDate: true,
+                filterDescription: filterState.exportDescription
+            )
+            return (content: content, filename: ShowExporter.suggestedFilename(section: "History"))
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Filter bar
             if !history.isEmpty {
-                FilterBar(filterState: filterState, shows: history)
+                FilterBar(filterState: filterState, shows: history) {
+                    exportButton()
+                }
                 Divider()
             }
 
@@ -501,11 +515,25 @@ struct FavoritesListView: View {
         }
     }
 
+    private func exportButton() -> some View {
+        ExportButton {
+            let content = ShowExporter.exportText(
+                shows: filteredFavorites,
+                sectionName: "Favourites",
+                includeListenDate: false,
+                filterDescription: filterState.exportDescription
+            )
+            return (content: content, filename: ShowExporter.suggestedFilename(section: "Favourites"))
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Filter bar
             if !favorites.isEmpty {
-                FilterBar(filterState: filterState, shows: favorites)
+                FilterBar(filterState: filterState, shows: favorites) {
+                    exportButton()
+                }
                 Divider()
             }
 

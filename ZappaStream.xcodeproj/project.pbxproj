@@ -102,6 +102,8 @@
 		D7AD703B5B1743C183C698F7 /* AudioFXView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */; };
 		EBB2C65450DF6C61B3EACC69 /* FZShowsDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEA788CAA6882C71E437FF1 /* FZShowsDatabase.swift */; };
 		F62804A5EF88994291433F17 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
+		D0C0B12BF2DF6D0B6E3A9FB6 /* ExportFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */; };
+		E9F0619C0B0FB298E575550C /* ExportFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */; };
 		FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752DBEE239607630EF9BE524 /* SongFormatter.swift */; };
 /* End PBXBuildFile section */
 
@@ -197,6 +199,7 @@
 		CC3E00002F3E000000CC3E00 /* ZappaStream-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "ZappaStream-iOS.entitlements"; sourceTree = "<group>"; };
 		CCEA788CAA6882C71E437FF1 /* FZShowsDatabase.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FZShowsDatabase.swift; sourceTree = "<group>"; };
 		DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FilterView.swift; sourceTree = "<group>"; };
+		18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportFormatter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -297,6 +300,7 @@
 				BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */,
 				CC01DC000001DC0100CC01DC /* DonlopeIndexCache.swift */,
 				DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */,
+				18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */,
 				BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */,
 				BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */,
 				BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */,
@@ -520,6 +524,7 @@
 				360EE955A35C50D1A38B36CD /* TourPeriods.swift in Sources */,
 				BE2FCA682F3CBB2E0038E706 /* PlatformHelpers.swift in Sources */,
 				F62804A5EF88994291433F17 /* FilterView.swift in Sources */,
+				D0C0B12BF2DF6D0B6E3A9FB6 /* ExportFormatter.swift in Sources */,
 				FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */,
 				BE024DE32F4A67D800B2C079 /* BASSRadioPlayer.swift in Sources */,
 				BBBB00012FBB000100BB0001 /* BASSRadioPlayer+Playback.swift in Sources */,
@@ -545,6 +550,7 @@
 				BE2FCA6D2F3CBBCA0038E706 /* Stream.swift in Sources */,
 				BE2FCA6E2F3CBBCA0038E706 /* ParsedTrackInfo.swift in Sources */,
 				BE2FCA6F2F3CBBCA0038E706 /* FilterView.swift in Sources */,
+				E9F0619C0B0FB298E575550C /* ExportFormatter.swift in Sources */,
 				BE2FCA702F3CBBCA0038E706 /* ShowEntryRow.swift in Sources */,
 				BE033A062FD3818A0061FEE3 /* CarPlaySceneDelegate.swift in Sources */,
 				BE033A082FD3818A0061FEE5 /* CarPlayBridge.swift in Sources */,
