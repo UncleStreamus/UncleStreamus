@@ -73,6 +73,7 @@ jobs:
             -scheme ZappaStream \
             -configuration Release \
             -archivePath $RUNNER_TEMP/ZappaStream.xcarchive \
+            -allowProvisioningUpdates \
             CODE_SIGN_STYLE=Automatic \
             DEVELOPMENT_TEAM=M94NB5JY3R
 
