@@ -116,8 +116,9 @@ class ShowDataManager {
             keeper.listenedAt = Date()
             for dupe in todayRecords.dropFirst() { modelContext.delete(dupe) }
         } else {
-            // New calendar day (or first ever listen) — insert a fresh record
-            modelContext.insert(SavedShow.from(show, listenedAt: Date(), deviceName: currentDeviceName()))
+            // New calendar day (or first ever listen) — insert a fresh record, preserving any existing favourite status
+            let alreadyFavorited = existing.contains { $0.isFavorite }
+            modelContext.insert(SavedShow.from(show, isFavorite: alreadyFavorited, listenedAt: Date(), deviceName: currentDeviceName()))
         }
         do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
     }
