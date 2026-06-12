@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 jobs:
-  release:
+  create-release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -43,3 +43,71 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           body_path: /tmp/release_notes.md
+
+  build-dmg:
+    needs: create-release
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Import Developer ID certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          security create-keychain -p "" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "" $KEYCHAIN_PATH
+          echo "$CERTIFICATE_BASE64" | base64 --decode -o $RUNNER_TEMP/cert.p12
+          security import $RUNNER_TEMP/cert.p12 -P "$CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" $KEYCHAIN_PATH
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -scheme ZappaStream \
+            -configuration Release \
+            -archivePath $RUNNER_TEMP/ZappaStream.xcarchive \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM=M94NB5JY3R
+
+      - name: Export
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/ZappaStream.xcarchive \
+            -exportPath $RUNNER_TEMP/export \
+            -exportOptionsPlist .github/ExportOptions.plist
+
+      - name: Create DMG
+        run: |
+          hdiutil create \
+            -volname "ZappaStream" \
+            -srcfolder "$RUNNER_TEMP/export/ZappaStream.app" \
+            -ov -format UDZO \
+            "$RUNNER_TEMP/ZappaStream.dmg"
+
+      - name: Notarize DMG
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: |
+          echo "$API_KEY" > $RUNNER_TEMP/api_key.p8
+          xcrun notarytool submit "$RUNNER_TEMP/ZappaStream.dmg" \
+            --key $RUNNER_TEMP/api_key.p8 \
+            --key-id "$KEY_ID" \
+            --issuer "$ISSUER_ID" \
+            --wait
+
+      - name: Staple DMG
+        run: xcrun stapler staple "$RUNNER_TEMP/ZappaStream.dmg"
+
+      - name: Upload DMG to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.ref_name }}" "$RUNNER_TEMP/ZappaStream.dmg"
