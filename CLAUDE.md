@@ -82,6 +82,31 @@ xcodebuild test -scheme ZappaStream -destination 'platform=macOS' -only-testing:
   - macOS: CBass Swift Package (`https://github.com/Treata11/CBass.git`)
   - iOS: Pre-built XCFrameworks in `Frameworks/iOS/`
 
+## Release Workflow (macOS DMG)
+
+`.github/workflows/release.yml` runs on any pushed tag matching `v*` and has two jobs:
+
+1. **`create-release`** (ubuntu) — generates structured release notes from commit-prefix categories (`Add:` → New, `Improve:` → Improved, `Fix:` → Fixed) over the range since the previous tag, then creates the GitHub Release via `softprops/action-gh-release`.
+2. **`build-dmg`** (macos) — builds, signs, notarizes, and uploads a notarized **universal** DMG as a release asset. Depends on `create-release`.
+
+**`build-dmg` step sequence:**
+- Import the Developer ID Application cert into a temporary keychain (from secrets)
+- Write the App Store Connect API key `.p8` (used for notarization)
+- Install the Developer ID provisioning profile (from secret) into `~/Library/MobileDevice/Provisioning Profiles/`
+- `xcodebuild archive` with **manual** signing (`CODE_SIGN_IDENTITY="Developer ID Application"`, `PROVISIONING_PROFILE_SPECIFIER="ZappaStream Developer ID"`) and **universal** arch (`ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO`)
+- `xcodebuild -exportArchive` with `.github/ExportOptions.plist` (`method: developer-id`, manual signing)
+- `hdiutil create` → DMG, `notarytool submit --wait`, `stapler staple`, `gh release upload`
+
+**Why manual signing (not automatic):** the macOS app's entitlements (CloudKit, iCloud container, KVS, app group) require an embedded provisioning profile. Automatic signing on an ephemeral CI runner tries to create a *Mac App Development* profile and fails because the runner can't be registered as a device. A pre-made **Developer ID** provisioning profile sidesteps this entirely.
+
+**Required GitHub secrets** (Settings → Secrets and variables → Actions):
+- `DEVELOPER_ID_CERTIFICATE` — base64 of the Developer ID Application `.p12`
+- `DEVELOPER_ID_CERTIFICATE_PASSWORD` — `.p12` export password
+- `APP_STORE_CONNECT_KEY_ID` / `APP_STORE_CONNECT_ISSUER_ID` / `APP_STORE_CONNECT_API_KEY` — App Store Connect API key (full `.p8` contents); the key needs **App Manager** role so it can manage provisioning during signing/notarization
+- `MACOS_PROVISIONING_PROFILE` — base64 of the **Developer ID** provisioning profile named exactly `ZappaStream Developer ID` (must match the workflow and `ExportOptions.plist`)
+
+**To ship a macOS release:** bump `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`, commit, then push a `v*` tag (e.g. `v1.4.5-build20260612`). This is independent of TestFlight/App Store distribution, which is handled separately by Xcode Cloud.
+
 ## Architecture
 
 ### Layers
