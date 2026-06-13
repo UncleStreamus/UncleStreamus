@@ -13,7 +13,7 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 ### Streaming
 - **All 4 codec/quality options** — MP3 (128 kbps), OGG (90 kbps), AAC (256 kbps), FLAC (750 kbps lossless)
 - **Automatic stream recovery** — Handles dropouts and reconnects gracefully
-- **Resume on launch** —  Continues with the last played stream
+- **Resume on launch** —  Continues with the last played codec
 - **Continue buffering while paused** — Pick up from where you were for up to 30mins, continue playing delayed until you're ready to jump back to live
 
 ### Now Playing
@@ -21,7 +21,7 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 - **Full setlist** — Does it's best to pull the correct info from [FZShows](https://www.zappateers.com/fzshows/index.html). Hopefully, you see every song in the show with the currently playing track highlighted
 - **Smart duplicate handling** — Correctly identifies repeated songs (hopefully) (e.g., multiple "Improvisations")
 - **Acronym glossary** — Explains setlist abbreviations
-- **Band lineup** — Scraped alongside the setlist, shows who was in the band for the current show
+- **Band lineup** — Shows who was in the band for the current show
 - **Track lookup** — Button to look up currently playing track on [donlope.net](https://www.donlope.net) in a built-in styled viewer
 - **Full FZShows page** — Button to open the FZShows setlist page in a built-in viewer, auto-scrolled to the current show
 
@@ -30,13 +30,14 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 - **Favorites** — Star shows to save them for later
 - **Search & filter** — Find shows by period, tour, year, country, state & city
 - **iCloud sync** — Listening history and favourites automatically sync across all your Apple devices
+- **Export** – Get a txt file record of your History and Favourites that you can referrence outside the app
 
 ### Audio FX
 - 3-band 'musical' EQ
 - Adaptive Compressor
 - Mono - Stereo - Stereo-Wider slider
 - L-R Panner
-- **Per-show FX memory** — optionally saves your EQ and compressor settings per show, so each bootleg can have its own sound
+- **Per-show FX memory** — optionally saves your FX settings so they are recalled automatically when the show next plays on the stream
 
 ### Platform Features
 
@@ -52,26 +53,27 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 - Adaptive layout for all screen sizes
 
 
-### Planned Features
+### Other Possible Features
 
 - More inline data about the period, tour, band etc
 
 - Customisable section headers for the Favourites tab:
   - Not just by year, but also period, tour, band member, location etc.
 
-- Export History & Favourites data
-
-
 ### Current issues & Feedback options
 
-**Mismatched 'Now Playing' track to setlist:**
-- This is largely unavoidable as often there are more audio files for sections of the show (.e.g., Preamble) than are listed in the setlist
+ **Mismatched 'Now Playing' track to setlist:**
+- This isargely unavoidable as often there are more audio files for sections of the show (.e.g., Preamble) than are listed in the setlist
 - ... which means that often the track number is different from the setlist number
 - Also, the filenames may differ sometimes from how the tracks are named in the FZShows setlist database which means no 'currently playing' track indicator
 - And sometimes the html is inconsistent, leading to misinterpratations of the formatting
 
+**AAC quirks**
+- The AAC stream has no native track metadata, so it's taken from the MP3 stream which is often several minutes behind, so the now playing track will generally always be out of sync
+- The AAC stream appers to require a restart at the end of each track, which is why there's a short gap between tracks when listening to the AAC stream. Something I will come back around to at somepoint to try and solve. 
+
 **Provide feedback on a currently playing show:**
-- Right click or long press on a show either when it's currently playing, or in the History or Favourites sidebar and choose 'Report Issue...' to email me with the details of the show from the livestream metadata and I will look into why the full setlist wasn't fetched correctly from the FZShows database
+- Right click or long press on a show either when it's currently playing, or in the History or Favourites sidebar and choose 'Report Issue...' to email me with the details of the show from the livestream metadata and I will look into why the full setlist didn't display or had a formatting issue
 
 <img width="447" height="660" alt="Screenshot 2026-03-05 at 11 31 08" src="https://github.com/user-attachments/assets/4fcdeb51-7fdf-4d80-9db6-47199f66b50a" />
 <img width="429" height="648" alt="Screenshot 2026-03-05 at 11 30 40" src="https://github.com/user-attachments/assets/d4491e25-a2d2-4a45-a918-def2883e64d8" />
@@ -105,7 +107,7 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 ## Requirements
 
 - **macOS**: 14.0 (Sonoma) or later
-- **iOS/iPadOS**: 17 or later
+- **iOS/iPadOS**: 16.5 or later
 
 ## Installation
 
@@ -115,11 +117,11 @@ Download the latest `.dmg` from the [Releases](../../releases) page, open it, an
 
 ZappaStream is notarized by Apple — it will open normally on first launch.
 
-Hopefully available in the App Store at some point.
+Available in the App Store soon.
 
 ### iOS
 
-Hopefully available in the App Store if there's enough interest.
+Available in the App Store soon.
 
 
 ## Credits
