@@ -43,6 +43,9 @@ struct ContentView_iOS: View {
     @State private var showFXPane: Bool = false
     @State private var showTrackInfoPane: Bool = false
     @State private var bugReportData: BugReportData?
+    @AppStorage("lastSeenBuild") private var lastSeenBuild: String = ""
+    @State private var whatsNewNotes: ReleaseNotes?
+    @State private var didCheckWhatsNew: Bool = false
     @AppStorage("delayWarningDismissed") private var delayWarningDismissed: Bool = false
     @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
     @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
@@ -320,8 +323,14 @@ struct ContentView_iOS: View {
                 .padding()
             }
         }
+        .sheet(item: $whatsNewNotes) { notes in
+            WhatsNewView(notes: notes) { whatsNewNotes = nil }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
         .onAppear {
             configureAudioSession()
+            checkWhatsNew()
             if showDataManager == nil {
                 showDataManager = ShowDataManager(modelContext: modelContext)
             }
@@ -568,7 +577,7 @@ struct ContentView_iOS: View {
                         if isFlacBuffering { return "Buffering FLAC…" }
                         if dvrEnabled && bassPlayer.dvrBufferFull && bassPlayer.dvrState == .playing { return "Draining buffer" }
                         if dvrEnabled && bassPlayer.dvrBufferFull { return "Buffer full" }
-                        if dvrEnabled && bassPlayer.dvrState == .playing { return "Playing from buffer" }
+                        if dvrEnabled && bassPlayer.dvrState == .playing { return "Playing from rolling buffer" }
                         if dvrEnabled && bassPlayer.dvrState == .paused { return "Stream paused – recording to buffer" }
                         return "Streaming \(stream.name)"
                     }()
@@ -1288,6 +1297,26 @@ struct ContentView_iOS: View {
     }
 
     // MARK: - Audio Session Setup
+
+    /// Shows the "What's New" sheet once per build update. A first-ever install is
+    /// recorded silently (no sheet); thereafter the sheet appears when the bundled
+    /// build number changes and there are non-empty notes to display.
+    private func checkWhatsNew() {
+        guard !didCheckWhatsNew else { return }
+        didCheckWhatsNew = true
+
+        let current = ReleaseNotes.currentBuild
+        guard !current.isEmpty else { return }
+
+        if lastSeenBuild.isEmpty {
+            lastSeenBuild = current          // first-ever install: don't show
+        } else if lastSeenBuild != current {
+            if let notes = ReleaseNotes.loadBundled(), !notes.isEmpty {
+                whatsNewNotes = notes        // triggers the sheet
+            }
+            lastSeenBuild = current          // record regardless, so it won't reappear
+        }
+    }
 
     private func configureAudioSession() {
         let audioSession = AVAudioSession.sharedInstance()

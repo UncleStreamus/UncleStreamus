@@ -15,3 +15,6 @@ DerivedData/
 
 # Swift Package Manager
 .build/
+
+# XcodeBuildMCP workspace cache
+.xcodebuildmcp/

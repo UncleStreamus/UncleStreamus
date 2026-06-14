@@ -217,6 +217,7 @@ Platform-Specific:
 - `isSidebarVisible` — sidebar open state (macOS only)
 - `setlistWasOpenBeforeFX` — macOS: restore setlist after closing FX panel
 - `lastShowDateOnQuit` — date of last show, for FX persistence logic
+- `lastSeenBuild` — last build number (`CFBundleVersion`) for which the "What's New" sheet was shown (iOS); drives once-per-build presentation
 
 **Async/Concurrency:**
 - Uses `DispatchQueue` + `URLSession.dataTask` with completion handlers (not async/await)
@@ -358,6 +359,7 @@ Platform-Specific:
 - Interruption handling: resumes stream on `AVAudioSession.InterruptionType.ended` with `.shouldResume`
 - App foreground/background transitions (`scenePhase`) trigger `triggerImmediateReconnect()` if user intended to play
 - Bluetooth A2DP allowed for AirPods/headphones
+- **"What's New" sheet:** shown on first launch after a build update (for beta testers). On `.onAppear`, `checkWhatsNew()` (in `ContentView_iOS`) compares `ReleaseNotes.currentBuild` (`CFBundleVersion`) against `@AppStorage("lastSeenBuild")`. First-ever install records the build silently (no sheet); a changed build with non-empty notes presents `WhatsNewView` as a detented sheet, then records the build. Notes come from the bundled `ReleaseNotes.json` generated at build time by `Scripts/generate_release_notes.sh` (a Run Script phase on the iOS target, ordered after Copy Bundle Resources, `alwaysOutOfDate` so it runs every build). The script categorizes commit subjects since the latest git tag exactly like `release.yml`. Missing/empty notes → no sheet (never blocks launch). Also re-openable on demand via **Settings → Credits → "View release notes"** (iOS-only section in `CreditsView`, hidden when no bundled notes). macOS reuse is possible (view is platform-neutral) but not yet wired.
 
 **macOS-Specific UI:**
 - Menubar popover (`NSStatusBar` + `NSPopover`); menubar icon shows tooltip with current track
@@ -399,6 +401,9 @@ Platform-Specific:
 | `TourPeriods.swift` | `GeoData` struct — tour period → zappateers filename map; US states, Canadian provinces, countries |
 | `ZappaStreamApp.swift` | App entry, SwiftData `ModelContainer`, menubar (macOS), `AppDelegate` |
 | `MarqueeText.swift` | Animated scrolling text for long track titles (macOS) |
+| `ReleaseNotes.swift` | Codable model + loader for bundled `ReleaseNotes.json` (`loadBundled()`, `currentBuild`); drives the "What's New" sheet |
+| `WhatsNewView.swift` | Shared "What's New" sheet UI — New/Improved/Fixed sections (hidden when empty), version header, Continue button |
+| `Scripts/generate_release_notes.sh` | Build-phase script: writes `ReleaseNotes.json` into the iOS app bundle from git commit subjects (same `Add:`/`Improve:`/`Fix:` categories as release.yml) |
 | `StreamBuffer.swift` | Rolling WAV segment ring buffer for DVR (both platforms) — 16-bit PCM, 44.1 kHz stereo, 15 × 60s segments |
 | `DonlopeIndexCache.swift` | Async cache for donlope.net track URL lookups |
 | `SetlistInfoPaneView.swift` | Sheet that loads zappateers.com show page and scrolls to the show date |

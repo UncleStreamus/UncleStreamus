@@ -105,6 +105,10 @@
 		D0C0B12BF2DF6D0B6E3A9FB6 /* ExportFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */; };
 		E9F0619C0B0FB298E575550C /* ExportFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */; };
 		FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752DBEE239607630EF9BE524 /* SongFormatter.swift */; };
+		BE17E5000004E5000017E503 /* ReleaseNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000001E5000017E500 /* ReleaseNotes.swift */; };
+		BE17E5000005E5000017E504 /* ReleaseNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000001E5000017E500 /* ReleaseNotes.swift */; };
+		BE17E5000006E5000017E505 /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E501 /* WhatsNewView.swift */; };
+		BE17E5000007E5000017E506 /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E501 /* WhatsNewView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -200,6 +204,8 @@
 		CCEA788CAA6882C71E437FF1 /* FZShowsDatabase.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FZShowsDatabase.swift; sourceTree = "<group>"; };
 		DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FilterView.swift; sourceTree = "<group>"; };
 		18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportFormatter.swift; sourceTree = "<group>"; };
+		BE17E5000001E5000017E500 /* ReleaseNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseNotes.swift; sourceTree = "<group>"; };
+		BE17E5000002E5000017E501 /* WhatsNewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -305,6 +311,8 @@
 				BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */,
 				BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */,
 				BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */,
+				BE17E5000001E5000017E500 /* ReleaseNotes.swift */,
+				BE17E5000002E5000017E501 /* WhatsNewView.swift */,
 				BE1A34272F30C6D800647B01 /* Preview Content */,
 				BEAA00022F34000100AA0003 /* SavedShow.swift */,
 				B859389429B13E3327751EB4 /* ScaledFont.swift */,
@@ -409,6 +417,7 @@
 				BE2FCA532F3CB6F60038E706 /* Frameworks */,
 				BE2FCA542F3CB6F60038E706 /* Resources */,
 				BE024DD62F4A65D200B2C079 /* Embed Frameworks */,
+				BE17E5000003E5000017E502 /* Generate Release Notes */,
 			);
 			buildRules = (
 			);
@@ -488,6 +497,28 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		BE17E5000003E5000017E502 /* Generate Release Notes */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Generate Release Notes";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "sh \"$SRCROOT/Scripts/generate_release_notes.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		AAAA00212FAA002100AA0021 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -519,6 +550,8 @@
 				BEAA00092F34000100AA0009 /* ShowEntryRow.swift in Sources */,
 				BE1A341F2F30C6D600647B01 /* ZappaStreamApp.swift in Sources */,
 				BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */,
+				BE17E5000005E5000017E504 /* ReleaseNotes.swift in Sources */,
+				BE17E5000007E5000017E506 /* WhatsNewView.swift in Sources */,
 				BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */,
 				07D191737EF2D1D5E95B0ADB /* ScaledFont.swift in Sources */,
 				360EE955A35C50D1A38B36CD /* TourPeriods.swift in Sources */,
@@ -549,6 +582,8 @@
 				BE2FCA692F3CBB2E0038E706 /* PlatformHelpers.swift in Sources */,
 				BE2FCA6D2F3CBBCA0038E706 /* Stream.swift in Sources */,
 				BE2FCA6E2F3CBBCA0038E706 /* ParsedTrackInfo.swift in Sources */,
+				BE17E5000004E5000017E503 /* ReleaseNotes.swift in Sources */,
+				BE17E5000006E5000017E505 /* WhatsNewView.swift in Sources */,
 				BE2FCA6F2F3CBBCA0038E706 /* FilterView.swift in Sources */,
 				E9F0619C0B0FB298E575550C /* ExportFormatter.swift in Sources */,
 				BE2FCA702F3CBBCA0038E706 /* ShowEntryRow.swift in Sources */,
