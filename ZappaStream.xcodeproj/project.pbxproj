@@ -794,7 +794,7 @@
 				CODE_SIGN_ENTITLEMENTS = "ZappaStream/ZappaStream-Debug.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260614;
+				CURRENT_PROJECT_VERSION = 20260614.1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
@@ -836,7 +836,7 @@
 				CODE_SIGN_ENTITLEMENTS = ZappaStream/ZappaStream.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260614;
+				CURRENT_PROJECT_VERSION = 20260614.1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
@@ -879,7 +879,7 @@
 				CODE_SIGN_ENTITLEMENTS = "ZappaStream-iOS/ZappaStream-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260614;
+				CURRENT_PROJECT_VERSION = 20260614.1;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_PREVIEWS = YES;
@@ -919,7 +919,7 @@
 				CODE_SIGN_ENTITLEMENTS = "ZappaStream-iOS/ZappaStream-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260614;
+				CURRENT_PROJECT_VERSION = 20260614.1;
 				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_PREVIEWS = YES;
