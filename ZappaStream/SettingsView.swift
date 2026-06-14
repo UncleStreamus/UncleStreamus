@@ -556,6 +556,12 @@ struct SavedDataSettingsView: View {
 struct CreditsView: View {
     @Environment(\.openURL) private var openURL
 
+    #if os(iOS)
+    // Loaded once: the build-time ReleaseNotes.json (iOS only). nil/empty → row hidden.
+    private let bundledNotes = ReleaseNotes.loadBundled()
+    @State private var showWhatsNew = false
+    #endif
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SettingsSectionHeader(title: "Stream", systemImage: "antenna.radiowaves.left.and.right")
@@ -638,8 +644,39 @@ struct CreditsView: View {
                 }
             }
 
+            #if os(iOS)
+            if let notes = bundledNotes, !notes.isEmpty {
+                SettingsSectionHeader(title: "What's New", systemImage: "sparkles")
+
+                SettingsSectionBox {
+                    Text("See what changed in this build.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Button {
+                        showWhatsNew = true
+                    } label: {
+                        HStack {
+                            Text("View release notes")
+                            Spacer()
+                            Image(systemName: "doc.text")
+                        }
+                    }
+                }
+            }
+            #endif
+
         }
         .padding(.bottom, 16)
+        #if os(iOS)
+        .sheet(isPresented: $showWhatsNew) {
+            if let notes = bundledNotes {
+                WhatsNewView(notes: notes) { showWhatsNew = false }
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+        }
+        #endif
     }
 }
 
