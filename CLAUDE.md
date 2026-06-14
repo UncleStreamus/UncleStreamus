@@ -82,6 +82,23 @@ xcodebuild test -scheme ZappaStream -destination 'platform=macOS' -only-testing:
   - macOS: CBass Swift Package (`https://github.com/Treata11/CBass.git`)
   - iOS: Pre-built XCFrameworks in `Frameworks/iOS/`
 
+## Commit Message Convention
+
+Use `Add:` / `Improve:` / `Fix:` subject prefixes — these drive both the GitHub
+release notes (`release.yml`) and the in-app "What's New" sheet.
+
+**Scope backend/dev commits** so they stay out of the tester-facing sheet:
+`Type(scope): …`, e.g. `Fix(ci): build universal binary`,
+`Improve(build): bump deployment target`, `Improve(docs): document DMG workflow`.
+Backend scopes: `ci`, `cd`, `build`, `dev`, `docs`, `test`, `chore`, `deps`,
+`infra`, `release`, `tooling`, `project`, `repo`, `meta`. User-facing scopes
+(e.g. `Fix(player): …`) are kept (the scope is stripped from the displayed text).
+
+`Scripts/generate_release_notes.sh` excludes any backend-scoped commit **and** any
+commit matching a backend keyword denylist (CI/signing/notarize/DMG/workflow/`.md`/…)
+from the in-app sheet. The GitHub release notes (`release.yml`) are **not** filtered
+— they include everything.
+
 ## Release Workflow (macOS DMG)
 
 `.github/workflows/release.yml` runs on any pushed tag matching `v*` and has two jobs:
@@ -403,7 +420,7 @@ Platform-Specific:
 | `MarqueeText.swift` | Animated scrolling text for long track titles (macOS) |
 | `ReleaseNotes.swift` | Codable model + loader for bundled `ReleaseNotes.json` (`loadBundled()`, `currentBuild`); drives the "What's New" sheet |
 | `WhatsNewView.swift` | Shared "What's New" sheet UI — New/Improved/Fixed sections (hidden when empty), version header, Continue button |
-| `Scripts/generate_release_notes.sh` | Build-phase script: writes `ReleaseNotes.json` into the iOS app bundle from git commit subjects (same `Add:`/`Improve:`/`Fix:` categories as release.yml) |
+| `Scripts/generate_release_notes.sh` | Build-phase script: writes `ReleaseNotes.json` into the iOS app bundle from git commit subjects (same `Add:`/`Improve:`/`Fix:` categories as release.yml), but **filters out backend/dev commits** (scoped backend commits + a keyword denylist) so the tester-facing sheet shows only user-level changes |
 | `StreamBuffer.swift` | Rolling WAV segment ring buffer for DVR (both platforms) — 16-bit PCM, 44.1 kHz stereo, 15 × 60s segments |
 | `DonlopeIndexCache.swift` | Async cache for donlope.net track URL lookups |
 | `SetlistInfoPaneView.swift` | Sheet that loads zappateers.com show page and scrolls to the show date |
