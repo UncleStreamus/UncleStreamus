@@ -22,9 +22,11 @@ set -eu
 SRCROOT="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$SRCROOT"
 
-# Commit range: everything since the most recent tag (all commits if no tags),
-# matching the range logic in release.yml.
-PREV_TAG=$(git tag --sort=-creatordate 2>/dev/null | head -1 || true)
+# Commit range: everything since the *previous* release tag (all commits if no
+# tags). Use --no-contains HEAD so that when building exactly at a freshly-created
+# release tag (every release/archive build does this), we skip HEAD's own tag and
+# pick the prior one — otherwise the range would be "thisTag..HEAD" = empty.
+PREV_TAG=$(git tag --no-contains HEAD --sort=-creatordate 2>/dev/null | head -1 || true)
 if [ -z "${PREV_TAG:-}" ]; then
   COMMITS=$(git log --pretty=format:'%s' --no-merges 2>/dev/null || true)
 else
