@@ -605,7 +605,7 @@ struct ContentView_iOS: View {
                     // Delay warning when using AAC stream - permanent until dismissed
                     if stream.format == "AAC" && !delayWarningDismissed {
                         HStack(spacing: 4) {
-                            Text("Track info can be more than 1min behind when using AAC...")
+                            Text("Track info can be several mins behind when using AAC...")
                                 .scaledFont(.caption2)
                                 .foregroundColor(.secondary)
                                 .italic()
