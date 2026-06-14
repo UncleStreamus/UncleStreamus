@@ -34,14 +34,24 @@ struct WhatsNewView: View {
             header
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    ForEach(sections) { section in
-                        sectionView(section)
+                if sections.isEmpty {
+                    Text("No notable changes in this version.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 32)
+                } else {
+                    VStack(alignment: .leading, spacing: 22) {
+                        ForEach(sections) { section in
+                            sectionView(section)
+                        }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             Divider()

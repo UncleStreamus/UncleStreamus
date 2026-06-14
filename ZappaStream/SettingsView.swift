@@ -645,11 +645,14 @@ struct CreditsView: View {
             }
 
             #if os(iOS)
-            if let notes = bundledNotes, !notes.isEmpty {
+            // Always available (not gated on non-empty), so testers can re-read the
+            // most recent change notes any time. The launch sheet is what's gated on
+            // there being something new.
+            if bundledNotes != nil {
                 SettingsSectionHeader(title: "What's New", systemImage: "sparkles")
 
                 SettingsSectionBox {
-                    Text("See what changed in this build.")
+                    Text("See what changed in this version.")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
