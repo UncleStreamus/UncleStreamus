@@ -350,8 +350,9 @@ enum PlaybackState: Equatable {
     var lastDVRPublishedMetadata: String? = nil
     var dvrMetadataTimer: Timer? = nil
     var dvrBufferFull: Bool = false        // set when recording fills the window
-    var dvrBufferFullExpired: Bool = false // set after 15-min playback window elapses
-    var dvrBufferExpiryTimer: Timer? = nil
+    /// Set true when the app returns to the foreground with a full, paused buffer waiting,
+    /// so the UI can offer "play the buffered audio or go live?". Cleared once the user chooses.
+    var dvrReturnOfferPending: Bool = false
 
     // Keeps DVREndSyncContext objects alive while BASS holds raw pointers to them.
     // Keys are DVR stream handles; values are the context objects. Entries removed

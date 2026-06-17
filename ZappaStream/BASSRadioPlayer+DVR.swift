@@ -163,8 +163,6 @@ extension BASSRadioPlayer {
     /// Start DVR playback from the saved pause timestamp.
     /// The live stream stays muted and continues recording.
     func dvrResume() {
-        // Buffer was full: if the 15-min window has expired, go live; otherwise play the buffer.
-        if dvrBufferFull && dvrBufferFullExpired { goLive(); return }
         guard dvrState == .paused, let buffer = streamBuffer else {
             print("⚠️ dvrResume guard failed: dvrState=\(dvrState) hasBuffer=\(streamBuffer != nil)")
             return
@@ -290,11 +288,9 @@ extension BASSRadioPlayer {
         // If the buffer filled (stream was paused to stop network activity), clean up the
         // WAV files and recreate StreamBuffer so DVR recording restarts immediately from live.
         let wasBufferFull = dvrBufferFull
+        dvrReturnOfferPending = false
         if dvrBufferFull {
             dvrBufferFull = false
-            dvrBufferFullExpired = false
-            dvrBufferExpiryTimer?.invalidate()
-            dvrBufferExpiryTimer = nil
             streamBuffer?.cleanup()       // delete the preserved WAV segment files
             let dvrMins = UserDefaults.standard.integer(forKey: "dvrBufferMinutes")
             streamBuffer = StreamBuffer(maxMinutes: dvrMins > 0 ? dvrMins : 15)
@@ -324,8 +320,9 @@ extension BASSRadioPlayer {
 
     /// Called when the recording ring buffer has been completely filled.
     /// Stops recording (flushing and closing segment files) but keeps the WAV files on disk
-    /// so the user can play back the full buffer within a 15-minute window.
-    /// After that window the UI reverts to a "live" appearance and pressing play goes live.
+    /// indefinitely so the user can play back the full buffer whenever they return — there is
+    /// no expiry. When the user next brings the app to the foreground, the UI offers a choice
+    /// (play the buffered audio vs. go live) via `offerBufferOnReturnIfNeeded()`.
     func handleDVRBufferFull(maxSecs: Double) {
         dvrBehindTimer?.invalidate()
         dvrBehindTimer = nil
@@ -345,14 +342,15 @@ extension BASSRadioPlayer {
         if streamHandle != 0 {
             BASS_ChannelPause(streamHandle)
         }
-        // Start a 15-minute window during which the user can press play to watch the buffer.
-        dvrBufferExpiryTimer?.invalidate()
-        dvrBufferExpiryTimer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: false) { [weak self] _ in
-            guard let self, self.dvrBufferFull else { return }
-            DispatchQueue.main.async { self.dvrBufferFullExpired = true }
-            print("📼 DVR buffer playback window expired — next play press will go live")
-        }
-        print("📼 DVR buffer full (\(Int(maxSecs / 60)) min) — recording stopped; 15-min playback window open")
+        // The buffer is preserved indefinitely — no expiry timer. The user is offered a
+        // play-back-vs-go-live choice when they next bring the app to the foreground.
+        print("📼 DVR buffer full (\(Int(maxSecs / 60)) min) — recording stopped; buffer preserved until the user returns")
+    }
+
+    /// Called when the app becomes active. If the buffer filled while the user was away
+    /// (paused + full), flag the UI to offer playing it back vs. going live.
+    func offerBufferOnReturnIfNeeded() {
+        if dvrState == .paused && dvrBufferFull { dvrReturnOfferPending = true }
     }
 
     func startBehindTimer() {

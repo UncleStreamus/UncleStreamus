@@ -260,9 +260,7 @@ extension BASSRadioPlayer {
         streamBuffer = nil
         dvrState = .live
         dvrBufferFull = false
-        dvrBufferFullExpired = false
-        dvrBufferExpiryTimer?.invalidate()
-        dvrBufferExpiryTimer = nil
+        dvrReturnOfferPending = false
         behindLiveSeconds = 0
         dvrCurrentSegNum = 0
         dvrNextSegNum    = 0

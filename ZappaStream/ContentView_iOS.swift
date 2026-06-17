@@ -329,6 +329,22 @@ struct ContentView_iOS: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
+        .alert("Buffered Audio Available", isPresented: Binding(
+            get: { bassPlayer.dvrReturnOfferPending },
+            set: { bassPlayer.dvrReturnOfferPending = $0 }
+        )) {
+            Button("Play Buffer") {
+                configureAudioSession()
+                bassPlayer.dvrResume()
+                updateNowPlayingInfo()
+            }
+            Button("Go Live") {
+                bassPlayer.goLive()
+                updateNowPlayingInfo()
+            }
+        } message: {
+            Text("You have buffered audio from before. Play it back, or jump to the live stream?")
+        }
         .onAppear {
             configureAudioSession()
             checkWhatsNew()
@@ -399,7 +415,12 @@ struct ContentView_iOS: View {
                 // backoff) and stalled/stopped handles (BASS timed out but handles
                 // weren't cleared before suspension). triggerImmediateReconnect() guards
                 // internally against disrupting a legitimately playing stream.
-                if bassPlayer.isUserIntendedPlay {
+                // Skip while the buffer is paused: reconnecting would restart the live
+                // stream and wipe a full buffer before the user can choose. If the buffer
+                // filled while away, offer to play it back vs. go live instead.
+                if bassPlayer.dvrState == .paused {
+                    bassPlayer.offerBufferOnReturnIfNeeded()
+                } else if bassPlayer.isUserIntendedPlay {
                     bassPlayer.triggerImmediateReconnect()
                 }
                 // Only stop the keepalive on foreground resume if DVR is no longer paused.

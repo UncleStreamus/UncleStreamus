@@ -217,6 +217,15 @@ struct ContentView: View {
         .sheet(item: $setlistInfoItem) { item in
             SetlistInfoPaneView(item: item)
         }
+        .alert("Buffered Audio Available", isPresented: Binding(
+            get: { bassPlayer.dvrReturnOfferPending },
+            set: { bassPlayer.dvrReturnOfferPending = $0 }
+        )) {
+            Button("Play Buffer") { bassPlayer.dvrResume() }
+            Button("Go Live") { bassPlayer.goLive() }
+        } message: {
+            Text("You have buffered audio from before. Play it back, or jump to the live stream?")
+        }
     }
 
     private let maxWindowHeight: CGFloat = 800
@@ -485,9 +494,8 @@ struct ContentView: View {
                 Divider()
 
                 // DVR status: LIVE badge when streaming live, Go Live + delay indicator in DVR mode.
-                // When the buffer-full 15-min window has expired, show LIVE badge (pressing play goes live).
                 if isPlaying {
-                    let dvrActive = bassPlayer.dvrState != .live && !bassPlayer.dvrBufferFullExpired
+                    let dvrActive = bassPlayer.dvrState != .live
                     HStack(spacing: 8) {
                         if dvrActive {
                             Text("\(dvrFormattedBehind(bassPlayer.behindLiveSeconds)) / \(dvrFormattedBehind(bassPlayer.dvrMaxBufferSeconds))")
@@ -1260,7 +1268,11 @@ struct ContentView: View {
             object: nil,
             queue: .main
         ) { [weak bassPlayer] _ in
-            if bassPlayer?.isUserIntendedPlay == true && bassPlayer?.isStreamActive == false {
+            // Don't reconnect while the buffer is paused — that would restart the live stream
+            // and wipe a full buffer before the user can choose. Offer the buffer instead.
+            if bassPlayer?.dvrState == .paused {
+                bassPlayer?.offerBufferOnReturnIfNeeded()
+            } else if bassPlayer?.isUserIntendedPlay == true && bassPlayer?.isStreamActive == false {
                 bassPlayer?.triggerImmediateReconnect()
             }
         }
@@ -1271,7 +1283,8 @@ struct ContentView: View {
             object: NSWorkspace.shared,
             queue: .main
         ) { [weak bassPlayer] _ in
-            if bassPlayer?.isUserIntendedPlay == true && bassPlayer?.isStreamActive == false {
+            if bassPlayer?.dvrState == .live,
+               bassPlayer?.isUserIntendedPlay == true && bassPlayer?.isStreamActive == false {
                 bassPlayer?.triggerImmediateReconnect()
             }
         }
