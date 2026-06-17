@@ -22,11 +22,25 @@ set -eu
 SRCROOT="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$SRCROOT"
 
-# Commit range: everything since the *previous* release tag (all commits if no
-# tags). Use --no-contains HEAD so that when building exactly at a freshly-created
-# release tag (every release/archive build does this), we skip HEAD's own tag and
-# pick the prior one — otherwise the range would be "thisTag..HEAD" = empty.
-PREV_TAG=$(git tag --no-contains HEAD --sort=-creatordate 2>/dev/null | head -1 || true)
+# Commit range: everything since the previous *marketing-version* tag (all commits
+# if no tags). We deliberately skip same-version tags so a re-cut of the current
+# release (e.g. build 20260617 -> 20260617.1, still 1.4.7) shows everything since
+# the last real release (1.4.6) instead of an empty "since the last build" diff.
+# --no-contains HEAD also skips a tag sitting on HEAD itself (fresh release/archive
+# builds tag HEAD) — otherwise the range would be "thisTag..HEAD" = empty.
+#
+# NOTE: this needs real history + tags. Xcode Cloud clones shallow (HEAD only),
+# which hides prior tags and makes notes come out empty; ci_scripts/
+# ci_post_clone.sh deepens the clone and fetches tags before this build phase runs.
+CUR_VER="${MARKETING_VERSION:-}"
+PREV_TAG=""
+for t in $(git tag --no-contains HEAD --sort=-creatordate 2>/dev/null || true); do
+  tver=$(printf '%s' "$t" | sed -E 's/^v//; s/-build.*$//')   # v1.4.6-build20260614-2 -> 1.4.6
+  if [ -z "$CUR_VER" ] || [ "$tver" != "$CUR_VER" ]; then
+    PREV_TAG="$t"
+    break
+  fi
+done
 if [ -z "${PREV_TAG:-}" ]; then
   COMMITS=$(git log --pretty=format:'%s' --no-merges 2>/dev/null || true)
 else
