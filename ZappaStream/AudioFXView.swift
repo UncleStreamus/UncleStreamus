@@ -31,15 +31,16 @@ struct FXInfoIcon: View {
 
 struct EQScaleView: View {
     let height: CGFloat
+    var maxDB: Int = 6
 
-    private let marks: [(db: Int, major: Bool)] = [
-        (6, true), (3, false), (0, true), (-3, false), (-6, true)
-    ]
+    private var marks: [(db: Int, major: Bool)] {
+        [(maxDB, true), (maxDB / 2, false), (0, true), (-maxDB / 2, false), (-maxDB, true)]
+    }
 
     var body: some View {
         Canvas { ctx, size in
             for m in marks {
-                let y = size.height * CGFloat(6 - m.db) / 12.0
+                let y = size.height * CGFloat(maxDB - m.db) / CGFloat(2 * maxDB)
 
                 var path = Path()
                 path.move(to: CGPoint(x: size.width - (m.major ? 8 : 5), y: y))
@@ -58,11 +59,9 @@ struct EQScaleView: View {
                         .font(.system(size: 7, weight: m.db == 0 ? .semibold : .regular))
                 )
                 let anchor: UnitPoint
-                switch m.db {
-                case 6:  anchor = .topLeading
-                case -6: anchor = .bottomLeading
-                default: anchor = .leading
-                }
+                if m.db == maxDB { anchor = .topLeading }
+                else if m.db == -maxDB { anchor = .bottomLeading }
+                else { anchor = .leading }
                 drawCtx.draw(resolved, at: CGPoint(x: 0, y: y), anchor: anchor)
             }
         }
@@ -73,7 +72,8 @@ struct EQScaleView: View {
 // MARK: - Vertical EQ Fader (Canvas-based)
 
 struct VerticalEQSlider: View {
-    @Binding var value: Float   // -6 … +6 dB
+    @Binding var value: Float   // -maxGain … +maxGain dB
+    var maxGain: Float = 6
     let onUpdate: () -> Void
 
     private let thumbSize:  CGFloat = 20
@@ -90,9 +90,9 @@ struct VerticalEQSlider: View {
             let centerY  = trackTop + trackH / 2
 
             Canvas { (ctx: inout GraphicsContext, size: CGSize) in
-                let maxGain: CGFloat = 6
+                let maxGainCG = CGFloat(maxGain)
                 let v = CGFloat(value)
-                let uDisp: CGFloat = v >= 0 ? sqrt(v / maxGain) : -sqrt(-v / maxGain)
+                let uDisp: CGFloat = v >= 0 ? sqrt(v / maxGainCG) : -sqrt(-v / maxGainCG)
                 let normalised = (1 + uDisp) / 2
                 let thumbY     = (1 - normalised) * trackH
                 let thumbMidY  = thumbY + thumbSize / 2
@@ -148,10 +148,10 @@ struct VerticalEQSlider: View {
                             lastHapticDB = Int((value / 2).rounded()) * 2
                         }
                         // Relative drag at 0.5× sensitivity: need 2× travel for the same dB change
-                        let dBPerPoint = Float(12.0 / trackH)
+                        let dBPerPoint = Float(2 * maxGain) / Float(trackH)
                         let deltaDB = Float(drag.location.y - dragStartY) * dBPerPoint * 0.5
                         // Snap to 0.1 dB increments
-                        let newValue = (max(-6, min(6, dragStartValue - deltaDB)) * 10).rounded() / 10
+                        let newValue = (max(-maxGain, min(maxGain, dragStartValue - deltaDB)) * 10).rounded() / 10
                         // Light haptic tick at every 2 dB crossing
                         let newWholeDB = Int((newValue / 2).rounded()) * 2
                         if newWholeDB != lastHapticDB {
@@ -163,7 +163,7 @@ struct VerticalEQSlider: View {
                         let relY = drag.location.y - trackTop
                         let t = max(0, min(1, Float(relY / trackH)))
                         let u = 1 - 2 * t                               // +1 at top, -1 at bottom
-                        value = 6 * (u >= 0 ? u * u : -(u * u))
+                        value = maxGain * (u >= 0 ? u * u : -(u * u))
 #endif
                         onUpdate()
                     }
@@ -251,6 +251,7 @@ struct FXHorizontalSlider: View {
 struct EQBandView: View {
     let label: String
     @Binding var gain: Float
+    var maxDB: Int = 6
     let onUpdate: () -> Void
 
     private let trackHeight: CGFloat = 80
@@ -270,8 +271,8 @@ struct EQBandView: View {
                 }
 
             HStack(spacing: 3) {
-                EQScaleView(height: trackHeight)
-                VerticalEQSlider(value: $gain, onUpdate: onUpdate)
+                EQScaleView(height: trackHeight, maxDB: maxDB)
+                VerticalEQSlider(value: $gain, maxGain: Float(maxDB), onUpdate: onUpdate)
                     .frame(height: trackHeight)
             }
 
@@ -287,6 +288,45 @@ struct EQBandView: View {
                 }
         }
         .frame(width: 75)
+    }
+}
+
+// MARK: - Sub Bass Toggle Column
+
+/// Compact on/off control that lives to the left of the Low EQ slider. Mirrors the
+/// EQBandView column shape (label / control / caption) so it aligns with the bands.
+struct SubBassColumn: View {
+    @Bindable var player: BASSRadioPlayer
+
+    private let trackHeight: CGFloat = 80
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("Sub\nBass")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .frame(height: 28)
+                .minimumScaleFactor(0.85)
+
+            Button {
+                player.subBassEnabled.toggle()
+                player.updateSubBass()
+            } label: {
+                Image(systemName: player.subBassEnabled ? "waveform.circle.fill" : "waveform.circle")
+                    .font(.system(size: 26))
+                    .foregroundStyle(player.subBassEnabled ? Color.accentColor : Color.secondary)
+                    .frame(height: trackHeight)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Text(player.subBassEnabled ? "On" : "Off")
+                .font(.caption2)
+                .foregroundColor(player.subBassEnabled ? .accentColor : .secondary)
+        }
+        .frame(width: 46)
     }
 }
 
@@ -557,12 +597,16 @@ struct AudioFXView: View {
                         }
 
                         HStack(spacing: 10) {
-                            EQBandView(label: "Low",   gain: $player.eqLowGain,  onUpdate: player.updateEQ)
-                            EQBandView(label: "Mid",  gain: $player.eqMidGain,  onUpdate: player.updateEQ)
-                            EQBandView(label: "High", gain: $player.eqHighGain, onUpdate: player.updateEQ)
+                            // Sub Bass toggle — independent of the EQ enable state.
+                            SubBassColumn(player: player)
+                            HStack(spacing: 10) {
+                                EQBandView(label: "Low",   gain: $player.eqLowGain,  maxDB: 8, onUpdate: player.updateEQ)
+                                EQBandView(label: "Mid",  gain: $player.eqMidGain,  onUpdate: player.updateEQ)
+                                EQBandView(label: "High", gain: $player.eqHighGain, onUpdate: player.updateEQ)
+                            }
+                            .opacity(player.eqEnabled ? 1.0 : 0.4)
                         }
                         .frame(maxWidth: .infinity, alignment: .center)
-                        .opacity(player.eqEnabled ? 1.0 : 0.4)
                     }
 
                     Divider()

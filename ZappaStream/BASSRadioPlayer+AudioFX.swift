@@ -18,6 +18,32 @@ struct FXSnapshot: Codable {
     var stereoPan: Float
     var stereoWidthEnabled: Bool
     var masterBypassEnabled: Bool
+    var subBassEnabled: Bool = false
+}
+
+extension FXSnapshot {
+    private enum CodingKeys: String, CodingKey {
+        case eqLowGain, eqMidGain, eqHighGain, eqEnabled, compressorOn, compressorAmount
+        case stereoWidth, stereoPan, stereoWidthEnabled, masterBypassEnabled, subBassEnabled
+    }
+
+    // Custom decode so snapshots written before Sub Bass existed still load
+    // (the missing key defaults to false). Defined in an extension to keep the
+    // synthesised memberwise initializer used by savePerShowFX().
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        eqLowGain           = try c.decode(Float.self, forKey: .eqLowGain)
+        eqMidGain           = try c.decode(Float.self, forKey: .eqMidGain)
+        eqHighGain          = try c.decode(Float.self, forKey: .eqHighGain)
+        eqEnabled           = try c.decode(Bool.self,  forKey: .eqEnabled)
+        compressorOn        = try c.decode(Bool.self,  forKey: .compressorOn)
+        compressorAmount    = try c.decode(Float.self, forKey: .compressorAmount)
+        stereoWidth         = try c.decode(Float.self, forKey: .stereoWidth)
+        stereoPan           = try c.decode(Float.self, forKey: .stereoPan)
+        stereoWidthEnabled  = try c.decode(Bool.self,  forKey: .stereoWidthEnabled)
+        masterBypassEnabled = try c.decode(Bool.self,  forKey: .masterBypassEnabled)
+        subBassEnabled      = try c.decodeIfPresent(Bool.self, forKey: .subBassEnabled) ?? false
+    }
 }
 
 // MARK: - Per-Show FX iCloud Sync
@@ -300,6 +326,89 @@ extension BASSRadioPlayer {
             userData,
             -1
         )
+
+        // Sub Bass: musical octave-down synthesis. Priority 1 — runs after input
+        // gain but before EQ/compressor/stereo/limiter, so the synthesised low end
+        // is shaped by the rest of the chain and caught by the soft limiter.
+        // Reset filter state for the fresh stream and snap blend to goal.
+        subBassSVFLow = 0; subBassSVFBand = 0; subBassEnv = 0
+        subBassPolarity = 1; subBassPrevPositive = true
+        subBassLPAState = 0; subBassLPBState = 0
+        subBassBlend     = (subBassEnabled && !masterBypassEnabled) ? 1.0 : 0.0
+        subBassBlendGoal = subBassBlend
+        subBassDSP = BASS_ChannelSetDSP(
+            handle,
+            { _, _, buffer, length, user in
+                guard let buffer = buffer, let user = user else { return }
+                let p = Unmanaged<BASSRadioPlayer>.fromOpaque(user).takeUnretainedValue()
+                let goalOn = p.subBassEnabled && !p.masterBypassEnabled
+                let blend  = p.subBassBlend
+                if blend <= 0.0001 && !goalOn { return }   // fully off — skip work
+
+                let samples = buffer.assumingMemoryBound(to: Float.self)
+                let count   = Int(length) / MemoryLayout<Float>.size
+                let frames  = count / 2
+
+                // Pull state into locals (single-threaded render callback).
+                var svfLow = p.subBassSVFLow, svfBand = p.subBassSVFBand
+                var env = p.subBassEnv
+                var polarity = p.subBassPolarity, prevPos = p.subBassPrevPositive
+                var lpA = p.subBassLPAState, lpB = p.subBassLPBState
+                let f = p.subBassSVFf, q = p.subBassSVFq
+                let attA = p.subBassEnvAttack, relA = p.subBassEnvRelease
+                let aA = p.subBassLPAAlpha, aB = p.subBassLPBAlpha
+                let gF = p.subBassFundGain, gH = p.subBassHarmGain
+                // Partially decouple the synthesised sub from Low EQ *boosts*: a
+                // Low boost only moves the sub by 25% of its dB amount, while cuts
+                // pass through fully. The sub runs before EQ, so the Low shelf
+                // multiplies it by the full boost; pre-scaling by 10^(-0.75·boost/20)
+                // cancels 75% of it (net = 25% of the boost). Cuts → boostDB 0 → no
+                // pre-scale → sub follows the cut fully (net ×gLow). Only the Low
+                // band matters — the sub's content is ≤300 Hz, far below Mid/High.
+                // eqBlend (0…1) auto-neutralises this when EQ is off/bypassed.
+                let boostDB = max(p.eqLowGain * p.eqBlend, 0)
+                let mix = blend * p.subBassOutputGain * powf(10, (-0.75 * boostDB) / 20)
+
+                for frame in 0..<frames {
+                    let L = samples[frame &* 2]
+                    let R = samples[frame &* 2 &+ 1]
+                    let mono = (L + R) * 0.5
+
+                    // Band-pass (Chamberlin SVF) isolating the bass fundamental.
+                    svfLow += f * svfBand
+                    let high = mono - svfLow - q * svfBand
+                    svfBand += f * high
+                    let bp = svfBand
+
+                    // Envelope follower on the band-pass output (fast attack, slow release).
+                    let rect = bp < 0 ? -bp : bp
+                    env += (rect > env ? attA : relA) * (rect - env)
+
+                    // Divide-by-two: flip polarity on each rising zero-crossing →
+                    // a square one octave below the bass pitch, scaled by the envelope.
+                    let pos = bp >= 0
+                    if pos && !prevPos { polarity = -polarity }
+                    prevPos = pos
+                    let square = polarity * env
+
+                    // Two low-passes; their difference is the audible harmonic band.
+                    lpA += aA * (square - lpA)   // ~70 Hz  → octave-down fundamental (felt)
+                    lpB += aB * (square - lpB)   // ~300 Hz → fundamental + low harmonics
+                    let harm = lpB - lpA         // harmonics (perceived on small speakers)
+
+                    let sub = (lpA * gF + harm * gH) * mix
+                    samples[frame &* 2]       = L + sub
+                    samples[frame &* 2 &+ 1] = R + sub
+                }
+
+                p.subBassSVFLow = svfLow; p.subBassSVFBand = svfBand
+                p.subBassEnv = env
+                p.subBassPolarity = polarity; p.subBassPrevPositive = prevPos
+                p.subBassLPAState = lpA; p.subBassLPBState = lpB
+            },
+            userData,
+            1
+        )
         // Click guard DSP: runs after limiter (priority -2).
         // OGG/FLAC: for FLAC in two-mixer mode, attaches to the pre-mixer (cgHandle) so it fires
         // in the DECODE-mode render context at the bitstream boundary, before FX processing.
@@ -499,7 +608,7 @@ extension BASSRadioPlayer {
         guard eqLowFX != 0 else { return }
         var p = BASS_BFX_BQF()
         p.lFilter  = Int32(BASS_BFX_BQF_LOWSHELF)
-        p.fCenter  = 120
+        p.fCenter  = 90
         p.fGain    = gain
         p.fS       = 0.7
         p.lChannel = -1
@@ -511,7 +620,7 @@ extension BASSRadioPlayer {
         let bw = max(0.1, 2.0 - (abs(eqMidGain) / 6.0) * 1.0)
         var p = BASS_BFX_BQF()
         p.lFilter     = Int32(BASS_BFX_BQF_PEAKINGEQ)
-        p.fCenter     = 1800
+        p.fCenter     = 2700
         p.fGain       = gain
         p.fBandwidth  = bw
         p.lChannel    = -1
@@ -644,6 +753,17 @@ extension BASSRadioPlayer {
             if eqBlend != eqBlendGoal { stillRamping = true }
         }
 
+        // Sub Bass: the DSP reads subBassBlend live, so we only advance the value.
+        if subBassBlend != subBassBlendGoal {
+            let diff = subBassBlendGoal - subBassBlend
+            if abs(diff) <= step {
+                subBassBlend = subBassBlendGoal
+            } else {
+                subBassBlend += diff > 0 ? step : -step
+            }
+            if subBassBlend != subBassBlendGoal { stillRamping = true }
+        }
+
         flushEffects()
         if !stillRamping {
             fxRampTimer?.invalidate()
@@ -706,6 +826,19 @@ extension BASSRadioPlayer {
         saveFXToDefaults()
     }
 
+    func updateSubBass() {
+        subBassBlendGoal = (subBassEnabled && !masterBypassEnabled) ? 1.0 : 0.0
+        if mixerHandle == 0 && streamHandle == 0 {
+            // Not playing — snap immediately, no ramp.
+            subBassBlend = subBassBlendGoal
+        } else if subBassBlend != subBassBlendGoal {
+            // Toggled while playing — ramp smoothly (the DSP reads the blend live).
+            startFXRampIfNeeded()
+        }
+        flushEffects()
+        saveFXToDefaults()
+    }
+
     func resetAllFX() {
         masterBypassEnabled = false
         eqEnabled           = true
@@ -717,13 +850,15 @@ extension BASSRadioPlayer {
         stereoWidthEnabled  = true
         stereoWidth         = 0.75
         stereoPan           = 0.5
+        subBassEnabled      = false
         measuredRMSdB       = -20.0
         rmsAccumulator      = 0
         rmsSampleCount      = 0
         lastAppliedThreshold = 0
         updateEQ()
         updateCompressor()
-        // flushEffects() already called by updateEQ/updateCompressor above
+        updateSubBass()
+        // flushEffects() already called by the update methods above
     }
 
     func saveFXToDefaults() {
@@ -739,7 +874,8 @@ extension BASSRadioPlayer {
             eqLowGain: eqLowGain, eqMidGain: eqMidGain, eqHighGain: eqHighGain,
             eqEnabled: eqEnabled, compressorOn: compressorOn, compressorAmount: compressorAmount,
             stereoWidth: stereoWidth, stereoPan: stereoPan,
-            stereoWidthEnabled: stereoWidthEnabled, masterBypassEnabled: masterBypassEnabled
+            stereoWidthEnabled: stereoWidthEnabled, masterBypassEnabled: masterBypassEnabled,
+            subBassEnabled: subBassEnabled
         )
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         let key = "fxPerShow.\(showDate)"
@@ -779,14 +915,17 @@ extension BASSRadioPlayer {
         stereoPan          = snapshot.stereoPan
         stereoWidthEnabled = snapshot.stereoWidthEnabled
         masterBypassEnabled = snapshot.masterBypassEnabled
+        subBassEnabled     = snapshot.subBassEnabled
         updateEQ()
         updateCompressor()
+        updateSubBass()
         return true
     }
 
     func updateMasterBypass() {
         updateEQ()
         updateCompressor()
+        updateSubBass()
     }
 
     /// Tops up the mixer output buffer with freshly-processed audio.

@@ -173,8 +173,8 @@ enum PlaybackState: Equatable {
 
     // MARK: - Audio Effects
 
-    var eqLowFX:  HFX = 0   // BASS_BFX_BQF_LOWSHELF  @ 120 Hz
-    var eqMidFX:  HFX = 0   // BASS_BFX_BQF_PEAKINGEQ @ 1800 Hz
+    var eqLowFX:  HFX = 0   // BASS_BFX_BQF_LOWSHELF  @ 90 Hz
+    var eqMidFX:  HFX = 0   // BASS_BFX_BQF_PEAKINGEQ @ 2700 Hz
     var eqHighFX: HFX = 0   // BASS_BFX_BQF_HIGHSHELF @ 7500 Hz
     var compressorFX: HFX = 0
     var levelMeterDSP: HDSP = 0
@@ -182,6 +182,7 @@ enum PlaybackState: Equatable {
     var limiterDSP: HDSP = 0
     var clickGuardDSP: HDSP = 0
     var inputGainDSP: HDSP = 0
+    var subBassDSP: HDSP = 0
 
     // MARK: - Click Guard (OGG/FLAC/MP3)
     // OGG/FLAC: BASS_SYNC_OGG_CHANGE (MIXTIME) fires at bitstream boundaries — sample-accurate.
@@ -366,6 +367,39 @@ enum PlaybackState: Equatable {
     var eqBlendGoal: Float = 1.0
     var fxRampTimer: Timer?
 
+    // MARK: - Sub Bass (musical octave-down synthesis)
+    // Single on/off effect that synthesises low-frequency depth for thin tape/AUD
+    // sources. A band-pass isolates the existing bass fundamental (~90 Hz); a
+    // zero-crossing divide-by-two follower generates a pitch-consonant tone one
+    // octave below, gated by the band's envelope so it tracks the music and goes
+    // silent when there's no bass. Hybrid voicing: the octave-down fundamental
+    // (felt on good headphones/speakers) plus its low harmonics (perceived on
+    // small phone speakers via the missing-fundamental effect). Internal gains are
+    // fixed/subtle — no user slider. Output rides subBassBlend for click-free
+    // toggling and is added equally to L+R (bass is centred). Inserted before the
+    // limiter so peaks stay protected.
+    var subBassEnabled: Bool   = false
+    var subBassBlend: Float    = 0.0   // 0 = silent, 1 = fully mixed in
+    var subBassBlendGoal: Float = 0.0
+    // DSP state (single-threaded inside the BASS render callback)
+    var subBassSVFLow:  Float = 0.0    // Chamberlin state-variable filter low state
+    var subBassSVFBand: Float = 0.0    // ...band-pass state (≈90 Hz band)
+    var subBassEnv:     Float = 0.0    // envelope follower on the band-pass output
+    var subBassPolarity: Float = 1.0   // ±1 square, flips each rising zero-crossing
+    var subBassPrevPositive: Bool = true
+    var subBassLPAState: Float = 0.0   // ~70 Hz low-pass → octave-down fundamental
+    var subBassLPBState: Float = 0.0   // ~300 Hz low-pass → fundamental + low harmonics
+    // Fixed coefficients (44.1 kHz). f = 2·sin(π·fc/fs); LP α = 2π·fc/(2π·fc+fs).
+    let subBassSVFf: Float        = 0.012822  // band-pass centre ≈90 Hz
+    let subBassSVFq: Float        = 1.0       // 1/Q (Q ≈ 1.0)
+    let subBassEnvAttack: Float   = 0.0045    // ~5 ms
+    let subBassEnvRelease: Float  = 0.00019   // ~120 ms
+    let subBassLPAAlpha: Float    = 0.0099    // ~70 Hz
+    let subBassLPBAlpha: Float    = 0.041     // ~300 Hz
+    let subBassFundGain: Float    = 0.8       // octave-down fundamental level
+    let subBassHarmGain: Float    = 0.5       // harmonic-layer level
+    let subBassOutputGain: Float  = 0.6       // overall subtle mix gain
+
     var stereoWidthCoeff: Float {
         stereoWidth <= 0.75
             ? stereoWidth / 0.75
@@ -384,7 +418,7 @@ enum PlaybackState: Equatable {
         let compressorIsUsed = compressorOn
         let stereoIsUsed = stereoWidthEnabled && (stereoWidth != 0.75 || stereoPan != 0.5)
 
-        return eqIsUsed || compressorIsUsed || stereoIsUsed
+        return eqIsUsed || compressorIsUsed || stereoIsUsed || subBassEnabled
     }
 
     // MARK: - Init / Deinit

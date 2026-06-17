@@ -31,6 +31,7 @@ struct ContentView_iOS: View {
     @State private var currentShow: FZShow?
     @State private var isFetchingShowInfo: Bool = false
     @State private var availableWidth: CGFloat = 500
+    @State private var controlsRowWidth: CGFloat = 0
     @AppStorage("textScale") private var textScale: Double = 1.1
     @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "OGG"
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
@@ -534,6 +535,22 @@ struct ContentView_iOS: View {
 
     // MARK: - Stream Controls Bar
 
+    // FX gets a smaller share of the transport row than the other buttons, but the
+    // widths are derived from the row's live width so every button still stretches /
+    // squishes and FX grows proportionally (e.g. landscape vs portrait) while staying
+    // a fixed fraction of a standard button. Tune via fxWidthWeight.
+    private let fxWidthWeight: CGFloat = 0.62
+
+    private func transportButtonWidth(isFX: Bool) -> CGFloat? {
+        guard controlsRowWidth > 0 else { return nil }      // not measured yet → stay flexible
+        let buttonCount = dvrEnabled ? 4 : 3                // Stop only shows when dvrEnabled
+        let standardCount = CGFloat(buttonCount) - 1        // all non-FX buttons
+        let totalSpacing = CGFloat(buttonCount - 1) * 10    // HStack spacing: 10
+        let totalWeight = standardCount + fxWidthWeight
+        let unit = max(0, controlsRowWidth - totalSpacing) / totalWeight
+        return isFX ? unit * fxWidthWeight : unit
+    }
+
     private var streamControlsBar: some View {
         VStack(spacing: 4) {
             // DVR status row
@@ -651,6 +668,7 @@ struct ContentView_iOS: View {
                             .scaledFont(.caption2)
                     }
                     .frame(maxWidth: .infinity)
+                    .frame(width: transportButtonWidth(isFX: false))
                     .padding(.vertical, 8)
                     .background(Color(.tertiarySystemBackground))
                     .cornerRadius(8)
@@ -676,7 +694,7 @@ struct ContentView_iOS: View {
                             .scaledFont(.subheadline, weight: .medium)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 12)
+                    .frame(width: transportButtonWidth(isFX: true))
                     .padding(.vertical, 8)
                     .background(
                         showFXPane
@@ -731,6 +749,7 @@ struct ContentView_iOS: View {
                             .scaledFont(.subheadline, weight: .medium)
                     }
                     .frame(maxWidth: .infinity)
+                    .frame(width: transportButtonWidth(isFX: false))
                     .padding(.vertical, 8)
                     .background(isPlaying && bassPlayer.dvrState != .paused ? Color.red.opacity(0.85) : Color.accentColor)
                     .foregroundColor(.white)
@@ -751,6 +770,7 @@ struct ContentView_iOS: View {
                                 .scaledFont(.subheadline, weight: .medium)
                         }
                         .frame(maxWidth: .infinity)
+                        .frame(width: transportButtonWidth(isFX: false))
                         .padding(.vertical, 8)
                         .background(Color(.tertiarySystemBackground))
                         .foregroundColor(isPlaying ? .primary : .secondary)
@@ -759,6 +779,13 @@ struct ContentView_iOS: View {
                     .disabled(!isPlaying)
                 }
             }
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { controlsRowWidth = geo.size.width }
+                        .onChange(of: geo.size.width) { _, w in controlsRowWidth = w }
+                }
+            )
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
