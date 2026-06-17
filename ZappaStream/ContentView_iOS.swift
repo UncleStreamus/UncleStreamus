@@ -47,6 +47,8 @@ struct ContentView_iOS: View {
     @AppStorage("lastSeenBuild") private var lastSeenBuild: String = ""
     @State private var whatsNewNotes: ReleaseNotes?
     @State private var didCheckWhatsNew: Bool = false
+    @AppStorage("hasSeenWelcome") private var hasSeenWelcome: Bool = false
+    @State private var showWelcome: Bool = false
     @AppStorage("delayWarningDismissed") private var delayWarningDismissed: Bool = false
     @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
     @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
@@ -327,6 +329,11 @@ struct ContentView_iOS: View {
         .sheet(item: $whatsNewNotes) { notes in
             WhatsNewView(notes: notes) { whatsNewNotes = nil }
                 .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showWelcome) {
+            WelcomeView { showWelcome = false }
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
         .alert("Buffered Audio Available", isPresented: Binding(
@@ -1347,8 +1354,9 @@ struct ContentView_iOS: View {
     // MARK: - Audio Session Setup
 
     /// Shows the "What's New" sheet once per build update. A first-ever install is
-    /// recorded silently (no sheet); thereafter the sheet appears when the bundled
-    /// build number changes and there are non-empty notes to display.
+    /// recorded silently (no What's New sheet) and instead shows the one-time
+    /// Welcome sheet; thereafter What's New appears when the bundled build number
+    /// changes and there are non-empty notes to display.
     private func checkWhatsNew() {
         guard !didCheckWhatsNew else { return }
         didCheckWhatsNew = true
@@ -1357,7 +1365,11 @@ struct ContentView_iOS: View {
         guard !current.isEmpty else { return }
 
         if lastSeenBuild.isEmpty {
-            lastSeenBuild = current          // first-ever install: don't show
+            lastSeenBuild = current          // first-ever install: don't show What's New
+            if !hasSeenWelcome {             // …show the one-time Welcome guide instead
+                showWelcome = true
+                hasSeenWelcome = true
+            }
         } else if lastSeenBuild != current {
             if let notes = ReleaseNotes.loadBundled(), !notes.isEmpty {
                 whatsNewNotes = notes        // triggers the sheet

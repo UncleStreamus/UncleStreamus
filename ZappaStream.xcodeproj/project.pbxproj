@@ -109,6 +109,8 @@
 		BE17E5000005E5000017E504 /* ReleaseNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000001E5000017E500 /* ReleaseNotes.swift */; };
 		BE17E5000006E5000017E505 /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E501 /* WhatsNewView.swift */; };
 		BE17E5000007E5000017E506 /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E501 /* WhatsNewView.swift */; };
+		BE17E5000006E5000017E515 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E511 /* WelcomeView.swift */; };
+		BE17E5000007E5000017E516 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E511 /* WelcomeView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -206,6 +208,7 @@
 		18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportFormatter.swift; sourceTree = "<group>"; };
 		BE17E5000001E5000017E500 /* ReleaseNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseNotes.swift; sourceTree = "<group>"; };
 		BE17E5000002E5000017E501 /* WhatsNewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewView.swift; sourceTree = "<group>"; };
+		BE17E5000002E5000017E511 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -313,6 +316,7 @@
 				BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */,
 				BE17E5000001E5000017E500 /* ReleaseNotes.swift */,
 				BE17E5000002E5000017E501 /* WhatsNewView.swift */,
+				BE17E5000002E5000017E511 /* WelcomeView.swift */,
 				BE1A34272F30C6D800647B01 /* Preview Content */,
 				BEAA00022F34000100AA0003 /* SavedShow.swift */,
 				B859389429B13E3327751EB4 /* ScaledFont.swift */,
@@ -552,6 +556,7 @@
 				BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */,
 				BE17E5000005E5000017E504 /* ReleaseNotes.swift in Sources */,
 				BE17E5000007E5000017E506 /* WhatsNewView.swift in Sources */,
+				BE17E5000007E5000017E516 /* WelcomeView.swift in Sources */,
 				BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */,
 				07D191737EF2D1D5E95B0ADB /* ScaledFont.swift in Sources */,
 				360EE955A35C50D1A38B36CD /* TourPeriods.swift in Sources */,
@@ -584,6 +589,7 @@
 				BE2FCA6E2F3CBBCA0038E706 /* ParsedTrackInfo.swift in Sources */,
 				BE17E5000004E5000017E503 /* ReleaseNotes.swift in Sources */,
 				BE17E5000006E5000017E505 /* WhatsNewView.swift in Sources */,
+				BE17E5000006E5000017E515 /* WelcomeView.swift in Sources */,
 				BE2FCA6F2F3CBBCA0038E706 /* FilterView.swift in Sources */,
 				E9F0619C0B0FB298E575550C /* ExportFormatter.swift in Sources */,
 				BE2FCA702F3CBBCA0038E706 /* ShowEntryRow.swift in Sources */,

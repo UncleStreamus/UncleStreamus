@@ -560,6 +560,7 @@ struct CreditsView: View {
     // Loaded once: the build-time ReleaseNotes.json (iOS only). nil/empty → row hidden.
     private let bundledNotes = ReleaseNotes.loadBundled()
     @State private var showWhatsNew = false
+    @State private var showWelcome = false
     #endif
 
     var body: some View {
@@ -645,6 +646,24 @@ struct CreditsView: View {
             }
 
             #if os(iOS)
+            SettingsSectionHeader(title: "Getting Started", systemImage: "dot.radiowaves.left.and.right")
+
+            SettingsSectionBox {
+                Text("New here? Revisit the stream guide and feature tour.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Button {
+                    showWelcome = true
+                } label: {
+                    HStack {
+                        Text("Stream guide & welcome")
+                        Spacer()
+                        Image(systemName: "sparkles")
+                    }
+                }
+            }
+
             // Always available (not gated on non-empty), so testers can re-read the
             // most recent change notes any time. The launch sheet is what's gated on
             // there being something new.
@@ -678,6 +697,11 @@ struct CreditsView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
+        }
+        .sheet(isPresented: $showWelcome) {
+            WelcomeView { showWelcome = false }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         #endif
     }
