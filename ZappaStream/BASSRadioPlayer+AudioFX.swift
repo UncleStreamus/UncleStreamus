@@ -54,6 +54,14 @@ enum PerShowFXSync {
     private static let keyPrefix = "fxPerShow."
     private static var observer: NSObjectProtocol?
 
+    /// Whether the user's "Enable iCloud Sync" preference is on. Read via
+    /// `object(forKey:) as? Bool ?? true` (not `bool(forKey:)`) so a fresh install,
+    /// where `@AppStorage` hasn't written its default yet, is treated as enabled —
+    /// matching the history container's gating in `ZappaStreamApp`.
+    static var iCloudSyncEnabled: Bool {
+        (UserDefaults.standard.object(forKey: "iCloudSyncEnabled") as? Bool) ?? true
+    }
+
     static func start() {
         guard observer == nil else { return }
         let store = NSUbiquitousKeyValueStore.default
@@ -63,6 +71,10 @@ enum PerShowFXSync {
             object: store,
             queue: .main
         ) { note in
+            // Respect the live setting: when iCloud sync is off, don't mirror cloud
+            // changes into the local store. The flag is read per-callback so toggling
+            // the setting at runtime takes effect without a restart.
+            guard iCloudSyncEnabled else { return }
             let changedKeys = note.userInfo?[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String]
             // If we don't know which keys changed, mirror all per-show keys.
             let keys = changedKeys?.filter { $0.hasPrefix(keyPrefix) }
@@ -73,7 +85,9 @@ enum PerShowFXSync {
                 }
             }
         }
-        store.synchronize()
+        if iCloudSyncEnabled {
+            store.synchronize()
+        }
     }
 }
 
@@ -880,17 +894,23 @@ extension BASSRadioPlayer {
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         let key = "fxPerShow.\(showDate)"
         // Local UserDefaults is the synchronous source of truth (always survives a
-        // restart). Mirror to iCloud KVS for cross-device sync.
+        // restart). Mirror to iCloud KVS for cross-device sync — but only when the
+        // user has iCloud Sync enabled, so the toggle governs FX the same way it
+        // governs history/favourites.
         UserDefaults.standard.set(data, forKey: key)
-        NSUbiquitousKeyValueStore.default.set(data, forKey: key)
-        NSUbiquitousKeyValueStore.default.synchronize()
+        if PerShowFXSync.iCloudSyncEnabled {
+            NSUbiquitousKeyValueStore.default.set(data, forKey: key)
+            NSUbiquitousKeyValueStore.default.synchronize()
+        }
     }
 
     /// Whether a per-show FX snapshot exists for this show (no side effects).
     func hasPerShowFX(showDate: String) -> Bool {
         let key = "fxPerShow.\(showDate)"
-        return UserDefaults.standard.data(forKey: key) != nil
-            || NSUbiquitousKeyValueStore.default.data(forKey: key) != nil
+        if UserDefaults.standard.data(forKey: key) != nil { return true }
+        // Only consult the cloud store when iCloud sync is enabled.
+        return PerShowFXSync.iCloudSyncEnabled
+            && NSUbiquitousKeyValueStore.default.data(forKey: key) != nil
     }
 
     /// Restores FX from the per-show snapshot. Returns false if no snapshot exists for this show.
@@ -900,7 +920,9 @@ extension BASSRadioPlayer {
     func restorePerShowFX(showDate: String) -> Bool {
         let key = "fxPerShow.\(showDate)"
         var data = UserDefaults.standard.data(forKey: key)
-        if data == nil, let cloudData = NSUbiquitousKeyValueStore.default.data(forKey: key) {
+        // Fall back to the cloud store only when iCloud sync is enabled.
+        if data == nil, PerShowFXSync.iCloudSyncEnabled,
+           let cloudData = NSUbiquitousKeyValueStore.default.data(forKey: key) {
             UserDefaults.standard.set(cloudData, forKey: key)
             data = cloudData
         }

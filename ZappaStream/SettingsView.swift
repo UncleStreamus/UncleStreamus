@@ -277,8 +277,15 @@ struct SyncSettingsView: View {
             SettingsSectionBox {
                 Toggle("Enable iCloud Sync", isOn: $iCloudSyncEnabled)
                     .disabled(!iCloudAvailable)
-                    .onChange(of: iCloudSyncEnabled) { _, _ in
+                    .onChange(of: iCloudSyncEnabled) { _, isEnabled in
                         showRestartBanner = true
+                        // The history/CloudKit store only re-binds on restart (hence the
+                        // banner), but per-show FX live in KVS and can pull right away.
+                        // Kick a sync so a freshly re-enabled device pulls cloud FX
+                        // snapshots without waiting for the next external-change notification.
+                        if isEnabled {
+                            NSUbiquitousKeyValueStore.default.synchronize()
+                        }
                     }
 
                 if !iCloudAvailable {
