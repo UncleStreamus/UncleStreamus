@@ -44,6 +44,13 @@ struct ContentView: View {
     @AppStorage("dvrBufferMinutes") private var dvrBufferMinutes: Int = 15
     @State private var windowHeightBeforeFX: CGFloat = 0  // Track window height before FX opens
 
+    // "What's New" / "Welcome" sheets — mirrors the iOS logic in ContentView_iOS.
+    @AppStorage("lastSeenBuild") private var lastSeenBuild: String = ""
+    @State private var whatsNewNotes: ReleaseNotes?
+    @State private var didCheckWhatsNew: Bool = false
+    @AppStorage("hasSeenWelcome") private var hasSeenWelcome: Bool = false
+    @State private var showWelcome: Bool = false
+
     let streams = [
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
         Stream(name: "OGG (90 kbit/s)", url: "https://shoutcast.norbert.de/zappa.ogg", format: "OGG"),
@@ -116,6 +123,7 @@ struct ContentView: View {
             setupPlayer()
             configureWindowConstraints()
             setupMenubarObservers()
+            checkWhatsNew()
 
             // Send initial state to menubar
             if let stream = selectedStream {
@@ -216,6 +224,14 @@ struct ContentView: View {
         }
         .sheet(item: $setlistInfoItem) { item in
             SetlistInfoPaneView(item: item)
+        }
+        .sheet(item: $whatsNewNotes) { notes in
+            WhatsNewView(notes: notes) { whatsNewNotes = nil }
+                .frame(width: 420, height: 560)
+        }
+        .sheet(isPresented: $showWelcome) {
+            WelcomeView { showWelcome = false }
+                .frame(width: 460, height: 640)
         }
         .alert("Buffered Audio Available", isPresented: Binding(
             get: { bassPlayer.dvrReturnOfferPending },
@@ -1287,6 +1303,52 @@ struct ContentView: View {
                bassPlayer?.isUserIntendedPlay == true && bassPlayer?.isStreamActive == false {
                 bassPlayer?.triggerImmediateReconnect()
             }
+        }
+
+        // Open the Welcome / What's New sheets from the menubar "About" submenu
+        NotificationCenter.default.addObserver(
+            forName: .showWelcomeSheet,
+            object: nil,
+            queue: .main
+        ) { [self] _ in
+            showWelcome = true
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: .showWhatsNewSheet,
+            object: nil,
+            queue: .main
+        ) { [self] _ in
+            if let notes = ReleaseNotes.loadBundled() {
+                whatsNewNotes = notes
+            }
+        }
+    }
+
+    /// Shows the "What's New" sheet once per build update. A first-ever install is
+    /// recorded silently (no What's New sheet) and instead shows the one-time
+    /// Welcome sheet; thereafter What's New appears when the bundled build number
+    /// changes and there are non-empty notes to display. Mirrors the iOS logic.
+    private func checkWhatsNew() {
+        guard !didCheckWhatsNew else { return }
+        didCheckWhatsNew = true
+
+        let current = ReleaseNotes.currentBuild
+        guard !current.isEmpty else { return }
+
+        if lastSeenBuild.isEmpty {
+            lastSeenBuild = current          // first-ever install: don't show What's New
+            if !hasSeenWelcome {             // …show the one-time Welcome guide instead
+                showWelcome = true
+                hasSeenWelcome = true
+            }
+        } else if lastSeenBuild != current {
+            // Only auto-popup for changes genuinely new in this build; a re-cut with
+            // no user-facing changes carries fallback notes (isCurrent == false).
+            if let notes = ReleaseNotes.loadBundled(), !notes.isEmpty, notes.isCurrent {
+                whatsNewNotes = notes        // triggers the sheet
+            }
+            lastSeenBuild = current          // record regardless, so it won't reappear
         }
     }
 

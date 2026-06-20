@@ -1371,7 +1371,9 @@ struct ContentView_iOS: View {
                 hasSeenWelcome = true
             }
         } else if lastSeenBuild != current {
-            if let notes = ReleaseNotes.loadBundled(), !notes.isEmpty {
+            // Only auto-popup for changes genuinely new in this build; the generator
+            // may bundle older fallback notes (current == false) for manual viewing.
+            if let notes = ReleaseNotes.loadBundled(), !notes.isEmpty, notes.isCurrent {
                 whatsNewNotes = notes        // triggers the sheet
             }
             lastSeenBuild = current          // record regardless, so it won't reappear

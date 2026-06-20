@@ -16,11 +16,20 @@ struct ReleaseNotes: Codable, Identifiable {
     let new: [String]
     let improved: [String]
     let fixed: [String]
+    /// True when these notes describe the build currently running. The generator
+    /// falls back to the most recent release that *had* user-facing changes when the
+    /// current build has none, so manual opening always shows something — but the
+    /// launch auto-popup must only fire for genuinely new changes. Optional for
+    /// backward-compatible decoding; absent → treat as current (prior behavior).
+    let current: Bool?
 
     /// Stable identity for `.sheet(item:)`; the build number is unique per build.
     var id: String { build }
 
     var isEmpty: Bool { new.isEmpty && improved.isEmpty && fixed.isEmpty }
+
+    /// Whether these notes belong to the running build (drives the launch auto-popup).
+    var isCurrent: Bool { current ?? true }
 
     /// Loads the `ReleaseNotes.json` resource embedded by the build-phase script.
     /// Returns `nil` when the file is absent (e.g. a local build without the phase)

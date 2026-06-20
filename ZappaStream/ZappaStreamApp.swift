@@ -259,6 +259,8 @@ extension Notification.Name {
     static let volumeUp = Notification.Name("volumeUp")
     static let volumeDown = Notification.Name("volumeDown")
     static let setVolume = Notification.Name("setVolume")
+    static let showWelcomeSheet = Notification.Name("showWelcomeSheet")
+    static let showWhatsNewSheet = Notification.Name("showWhatsNewSheet")
 }
 
 private class VolumeSliderView: NSView {
@@ -462,6 +464,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         textSizeItem.submenu = textSizeSubmenu
         menu.addItem(textSizeItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        // About submenu — Welcome guide + What's New sheets
+        let aboutItem = NSMenuItem(title: "About", action: nil, keyEquivalent: "")
+        let aboutSubmenu = NSMenu()
+        aboutSubmenu.addItem(NSMenuItem(title: "Welcome to ZappaStream", action: #selector(showWelcomeSheet), keyEquivalent: ""))
+        aboutSubmenu.addItem(NSMenuItem(title: "What's New", action: #selector(showWhatsNewSheet), keyEquivalent: ""))
+        aboutItem.submenu = aboutSubmenu
+        menu.addItem(aboutItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -670,6 +682,53 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         if let event = keyEvent {
             NSApplication.shared.sendEvent(event)
+        }
+    }
+
+    @objc private func showWelcomeSheet() {
+        presentSheet(named: .showWelcomeSheet)
+    }
+
+    @objc private func showWhatsNewSheet() {
+        presentSheet(named: .showWhatsNewSheet)
+    }
+
+    /// Posts a sheet-presentation notification to the live `ContentView`. The sheet
+    /// can only attach to an on-screen window, so ensure the main window is open
+    /// first. When the window was closed it's freshly re-created, so delay the post
+    /// long enough for `ContentView.onAppear` to register its observers.
+    private func presentSheet(named name: Notification.Name) {
+        let window = NSApplication.shared.windows.first(where: {
+            $0.identifier?.rawValue == "main" || $0.title.contains("Zappa")
+        })
+        let alreadyVisible = (window?.isVisible == true) && (window?.isOnActiveSpace == true)
+
+        if !alreadyVisible {
+            showMainWindow()
+        }
+
+        let delay = alreadyVisible ? 0.0 : 0.25
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            NotificationCenter.default.post(name: name, object: nil)
+        }
+    }
+
+    /// Brings the main window forward without toggling it closed (unlike
+    /// `toggleMainWindow`, which hides an already-visible window).
+    private func showMainWindow() {
+        if let window = NSApplication.shared.windows.first(where: {
+            $0.identifier?.rawValue == "main" || $0.title.contains("Zappa")
+        }) {
+            if !window.collectionBehavior.contains(.moveToActiveSpace) {
+                window.collectionBehavior.insert(.moveToActiveSpace)
+            }
+            if !window.isOnActiveSpace {
+                window.orderOut(nil)
+            }
+            window.makeKeyAndOrderFront(nil)
+            NSApplication.shared.activate(ignoringOtherApps: false)
+        } else {
+            NSApplication.shared.activate(ignoringOtherApps: true)
         }
     }
 

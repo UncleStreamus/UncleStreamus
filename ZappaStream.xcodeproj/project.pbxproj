@@ -52,6 +52,12 @@
 		BE024DE42F4A67F600B2C079 /* BASSRadioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */; };
 		BE033A062FD3818A0061FEE3 /* CarPlaySceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE033A052FD3818A0061FEE3 /* CarPlaySceneDelegate.swift */; };
 		BE033A082FD3818A0061FEE5 /* CarPlayBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE033A072FD3818A0061FEE4 /* CarPlayBridge.swift */; };
+		BE17E5000004E5000017E503 /* ReleaseNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000001E5000017E500 /* ReleaseNotes.swift */; };
+		BE17E5000005E5000017E504 /* ReleaseNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000001E5000017E500 /* ReleaseNotes.swift */; };
+		BE17E5000006E5000017E505 /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E501 /* WhatsNewView.swift */; };
+		BE17E5000006E5000017E515 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E511 /* WelcomeView.swift */; };
+		BE17E5000007E5000017E506 /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E501 /* WhatsNewView.swift */; };
+		BE17E5000007E5000017E516 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E511 /* WelcomeView.swift */; };
 		BE1A341F2F30C6D600647B01 /* ZappaStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */; };
 		BE1A34212F30C6D600647B01 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A34202F30C6D600647B01 /* ContentView.swift */; };
 		BE1A34252F30C6D800647B01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE1A34242F30C6D800647B01 /* Assets.xcassets */; };
@@ -77,18 +83,18 @@
 		BE2FCA7A2F3CBBCA0038E706 /* SongFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752DBEE239607630EF9BE524 /* SongFormatter.swift */; };
 		BE2FCA7B2F3CBBCA0038E706 /* SavedShow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00022F34000100AA0003 /* SavedShow.swift */; };
 		BE2FCA7C2F3CBBCA0038E706 /* MarqueeText.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */; };
+		BE5A1F012F5A1F0100BE5A11 /* StoreProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */; };
+		BE5A1F022F5A1F0200BE5A12 /* StoreProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */; };
 		BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */; };
 		BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */; };
 		BEAA00012F34000100AA0001 /* Acronym.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00002F34000100AA0001 /* Acronym.swift */; };
 		BEAA00032F34000100AA0003 /* SavedShow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00022F34000100AA0003 /* SavedShow.swift */; };
 		BEAA00052F34000100AA0005 /* ShowDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00042F34000100AA0005 /* ShowDataManager.swift */; };
-		BE5A1F012F5A1F0100BE5A11 /* StoreProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */; };
-		BE5A1F022F5A1F0200BE5A12 /* StoreProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */; };
 		BEAA00072F34000100AA0007 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00062F34000100AA0007 /* SidebarView.swift */; };
 		BEAA00092F34000100AA0009 /* ShowEntryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00082F34000100AA0009 /* ShowEntryRow.swift */; };
+		BEAC1C0620261010BEAC1C06 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = BEAC1C0520261010BEAC1C05 /* AppIcon.icns */; };
 		BEB8D8F22FC4F7B100286967 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BEB8D8F12FC4F7B100286967 /* PrivacyInfo.xcprivacy */; };
 		BEB8D8F32FC4F7B100286967 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BEB8D8F12FC4F7B100286967 /* PrivacyInfo.xcprivacy */; };
-		BEAC1C0620261010BEAC1C06 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = BEAC1C0520261010BEAC1C05 /* AppIcon.icns */; };
 		BEE59E1F2F3223DB00230D3D /* FZShowsFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */; };
 		BEF8E53E2F3A873A000B6773 /* MarqueeText.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */; };
 		C3A1F8B52F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */; };
@@ -99,18 +105,12 @@
 		CC06DC000006DC0600CC06DC /* TrackInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC02DC000002DC0200CC02DC /* TrackInfoView.swift */; };
 		CC07DC000007DC0700CC07DC /* SetlistInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0ADC00000ADC0A00CC0ADC /* SetlistInfoView.swift */; };
 		CC08DC000008DC0800CC08DC /* SetlistInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0ADC00000ADC0A00CC0ADC /* SetlistInfoView.swift */; };
+		D0C0B12BF2DF6D0B6E3A9FB6 /* ExportFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */; };
 		D7AD703B5B1743C183C698F7 /* AudioFXView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */; };
+		E9F0619C0B0FB298E575550C /* ExportFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */; };
 		EBB2C65450DF6C61B3EACC69 /* FZShowsDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEA788CAA6882C71E437FF1 /* FZShowsDatabase.swift */; };
 		F62804A5EF88994291433F17 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
-		D0C0B12BF2DF6D0B6E3A9FB6 /* ExportFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */; };
-		E9F0619C0B0FB298E575550C /* ExportFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */; };
 		FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752DBEE239607630EF9BE524 /* SongFormatter.swift */; };
-		BE17E5000004E5000017E503 /* ReleaseNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000001E5000017E500 /* ReleaseNotes.swift */; };
-		BE17E5000005E5000017E504 /* ReleaseNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000001E5000017E500 /* ReleaseNotes.swift */; };
-		BE17E5000006E5000017E505 /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E501 /* WhatsNewView.swift */; };
-		BE17E5000007E5000017E506 /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E501 /* WhatsNewView.swift */; };
-		BE17E5000006E5000017E515 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E511 /* WelcomeView.swift */; };
-		BE17E5000007E5000017E516 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E511 /* WelcomeView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -143,6 +143,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportFormatter.swift; sourceTree = "<group>"; };
 		5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TourPeriods.swift; sourceTree = "<group>"; };
 		5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		72F66D9B51B903E6898BC392 /* CachedFZShow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CachedFZShow.swift; sourceTree = "<group>"; };
@@ -171,6 +172,9 @@
 		BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASSRadioPlayer.swift; sourceTree = "<group>"; };
 		BE033A052FD3818A0061FEE3 /* CarPlaySceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlaySceneDelegate.swift; sourceTree = "<group>"; };
 		BE033A072FD3818A0061FEE4 /* CarPlayBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlayBridge.swift; sourceTree = "<group>"; };
+		BE17E5000001E5000017E500 /* ReleaseNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseNotes.swift; sourceTree = "<group>"; };
+		BE17E5000002E5000017E501 /* WhatsNewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewView.swift; sourceTree = "<group>"; };
+		BE17E5000002E5000017E511 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		BE1A341B2F30C6D600647B01 /* ZappaStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZappaStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZappaStreamApp.swift; sourceTree = "<group>"; };
 		BE1A34202F30C6D600647B01 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -183,18 +187,18 @@
 		BE2FCA662F3CB93F0038E706 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PlatformHelpers.swift; sourceTree = "<group>"; };
 		BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentView_iOS.swift; sourceTree = "<group>"; };
+		BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreProtection.swift; sourceTree = "<group>"; };
 		BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfo.swift; sourceTree = "<group>"; };
 		BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stream.swift; sourceTree = "<group>"; };
+		BEA501FE2FD98D8A00C2A02F /* ZappaStreamTests.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ZappaStreamTests.entitlements; sourceTree = "<group>"; };
+		BEA501FF2FD9904000C2A02F /* ZappaStream-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "ZappaStream-Debug.entitlements"; path = "ZappaStream/ZappaStream-Debug.entitlements"; sourceTree = "<group>"; };
 		BEAA00002F34000100AA0001 /* Acronym.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Acronym.swift; sourceTree = "<group>"; };
 		BEAA00022F34000100AA0003 /* SavedShow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedShow.swift; sourceTree = "<group>"; };
 		BEAA00042F34000100AA0005 /* ShowDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDataManager.swift; sourceTree = "<group>"; };
-		BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreProtection.swift; sourceTree = "<group>"; };
 		BEAA00062F34000100AA0007 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		BEAA00082F34000100AA0009 /* ShowEntryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowEntryRow.swift; sourceTree = "<group>"; };
-		BEA501FE2FD98D8A00C2A02F /* ZappaStreamTests.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ZappaStreamTests.entitlements; sourceTree = "<group>"; };
-		BEA501FF2FD9904000C2A02F /* ZappaStream-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "ZappaStream-Debug.entitlements"; path = "ZappaStream/ZappaStream-Debug.entitlements"; sourceTree = "<group>"; };
-		BEB8D8F12FC4F7B100286967 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BEAC1C0520261010BEAC1C05 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
+		BEB8D8F12FC4F7B100286967 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BED5C49B2F30D50C009DB6FE /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsFetcher.swift; sourceTree = "<group>"; };
 		BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MarqueeText.swift; sourceTree = "<group>"; };
@@ -205,10 +209,6 @@
 		CC3E00002F3E000000CC3E00 /* ZappaStream-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "ZappaStream-iOS.entitlements"; sourceTree = "<group>"; };
 		CCEA788CAA6882C71E437FF1 /* FZShowsDatabase.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FZShowsDatabase.swift; sourceTree = "<group>"; };
 		DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FilterView.swift; sourceTree = "<group>"; };
-		18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportFormatter.swift; sourceTree = "<group>"; };
-		BE17E5000001E5000017E500 /* ReleaseNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseNotes.swift; sourceTree = "<group>"; };
-		BE17E5000002E5000017E501 /* WhatsNewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewView.swift; sourceTree = "<group>"; };
-		BE17E5000002E5000017E511 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -294,9 +294,8 @@
 		BE1A341D2F30C6D600647B01 /* ZappaStream */ = {
 			isa = PBXGroup;
 			children = (
-				BE033A052FD3818A0061FEE3 /* CarPlaySceneDelegate.swift */,
-				BE033A072FD3818A0061FEE4 /* CarPlayBridge.swift */,
 				BEAA00002F34000100AA0001 /* Acronym.swift */,
+				BEAC1C0520261010BEAC1C05 /* AppIcon.icns */,
 				BE1A34242F30C6D800647B01 /* Assets.xcassets */,
 				A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */,
 				BE024DE12F4A67D800B2C079 /* BASSBridgingHeader.h */,
@@ -305,40 +304,41 @@
 				BBBB000C2FBB000C00BB000C /* BASSRadioPlayer+DVR.swift */,
 				BBBB00092FBB000900BB0009 /* BASSRadioPlayer+Metadata.swift */,
 				BBBB00052FBB000500BB0005 /* BASSRadioPlayer+Playback.swift */,
+				72F66D9B51B903E6898BC392 /* CachedFZShow.swift */,
+				BE033A072FD3818A0061FEE4 /* CarPlayBridge.swift */,
+				BE033A052FD3818A0061FEE3 /* CarPlaySceneDelegate.swift */,
 				BE1A34202F30C6D600647B01 /* ContentView.swift */,
 				BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */,
 				CC01DC000001DC0100CC01DC /* DonlopeIndexCache.swift */,
-				DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */,
 				18541B2FC35725D5D3753DA5 /* ExportFormatter.swift */,
+				DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */,
+				CCEA788CAA6882C71E437FF1 /* FZShowsDatabase.swift */,
 				BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */,
+				AFAF780DA29F39C724E66902 /* FZShowsPageRecord.swift */,
 				BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */,
 				BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */,
 				BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */,
-				BE17E5000001E5000017E500 /* ReleaseNotes.swift */,
-				BE17E5000002E5000017E501 /* WhatsNewView.swift */,
-				BE17E5000002E5000017E511 /* WelcomeView.swift */,
 				BE1A34272F30C6D800647B01 /* Preview Content */,
+				BEB8D8F12FC4F7B100286967 /* PrivacyInfo.xcprivacy */,
+				BE17E5000001E5000017E500 /* ReleaseNotes.swift */,
 				BEAA00022F34000100AA0003 /* SavedShow.swift */,
 				B859389429B13E3327751EB4 /* ScaledFont.swift */,
 				CC0ADC00000ADC0A00CC0ADC /* SetlistInfoView.swift */,
 				5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */,
 				BEAA00042F34000100AA0005 /* ShowDataManager.swift */,
-				BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */,
 				BEAA00082F34000100AA0009 /* ShowEntryRow.swift */,
 				BEAA00062F34000100AA0007 /* SidebarView.swift */,
 				752DBEE239607630EF9BE524 /* SongFormatter.swift */,
+				BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */,
 				BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */,
 				C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */,
 				5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */,
 				CC02DC000002DC0200CC02DC /* TrackInfoView.swift */,
+				BE17E5000002E5000017E511 /* WelcomeView.swift */,
+				BE17E5000002E5000017E501 /* WhatsNewView.swift */,
 				BE1A34262F30C6D800647B01 /* ZappaStream.entitlements */,
-				BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */,
-				72F66D9B51B903E6898BC392 /* CachedFZShow.swift */,
-				CCEA788CAA6882C71E437FF1 /* FZShowsDatabase.swift */,
-				AFAF780DA29F39C724E66902 /* FZShowsPageRecord.swift */,
-				BEB8D8F12FC4F7B100286967 /* PrivacyInfo.xcprivacy */,
-				BEAC1C0520261010BEAC1C05 /* AppIcon.icns */,
 				BEA501FF2FD9904000C2A02F /* ZappaStream-Debug.entitlements */,
+				BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */,
 			);
 			path = ZappaStream;
 			sourceTree = "<group>";
@@ -403,6 +403,7 @@
 				BE1A34172F30C6D600647B01 /* Sources */,
 				BE1A34182F30C6D600647B01 /* Frameworks */,
 				BE1A34192F30C6D600647B01 /* Resources */,
+				BE17E5000008E5000017E520 /* Generate Release Notes */,
 			);
 			buildRules = (
 			);
@@ -503,6 +504,25 @@
 
 /* Begin PBXShellScriptBuildPhase section */
 		BE17E5000003E5000017E502 /* Generate Release Notes */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Generate Release Notes";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "sh \"$SRCROOT/Scripts/generate_release_notes.sh\"\n";
+		};
+		BE17E5000008E5000017E520 /* Generate Release Notes */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -851,6 +871,7 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				"INFOPLIST_FILE[sdk=macosx*]" = ZappaStream/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ZappaStream;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -860,7 +881,6 @@
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
-				INFOPLIST_KEY_CFBundleDisplayName = ZappaStream;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;

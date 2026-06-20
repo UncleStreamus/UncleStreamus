@@ -51,6 +51,12 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Full history + tags so the macOS "Generate Release Notes" build phase
+          # (Scripts/generate_release_notes.sh) can find the previous release tag.
+          # A shallow clone hides it and the bundled What's New notes come out empty
+          # — same issue fixed for Xcode Cloud via ci_scripts/ci_post_clone.sh.
+          fetch-depth: 0
 
       - name: Import Developer ID certificate
         env:

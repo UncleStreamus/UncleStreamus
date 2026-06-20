@@ -41,7 +41,7 @@ struct SettingsView: View {
                 Text("Playback").tag(SettingsTab.playback)
                 Text("Sync").tag(SettingsTab.sync)
                 Text("Data").tag(SettingsTab.savedData)
-                Text("Credits").tag(SettingsTab.credits)
+                Text("About").tag(SettingsTab.credits)
             }
             .pickerStyle(.segmented)
             .padding()
@@ -563,12 +563,10 @@ struct SavedDataSettingsView: View {
 struct CreditsView: View {
     @Environment(\.openURL) private var openURL
 
-    #if os(iOS)
-    // Loaded once: the build-time ReleaseNotes.json (iOS only). nil/empty → row hidden.
+    // Loaded once: the build-time ReleaseNotes.json. nil → release-notes row hidden.
     private let bundledNotes = ReleaseNotes.loadBundled()
     @State private var showWhatsNew = false
     @State private var showWelcome = false
-    #endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -652,7 +650,6 @@ struct CreditsView: View {
                 }
             }
 
-            #if os(iOS)
             SettingsSectionHeader(title: "Getting Started", systemImage: "dot.radiowaves.left.and.right")
 
             SettingsSectionBox {
@@ -693,7 +690,6 @@ struct CreditsView: View {
                     }
                 }
             }
-            #endif
 
         }
         .padding(.bottom, 16)
@@ -709,6 +705,17 @@ struct CreditsView: View {
             WelcomeView { showWelcome = false }
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+        }
+        #elseif os(macOS)
+        .sheet(isPresented: $showWhatsNew) {
+            if let notes = bundledNotes {
+                WhatsNewView(notes: notes) { showWhatsNew = false }
+                    .frame(width: 420, height: 560)
+            }
+        }
+        .sheet(isPresented: $showWelcome) {
+            WelcomeView { showWelcome = false }
+                .frame(width: 460, height: 640)
         }
         #endif
     }
