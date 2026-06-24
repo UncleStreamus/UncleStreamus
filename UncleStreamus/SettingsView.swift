@@ -1,6 +1,6 @@
 //
 //  SettingsView.swift
-//  ZappaStream
+//  UncleStreamus
 //
 //  Created by Darcy Taranto on 10/02/2026.
 //

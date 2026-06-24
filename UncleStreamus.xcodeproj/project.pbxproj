@@ -58,7 +58,7 @@
 		BE17E5000006E5000017E515 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E511 /* WelcomeView.swift */; };
 		BE17E5000007E5000017E506 /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E501 /* WhatsNewView.swift */; };
 		BE17E5000007E5000017E516 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E511 /* WelcomeView.swift */; };
-		BE1A341F2F30C6D600647B01 /* ZappaStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */; };
+		BE1A341F2F30C6D600647B01 /* UncleStreamusApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A341E2F30C6D600647B01 /* UncleStreamusApp.swift */; };
 		BE1A34212F30C6D600647B01 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A34202F30C6D600647B01 /* ContentView.swift */; };
 		BE1A34252F30C6D800647B01 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE1A34242F30C6D800647B01 /* Assets.xcassets */; };
 		BE1A34292F30C6D800647B01 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BE1A34282F30C6D800647B01 /* Preview Assets.xcassets */; };
@@ -75,7 +75,7 @@
 		BE2FCA712F3CBBCA0038E706 /* TourPeriods.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */; };
 		BE2FCA722F3CBBCA0038E706 /* ShowDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00042F34000100AA0005 /* ShowDataManager.swift */; };
 		BE2FCA732F3CBBCA0038E706 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00062F34000100AA0007 /* SidebarView.swift */; };
-		BE2FCA742F3CBBCA0038E706 /* ZappaStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */; };
+		BE2FCA742F3CBBCA0038E706 /* UncleStreamusApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE1A341E2F30C6D600647B01 /* UncleStreamusApp.swift */; };
 		BE2FCA752F3CBBCA0038E706 /* Acronym.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00002F34000100AA0001 /* Acronym.swift */; };
 		BE2FCA762F3CBBCA0038E706 /* FZShowsFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */; };
 		BE2FCA782F3CBBCA0038E706 /* ScaledFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = B859389429B13E3327751EB4 /* ScaledFont.swift */; };
@@ -119,7 +119,7 @@
 			containerPortal = BE1A34132F30C6D600647B01 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = BE1A341A2F30C6D600647B01;
-			remoteInfo = ZappaStream;
+			remoteInfo = UncleStreamus;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -154,7 +154,7 @@
 		AAAA00032FAA000300AA0003 /* ShowTimeFetcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowTimeFetcherTests.swift; sourceTree = "<group>"; };
 		AAAA00042FAA000400AA0004 /* SavedShowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedShowTests.swift; sourceTree = "<group>"; };
 		AAAA00052FAA000500AA0005 /* StreamBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamBufferTests.swift; sourceTree = "<group>"; };
-		AAAA00062FAA000600AA0006 /* ZappaStreamTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ZappaStreamTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AAAA00062FAA000600AA0006 /* UncleStreamusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = UncleStreamusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAAA00072FAA000700AA0007 /* FZShowsImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsImportTests.swift; sourceTree = "<group>"; };
 		AFAF780DA29F39C724E66902 /* FZShowsPageRecord.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FZShowsPageRecord.swift; sourceTree = "<group>"; };
 		B859389429B13E3327751EB4 /* ScaledFont.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScaledFont.swift; sourceTree = "<group>"; };
@@ -175,13 +175,13 @@
 		BE17E5000001E5000017E500 /* ReleaseNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseNotes.swift; sourceTree = "<group>"; };
 		BE17E5000002E5000017E501 /* WhatsNewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewView.swift; sourceTree = "<group>"; };
 		BE17E5000002E5000017E511 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
-		BE1A341B2F30C6D600647B01 /* ZappaStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZappaStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZappaStreamApp.swift; sourceTree = "<group>"; };
+		BE1A341B2F30C6D600647B01 /* UncleStreamus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = UncleStreamus.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BE1A341E2F30C6D600647B01 /* UncleStreamusApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncleStreamusApp.swift; sourceTree = "<group>"; };
 		BE1A34202F30C6D600647B01 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		BE1A34242F30C6D800647B01 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		BE1A34262F30C6D800647B01 /* ZappaStream.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ZappaStream.entitlements; sourceTree = "<group>"; };
+		BE1A34262F30C6D800647B01 /* UncleStreamus.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = UncleStreamus.entitlements; sourceTree = "<group>"; };
 		BE1A34282F30C6D800647B01 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		BE2FCA562F3CB6F60038E706 /* ZappaStream-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ZappaStream-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		BE2FCA562F3CB6F60038E706 /* UncleStreamus-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "UncleStreamus-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE2FCA5E2F3CB6F70038E706 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BE2FCA612F3CB6F70038E706 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		BE2FCA662F3CB93F0038E706 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -190,8 +190,8 @@
 		BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreProtection.swift; sourceTree = "<group>"; };
 		BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfo.swift; sourceTree = "<group>"; };
 		BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stream.swift; sourceTree = "<group>"; };
-		BEA501FE2FD98D8A00C2A02F /* ZappaStreamTests.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ZappaStreamTests.entitlements; sourceTree = "<group>"; };
-		BEA501FF2FD9904000C2A02F /* ZappaStream-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "ZappaStream-Debug.entitlements"; path = "ZappaStream/ZappaStream-Debug.entitlements"; sourceTree = "<group>"; };
+		BEA501FE2FD98D8A00C2A02F /* UncleStreamusTests.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = UncleStreamusTests.entitlements; sourceTree = "<group>"; };
+		BEA501FF2FD9904000C2A02F /* UncleStreamus-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "UncleStreamus-Debug.entitlements"; path = "UncleStreamus/UncleStreamus-Debug.entitlements"; sourceTree = "<group>"; };
 		BEAA00002F34000100AA0001 /* Acronym.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Acronym.swift; sourceTree = "<group>"; };
 		BEAA00022F34000100AA0003 /* SavedShow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedShow.swift; sourceTree = "<group>"; };
 		BEAA00042F34000100AA0005 /* ShowDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDataManager.swift; sourceTree = "<group>"; };
@@ -206,7 +206,7 @@
 		CC01DC000001DC0100CC01DC /* DonlopeIndexCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DonlopeIndexCache.swift; sourceTree = "<group>"; };
 		CC02DC000002DC0200CC02DC /* TrackInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackInfoView.swift; sourceTree = "<group>"; };
 		CC0ADC00000ADC0A00CC0ADC /* SetlistInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetlistInfoView.swift; sourceTree = "<group>"; };
-		CC3E00002F3E000000CC3E00 /* ZappaStream-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "ZappaStream-iOS.entitlements"; sourceTree = "<group>"; };
+		CC3E00002F3E000000CC3E00 /* UncleStreamus-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "UncleStreamus-iOS.entitlements"; sourceTree = "<group>"; };
 		CCEA788CAA6882C71E437FF1 /* FZShowsDatabase.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FZShowsDatabase.swift; sourceTree = "<group>"; };
 		DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FilterView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -248,10 +248,10 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		AAAA00602FAA006000AA0060 /* ZappaStreamTests */ = {
+		AAAA00602FAA006000AA0060 /* UncleStreamusTests */ = {
 			isa = PBXGroup;
 			children = (
-				BEA501FE2FD98D8A00C2A02F /* ZappaStreamTests.entitlements */,
+				BEA501FE2FD98D8A00C2A02F /* UncleStreamusTests.entitlements */,
 				AAAA00012FAA000100AA0001 /* ParsedTrackInfoTests.swift */,
 				AAAA00022FAA000200AA0002 /* TourMappingTests.swift */,
 				AAAA00032FAA000300AA0003 /* ShowTimeFetcherTests.swift */,
@@ -259,7 +259,7 @@
 				AAAA00052FAA000500AA0005 /* StreamBufferTests.swift */,
 				AAAA00072FAA000700AA0007 /* FZShowsImportTests.swift */,
 			);
-			path = ZappaStreamTests;
+			path = UncleStreamusTests;
 			sourceTree = "<group>";
 		};
 		B7EB114D716DB2355761DC19 /* Frameworks */ = {
@@ -273,9 +273,9 @@
 		BE1A34122F30C6D600647B01 = {
 			isa = PBXGroup;
 			children = (
-				BE1A341D2F30C6D600647B01 /* ZappaStream */,
-				BE2FCA572F3CB6F60038E706 /* ZappaStream-iOS */,
-				AAAA00602FAA006000AA0060 /* ZappaStreamTests */,
+				BE1A341D2F30C6D600647B01 /* UncleStreamus */,
+				BE2FCA572F3CB6F60038E706 /* UncleStreamus-iOS */,
+				AAAA00602FAA006000AA0060 /* UncleStreamusTests */,
 				BE1A341C2F30C6D600647B01 /* Products */,
 				B7EB114D716DB2355761DC19 /* Frameworks */,
 			);
@@ -284,14 +284,14 @@
 		BE1A341C2F30C6D600647B01 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				BE1A341B2F30C6D600647B01 /* ZappaStream.app */,
-				BE2FCA562F3CB6F60038E706 /* ZappaStream-iOS.app */,
-				AAAA00062FAA000600AA0006 /* ZappaStreamTests.xctest */,
+				BE1A341B2F30C6D600647B01 /* UncleStreamus.app */,
+				BE2FCA562F3CB6F60038E706 /* UncleStreamus-iOS.app */,
+				AAAA00062FAA000600AA0006 /* UncleStreamusTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		BE1A341D2F30C6D600647B01 /* ZappaStream */ = {
+		BE1A341D2F30C6D600647B01 /* UncleStreamus */ = {
 			isa = PBXGroup;
 			children = (
 				BEAA00002F34000100AA0001 /* Acronym.swift */,
@@ -336,11 +336,11 @@
 				CC02DC000002DC0200CC02DC /* TrackInfoView.swift */,
 				BE17E5000002E5000017E511 /* WelcomeView.swift */,
 				BE17E5000002E5000017E501 /* WhatsNewView.swift */,
-				BE1A34262F30C6D800647B01 /* ZappaStream.entitlements */,
-				BEA501FF2FD9904000C2A02F /* ZappaStream-Debug.entitlements */,
-				BE1A341E2F30C6D600647B01 /* ZappaStreamApp.swift */,
+				BE1A34262F30C6D800647B01 /* UncleStreamus.entitlements */,
+				BEA501FF2FD9904000C2A02F /* UncleStreamus-Debug.entitlements */,
+				BE1A341E2F30C6D600647B01 /* UncleStreamusApp.swift */,
 			);
-			path = ZappaStream;
+			path = UncleStreamus;
 			sourceTree = "<group>";
 		};
 		BE1A34272F30C6D800647B01 /* Preview Content */ = {
@@ -351,10 +351,10 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
-		BE2FCA572F3CB6F60038E706 /* ZappaStream-iOS */ = {
+		BE2FCA572F3CB6F60038E706 /* UncleStreamus-iOS */ = {
 			isa = PBXGroup;
 			children = (
-				CC3E00002F3E000000CC3E00 /* ZappaStream-iOS.entitlements */,
+				CC3E00002F3E000000CC3E00 /* UncleStreamus-iOS.entitlements */,
 				BE2FCA662F3CB93F0038E706 /* Info.plist */,
 				BE2FCA5E2F3CB6F70038E706 /* Assets.xcassets */,
 				BE2FCA602F3CB6F70038E706 /* Preview Content */,
@@ -365,7 +365,7 @@
 				BE024DCC2F4A659300B2C079 /* bassmix.xcframework */,
 				BE024DCD2F4A659300B2C079 /* tags.xcframework */,
 			);
-			path = "ZappaStream-iOS";
+			path = "UncleStreamus-iOS";
 			sourceTree = "<group>";
 		};
 		BE2FCA602F3CB6F70038E706 /* Preview Content */ = {
@@ -379,9 +379,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		AAAA00302FAA003000AA0030 /* ZappaStreamTests */ = {
+		AAAA00302FAA003000AA0030 /* UncleStreamusTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AAAA00502FAA005000AA0050 /* Build configuration list for PBXNativeTarget "ZappaStreamTests" */;
+			buildConfigurationList = AAAA00502FAA005000AA0050 /* Build configuration list for PBXNativeTarget "UncleStreamusTests" */;
 			buildPhases = (
 				AAAA00212FAA002100AA0021 /* Sources */,
 				AAAA00222FAA002200AA0022 /* Frameworks */,
@@ -391,14 +391,14 @@
 			dependencies = (
 				AAAA00702FAA007000AA0070 /* PBXTargetDependency */,
 			);
-			name = ZappaStreamTests;
-			productName = ZappaStreamTests;
-			productReference = AAAA00062FAA000600AA0006 /* ZappaStreamTests.xctest */;
+			name = UncleStreamusTests;
+			productName = UncleStreamusTests;
+			productReference = AAAA00062FAA000600AA0006 /* UncleStreamusTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		BE1A341A2F30C6D600647B01 /* ZappaStream */ = {
+		BE1A341A2F30C6D600647B01 /* UncleStreamus */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = BE1A342C2F30C6D800647B01 /* Build configuration list for PBXNativeTarget "ZappaStream" */;
+			buildConfigurationList = BE1A342C2F30C6D800647B01 /* Build configuration list for PBXNativeTarget "UncleStreamus" */;
 			buildPhases = (
 				BE1A34172F30C6D600647B01 /* Sources */,
 				BE1A34182F30C6D600647B01 /* Frameworks */,
@@ -409,14 +409,14 @@
 			);
 			dependencies = (
 			);
-			name = ZappaStream;
-			productName = ZappaStream;
-			productReference = BE1A341B2F30C6D600647B01 /* ZappaStream.app */;
+			name = UncleStreamus;
+			productName = UncleStreamus;
+			productReference = BE1A341B2F30C6D600647B01 /* UncleStreamus.app */;
 			productType = "com.apple.product-type.application";
 		};
-		BE2FCA552F3CB6F60038E706 /* ZappaStream-iOS */ = {
+		BE2FCA552F3CB6F60038E706 /* UncleStreamus-iOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = BE2FCA652F3CB6F70038E706 /* Build configuration list for PBXNativeTarget "ZappaStream-iOS" */;
+			buildConfigurationList = BE2FCA652F3CB6F70038E706 /* Build configuration list for PBXNativeTarget "UncleStreamus-iOS" */;
 			buildPhases = (
 				BE2FCA522F3CB6F60038E706 /* Sources */,
 				BE2FCA532F3CB6F60038E706 /* Frameworks */,
@@ -428,9 +428,9 @@
 			);
 			dependencies = (
 			);
-			name = "ZappaStream-iOS";
-			productName = "ZappaStream-iOS";
-			productReference = BE2FCA562F3CB6F60038E706 /* ZappaStream-iOS.app */;
+			name = "UncleStreamus-iOS";
+			productName = "UncleStreamus-iOS";
+			productReference = BE2FCA562F3CB6F60038E706 /* UncleStreamus-iOS.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -455,7 +455,7 @@
 					};
 				};
 			};
-			buildConfigurationList = BE1A34162F30C6D600647B01 /* Build configuration list for PBXProject "ZappaStream" */;
+			buildConfigurationList = BE1A34162F30C6D600647B01 /* Build configuration list for PBXProject "UncleStreamus" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -471,9 +471,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				BE1A341A2F30C6D600647B01 /* ZappaStream */,
-				BE2FCA552F3CB6F60038E706 /* ZappaStream-iOS */,
-				AAAA00302FAA003000AA0030 /* ZappaStreamTests */,
+				BE1A341A2F30C6D600647B01 /* UncleStreamus */,
+				BE2FCA552F3CB6F60038E706 /* UncleStreamus-iOS */,
+				AAAA00302FAA003000AA0030 /* UncleStreamusTests */,
 			);
 		};
 /* End PBXProject section */
@@ -572,7 +572,7 @@
 				BE2FCA6C2F3CBBC90038E706 /* ContentView_iOS.swift in Sources */,
 				BEAA00072F34000100AA0007 /* SidebarView.swift in Sources */,
 				BEAA00092F34000100AA0009 /* ShowEntryRow.swift in Sources */,
-				BE1A341F2F30C6D600647B01 /* ZappaStreamApp.swift in Sources */,
+				BE1A341F2F30C6D600647B01 /* UncleStreamusApp.swift in Sources */,
 				BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */,
 				BE17E5000005E5000017E504 /* ReleaseNotes.swift in Sources */,
 				BE17E5000007E5000017E506 /* WhatsNewView.swift in Sources */,
@@ -619,7 +619,7 @@
 				BE2FCA722F3CBBCA0038E706 /* ShowDataManager.swift in Sources */,
 				BE5A1F022F5A1F0200BE5A12 /* StoreProtection.swift in Sources */,
 				BE2FCA732F3CBBCA0038E706 /* SidebarView.swift in Sources */,
-				BE2FCA742F3CBBCA0038E706 /* ZappaStreamApp.swift in Sources */,
+				BE2FCA742F3CBBCA0038E706 /* UncleStreamusApp.swift in Sources */,
 				BE2FCA752F3CBBCA0038E706 /* Acronym.swift in Sources */,
 				BE2FCA762F3CBBCA0038E706 /* FZShowsFetcher.swift in Sources */,
 				BE2FCA782F3CBBCA0038E706 /* ScaledFont.swift in Sources */,
@@ -649,7 +649,7 @@
 /* Begin PBXTargetDependency section */
 		AAAA00702FAA007000AA0070 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = BE1A341A2F30C6D600647B01 /* ZappaStream */;
+			target = BE1A341A2F30C6D600647B01 /* UncleStreamus */;
 			targetProxy = AAAA00712FAA007100AA0071 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -659,7 +659,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_ENTITLEMENTS = ZappaStreamTests/ZappaStreamTests.entitlements;
+				CODE_SIGN_ENTITLEMENTS = UncleStreamusTests/UncleStreamusTests.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = M94NB5JY3R;
@@ -678,7 +678,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_ENTITLEMENTS = ZappaStreamTests/ZappaStreamTests.entitlements;
+				CODE_SIGN_ENTITLEMENTS = UncleStreamusTests/UncleStreamusTests.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = M94NB5JY3R;
@@ -817,19 +817,19 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "ZappaStream/ZappaStream-Debug.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "UncleStreamus/UncleStreamus-Debug.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20260624.1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				"INFOPLIST_FILE[sdk=macosx*]" = ZappaStream/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ZappaStream;
+				"INFOPLIST_FILE[sdk=macosx*]" = UncleStreamus/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = UncleStreamus;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -846,7 +846,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 1.4.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.unclestreamus.UncleStreamus;
-				PRODUCT_MODULE_NAME = ZappaStream;
+				PRODUCT_MODULE_NAME = UncleStreamus;
 				PRODUCT_NAME = UncleStreamus;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = macosx;
@@ -860,19 +860,19 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = ZappaStream/ZappaStream.entitlements;
+				CODE_SIGN_ENTITLEMENTS = UncleStreamus/UncleStreamus.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20260624.1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				"INFOPLIST_FILE[sdk=macosx*]" = ZappaStream/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ZappaStream;
+				"INFOPLIST_FILE[sdk=macosx*]" = UncleStreamus/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = UncleStreamus;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -889,7 +889,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 1.4.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.unclestreamus.UncleStreamus;
-				PRODUCT_MODULE_NAME = ZappaStream;
+				PRODUCT_MODULE_NAME = UncleStreamus;
 				PRODUCT_NAME = UncleStreamus;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = macosx;
@@ -904,18 +904,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "ZappaStream-iOS/ZappaStream-iOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "UncleStreamus-iOS/UncleStreamus-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20260624.1;
-				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus-iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks/iOS/include";
-				INFOPLIST_FILE = "ZappaStream-iOS/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = ZappaStream;
+				INFOPLIST_FILE = "UncleStreamus-iOS/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = UncleStreamus;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -929,12 +929,12 @@
 				);
 				MARKETING_VERSION = 1.4.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.unclestreamus.UncleStreamus;
-				PRODUCT_MODULE_NAME = ZappaStream;
+				PRODUCT_MODULE_NAME = UncleStreamus;
 				PRODUCT_NAME = UncleStreamus;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = ZappaStream/BASSBridgingHeader.h;
+				SWIFT_OBJC_BRIDGING_HEADER = UncleStreamus/BASSBridgingHeader.h;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -945,18 +945,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "ZappaStream-iOS/ZappaStream-iOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "UncleStreamus-iOS/UncleStreamus-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20260624.1;
-				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus-iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks/iOS/include";
-				INFOPLIST_FILE = "ZappaStream-iOS/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = ZappaStream;
+				INFOPLIST_FILE = "UncleStreamus-iOS/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = UncleStreamus;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -970,12 +970,12 @@
 				);
 				MARKETING_VERSION = 1.4.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.unclestreamus.UncleStreamus;
-				PRODUCT_MODULE_NAME = ZappaStream;
+				PRODUCT_MODULE_NAME = UncleStreamus;
 				PRODUCT_NAME = UncleStreamus;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = ZappaStream/BASSBridgingHeader.h;
+				SWIFT_OBJC_BRIDGING_HEADER = UncleStreamus/BASSBridgingHeader.h;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
@@ -986,7 +986,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_ENTITLEMENTS = ZappaStreamTests/ZappaStreamTests.entitlements;
+				CODE_SIGN_ENTITLEMENTS = UncleStreamusTests/UncleStreamusTests.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = M94NB5JY3R;
@@ -1069,19 +1069,19 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "ZappaStream/ZappaStream-DebugSync.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "UncleStreamus/UncleStreamus-DebugSync.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20260624.1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				"INFOPLIST_FILE[sdk=macosx*]" = ZappaStream/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ZappaStream;
+				"INFOPLIST_FILE[sdk=macosx*]" = UncleStreamus/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = UncleStreamus;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -1098,7 +1098,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 1.4.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.unclestreamus.UncleStreamus;
-				PRODUCT_MODULE_NAME = ZappaStream;
+				PRODUCT_MODULE_NAME = UncleStreamus;
 				PRODUCT_NAME = UncleStreamus;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = macosx;
@@ -1113,18 +1113,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "ZappaStream-iOS/ZappaStream-iOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "UncleStreamus-iOS/UncleStreamus-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20260624.1;
-				DEVELOPMENT_ASSET_PATHS = "\"ZappaStream-iOS/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus-iOS/Preview Content\"";
 				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks/iOS/include";
-				INFOPLIST_FILE = "ZappaStream-iOS/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = ZappaStream;
+				INFOPLIST_FILE = "UncleStreamus-iOS/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = UncleStreamus;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -1138,12 +1138,12 @@
 				);
 				MARKETING_VERSION = 1.4.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.unclestreamus.UncleStreamus;
-				PRODUCT_MODULE_NAME = ZappaStream;
+				PRODUCT_MODULE_NAME = UncleStreamus;
 				PRODUCT_NAME = UncleStreamus;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = ZappaStream/BASSBridgingHeader.h;
+				SWIFT_OBJC_BRIDGING_HEADER = UncleStreamus/BASSBridgingHeader.h;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -1152,7 +1152,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		AAAA00502FAA005000AA0050 /* Build configuration list for PBXNativeTarget "ZappaStreamTests" */ = {
+		AAAA00502FAA005000AA0050 /* Build configuration list for PBXNativeTarget "UncleStreamusTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				AAAA00402FAA004000AA0040 /* Debug */,
@@ -1162,7 +1162,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		BE1A34162F30C6D600647B01 /* Build configuration list for PBXProject "ZappaStream" */ = {
+		BE1A34162F30C6D600647B01 /* Build configuration list for PBXProject "UncleStreamus" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BE1A342A2F30C6D800647B01 /* Debug */,
@@ -1172,7 +1172,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		BE1A342C2F30C6D800647B01 /* Build configuration list for PBXNativeTarget "ZappaStream" */ = {
+		BE1A342C2F30C6D800647B01 /* Build configuration list for PBXNativeTarget "UncleStreamus" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BE1A342D2F30C6D800647B01 /* Debug */,
@@ -1182,7 +1182,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		BE2FCA652F3CB6F70038E706 /* Build configuration list for PBXNativeTarget "ZappaStream-iOS" */ = {
+		BE2FCA652F3CB6F70038E706 /* Build configuration list for PBXNativeTarget "UncleStreamus-iOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BE2FCA632F3CB6F70038E706 /* Debug */,

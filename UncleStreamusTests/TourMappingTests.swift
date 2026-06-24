@@ -1,5 +1,5 @@
 import XCTest
-@testable import ZappaStream
+@testable import UncleStreamus
 
 final class TourMappingTests: XCTestCase {
 

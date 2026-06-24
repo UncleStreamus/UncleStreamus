@@ -1,8 +1,8 @@
 #!/bin/bash
-# build-dmg.command — Create and upload a ZappaStream release DMG
+# build-dmg.command — Create and upload a UncleStreamus release DMG
 #
-# Usage: drag ZappaStream.app onto the Terminal window after the script path
-#   ./build-dmg.command /path/to/ZappaStream.app
+# Usage: drag UncleStreamus.app onto the Terminal window after the script path
+#   ./build-dmg.command /path/to/UncleStreamus.app
 #
 # Before running:
 #   Xcode → Product → Archive → Distribute App → Copy App → save somewhere
@@ -14,7 +14,7 @@ cd "$(dirname "$0")"
 APP_PATH="$1"
 
 if [ -z "$APP_PATH" ]; then
-  echo "Drag ZappaStream.app into this window and press Enter:"
+  echo "Drag UncleStreamus.app into this window and press Enter:"
   read -r APP_PATH
   APP_PATH="${APP_PATH//\\ / }"
 fi
@@ -28,18 +28,18 @@ if [ ! -d "$APP_PATH" ]; then
 fi
 
 VERSION=$(defaults read "$APP_PATH/Contents/Info.plist" CFBundleShortVersionString)
-OUTPUT="$(dirname "$APP_PATH")/ZappaStream-${VERSION}.dmg"
+OUTPUT="$(dirname "$APP_PATH")/UncleStreamus-${VERSION}.dmg"
 STAGING=$(mktemp -d)
 
-echo "Building DMG for ZappaStream ${VERSION}..."
+echo "Building DMG for UncleStreamus ${VERSION}..."
 
 # Stage the .app and an Applications symlink
-cp -R "$APP_PATH" "$STAGING/ZappaStream.app"
+cp -R "$APP_PATH" "$STAGING/UncleStreamus.app"
 ln -s /Applications "$STAGING/Applications"
 
 # Build compressed DMG directly with hdiutil — no AppleScript, no Finder
 hdiutil create \
-  -volname "ZappaStream" \
+  -volname "UncleStreamus" \
   -srcfolder "$STAGING" \
   -ov \
   -format UDZO \

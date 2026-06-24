@@ -1,5 +1,5 @@
 import XCTest
-@testable import ZappaStream
+@testable import UncleStreamus
 
 /// Network integration tests: downloads each zappateers.com HTML page and validates
 /// every FZShow produced by importAllShows. Tests hit the live site — run on-demand,

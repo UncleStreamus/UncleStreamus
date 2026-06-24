@@ -17,8 +17,8 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "BE1A341A2F30C6D600647B01"
                BuildableName = "UncleStreamus.app"
-               BlueprintName = "ZappaStream"
-               ReferencedContainer = "container:ZappaStream.xcodeproj">
+               BlueprintName = "UncleStreamus"
+               ReferencedContainer = "container:UncleStreamus.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -36,9 +36,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "AAAA00302FAA003000AA0030"
-               BuildableName = "ZappaStreamTests.xctest"
-               BlueprintName = "ZappaStreamTests"
-               ReferencedContainer = "container:ZappaStream.xcodeproj">
+               BuildableName = "UncleStreamusTests.xctest"
+               BlueprintName = "UncleStreamusTests"
+               ReferencedContainer = "container:UncleStreamus.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -59,8 +59,8 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "BE1A341A2F30C6D600647B01"
             BuildableName = "UncleStreamus.app"
-            BlueprintName = "ZappaStream"
-            ReferencedContainer = "container:ZappaStream.xcodeproj">
+            BlueprintName = "UncleStreamus"
+            ReferencedContainer = "container:UncleStreamus.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -76,8 +76,8 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "BE1A341A2F30C6D600647B01"
             BuildableName = "UncleStreamus.app"
-            BlueprintName = "ZappaStream"
-            ReferencedContainer = "container:ZappaStream.xcodeproj">
+            BlueprintName = "UncleStreamus"
+            ReferencedContainer = "container:UncleStreamus.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

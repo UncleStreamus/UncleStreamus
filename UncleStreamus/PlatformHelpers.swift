@@ -1,6 +1,6 @@
 //
 //  PlatformHelpers.swift
-//  ZappaStream
+//  UncleStreamus
 //
 //  Cross-platform utilities for iOS and macOS
 //

@@ -1,6 +1,6 @@
 //
 //  WelcomeView.swift
-//  ZappaStream
+//  UncleStreamus
 //
 //  One-time "Welcome" sheet shown on a fresh install. Introduces the main
 //  features and, most importantly, explains the quirks of the four stream

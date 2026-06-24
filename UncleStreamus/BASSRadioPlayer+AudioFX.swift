@@ -57,7 +57,7 @@ enum PerShowFXSync {
     /// Whether the user's "Enable iCloud Sync" preference is on. Read via
     /// `object(forKey:) as? Bool ?? true` (not `bool(forKey:)`) so a fresh install,
     /// where `@AppStorage` hasn't written its default yet, is treated as enabled —
-    /// matching the history container's gating in `ZappaStreamApp`.
+    /// matching the history container's gating in `UncleStreamusApp`.
     static var iCloudSyncEnabled: Bool {
         (UserDefaults.standard.object(forKey: "iCloudSyncEnabled") as? Bool) ?? true
     }

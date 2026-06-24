@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) and other AI coding 
 
 ## Project Overview
 
-ZappaStream is a native macOS and iOS app for streaming the 24/7 Zappateers radio stream (Frank Zappa music). It scrapes setlist data from zappateers.com and displays live now-playing info alongside historical show data.
+UncleStreamus is a native macOS and iOS app for streaming the 24/7 Zappateers radio stream (Frank Zappa music). It scrapes setlist data from zappateers.com and displays live now-playing info alongside historical show data.
 
 - **macOS**: Menubar-only app plus a resizable main window. Click the menubar icon to open the popover/window.
 - **iOS/iPadOS**: Full-featured app. NavigationStack-based layout (NOT tab-based). Settings slide in from the left; history sidebar from the right. iPad shows sidebars inline; iPhone uses an overlay drawer.
@@ -24,40 +24,40 @@ ZappaStream is a native macOS and iOS app for streaming the 24/7 Zappateers radi
 
 **Open the project:**
 ```bash
-open ZappaStream.xcodeproj
+open UncleStreamus.xcodeproj
 ```
 Xcode will automatically resolve the CBass Swift Package dependency (macOS target only).
 
 **Build macOS target:**
 ```bash
-xcodebuild -scheme ZappaStream -configuration Debug
+xcodebuild -scheme UncleStreamus -configuration Debug
 ```
 
 **Build iOS target:**
 ```bash
-xcodebuild -scheme ZappaStream-iOS -configuration Debug
+xcodebuild -scheme UncleStreamus-iOS -configuration Debug
 ```
 
 **Run unit tests (macOS only):**
 ```bash
-xcodebuild test -scheme ZappaStream -destination 'platform=macOS'
+xcodebuild test -scheme UncleStreamus -destination 'platform=macOS'
 ```
 
 **Run a single test class:**
 ```bash
-xcodebuild test -scheme ZappaStream -destination 'platform=macOS' -only-testing:ZappaStreamTests/ParsedTrackInfoTests
+xcodebuild test -scheme UncleStreamus -destination 'platform=macOS' -only-testing:UncleStreamusTests/ParsedTrackInfoTests
 ```
 
-**Run on macOS (from Xcode):** Select `ZappaStream` scheme → Cmd+R. Menubar icon appears in top-right; click to open. Window is resizable (min 385pt, max 618pt wide).
+**Run on macOS (from Xcode):** Select `UncleStreamus` scheme → Cmd+R. Menubar icon appears in top-right; click to open. Window is resizable (min 385pt, max 618pt wide).
 
-**Run on iOS (from Xcode):** Select `ZappaStream-iOS` scheme → Cmd+R. Choose simulator (iPhone 15, iPad Pro recommended for testing landscape) or device.
+**Run on iOS (from Xcode):** Select `UncleStreamus-iOS` scheme → Cmd+R. Choose simulator (iPhone 15, iPad Pro recommended for testing landscape) or device.
 
 **iOS Build Configuration (one-time after checkout):**
 
 ⚠️ **Critical: These manual steps are required; automated tooling does not apply them. Build will fail without them.**
 
 1. **Bridging header:**
-   - Build Settings → `SWIFT_OBJC_BRIDGING_HEADER = ZappaStream/BASSBridgingHeader.h`
+   - Build Settings → `SWIFT_OBJC_BRIDGING_HEADER = UncleStreamus/BASSBridgingHeader.h`
    - **Why:** iOS requires global availability of BASS C symbols via `BASSBridgingHeader.h`
    - **Verify:** Search "SWIFT_OBJC_BRIDGING_HEADER" in Build Settings; iOS target only, NOT macOS
 
@@ -110,7 +110,7 @@ from the in-app sheet. The GitHub release notes (`release.yml`) are **not** filt
 - Import the Developer ID Application cert into a temporary keychain (from secrets)
 - Write the App Store Connect API key `.p8` (used for notarization)
 - Install the Developer ID provisioning profile (from secret) into `~/Library/MobileDevice/Provisioning Profiles/`
-- `xcodebuild archive` with **manual** signing (`CODE_SIGN_IDENTITY="Developer ID Application"`, `PROVISIONING_PROFILE_SPECIFIER="ZappaStream Developer ID"`) and **universal** arch (`ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO`)
+- `xcodebuild archive` with **manual** signing (`CODE_SIGN_IDENTITY="Developer ID Application"`, `PROVISIONING_PROFILE_SPECIFIER="UncleStreamus Developer ID"`) and **universal** arch (`ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO`)
 - `xcodebuild -exportArchive` with `.github/ExportOptions.plist` (`method: developer-id`, manual signing)
 - `hdiutil create` → DMG, `notarytool submit --wait`, `stapler staple`, `gh release upload`
 
@@ -120,7 +120,7 @@ from the in-app sheet. The GitHub release notes (`release.yml`) are **not** filt
 - `DEVELOPER_ID_CERTIFICATE` — base64 of the Developer ID Application `.p12`
 - `DEVELOPER_ID_CERTIFICATE_PASSWORD` — `.p12` export password
 - `APP_STORE_CONNECT_KEY_ID` / `APP_STORE_CONNECT_ISSUER_ID` / `APP_STORE_CONNECT_API_KEY` — App Store Connect API key (full `.p8` contents); the key needs **App Manager** role so it can manage provisioning during signing/notarization
-- `MACOS_PROVISIONING_PROFILE` — base64 of the **Developer ID** provisioning profile named exactly `ZappaStream Developer ID` (must match the workflow and `ExportOptions.plist`)
+- `MACOS_PROVISIONING_PROFILE` — base64 of the **Developer ID** provisioning profile named exactly `UncleStreamus Developer ID` (must match the workflow and `ExportOptions.plist`)
 
 **To ship a macOS release:** bump `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`, commit, then push a `v*` tag (e.g. `v1.4.5-build20260612`). This is independent of TestFlight/App Store distribution, which is handled separately by Xcode Cloud.
 
@@ -164,7 +164,7 @@ re-triggers review for the first public build of that version (build-only bumps 
 
 4. **UI** — `ContentView.swift` (macOS) and `ContentView_iOS.swift` (iOS) are separate files. `SidebarView`, `FilterView`, `ShowEntryRow`, `AudioFXView` are shared. Platform conditionals use `#if os(macOS)` / `#if os(iOS)`.
 
-5. **App Entry & Menubar** — `ZappaStreamApp.swift` sets up SwiftData `ModelContainer`, registers menubar icon (macOS via `NSStatusBar`), handles `AppDelegate`. Menubar popover and main window communicate via `NotificationCenter`.
+5. **App Entry & Menubar** — `UncleStreamusApp.swift` sets up SwiftData `ModelContainer`, registers menubar icon (macOS via `NSStatusBar`), handles `AppDelegate`. Menubar popover and main window communicate via `NotificationCenter`.
 
 ### Data Flow Summary
 
@@ -302,7 +302,7 @@ Platform-Specific:
 - `fxRememberPerShow=true`: `restorePerShowFX(showDate:)` for the show's variant date applies a saved snapshot immediately. If the show has **no** snapshot, the reset to defaults is **deferred to the fetch completion** and only fires once a real show has loaded (`show != nil && !hasPerShowFX(variantDate)`) — so a transient Icecast metadata glitch that never resolves to a real show can't cause an audible mid-song FX dropout. Snapshots saved on every FX change via `saveFXToDefaults()` → `savePerShowFX()`. Covers both across-show and app-restart cases.
 - `fxRememberPerShow=false` + `fxPersistAcrossShows=false`: `resetAllFX()` (default)
 - `fxRememberPerShow=false` + `fxPersistAcrossShows=true`: keep FX settings across shows
-- **Per-show storage:** `savePerShowFX()` writes the `FXSnapshot` JSON to both `UserDefaults.standard` (synchronous source of truth — reliable at launch) and `NSUbiquitousKeyValueStore` (cross-device mirror). `restorePerShowFX()` reads UserDefaults first, falling back to KVS and caching any cloud-only snapshot locally. `PerShowFXSync.start()` (called from `ZappaStreamApp.init`) calls `synchronize()` and observes `didChangeExternallyNotification` to mirror cloud changes into UserDefaults.
+- **Per-show storage:** `savePerShowFX()` writes the `FXSnapshot` JSON to both `UserDefaults.standard` (synchronous source of truth — reliable at launch) and `NSUbiquitousKeyValueStore` (cross-device mirror). `restorePerShowFX()` reads UserDefaults first, falling back to KVS and caching any cloud-only snapshot locally. `PerShowFXSync.start()` (called from `UncleStreamusApp.init`) calls `synchronize()` and observes `didChangeExternallyNotification` to mirror cloud changes into UserDefaults.
 
 **Audio Effects DSP Pipeline:**
 - **3-Band EQ** (via `BASS_FX_BFX_PEAKEQ`):
@@ -444,7 +444,7 @@ Platform-Specific:
 | `FilterView.swift` | Tag-based filtering (tour, year, location) — leverages `GeoData` |
 | `ShowEntryRow.swift` | Shared setlist row — duration, notes, duplicate handling, now-playing indicator |
 | `TourPeriods.swift` | `GeoData` struct — tour period → zappateers filename map; US states, Canadian provinces, countries |
-| `ZappaStreamApp.swift` | App entry, SwiftData `ModelContainer`, menubar (macOS), `AppDelegate` |
+| `UncleStreamusApp.swift` | App entry, SwiftData `ModelContainer`, menubar (macOS), `AppDelegate` |
 | `MarqueeText.swift` | Animated scrolling text for long track titles (macOS) |
 | `ReleaseNotes.swift` | Codable model + loader for bundled `ReleaseNotes.json` (`loadBundled()`, `currentBuild`); drives the "What's New" sheet |
 | `WhatsNewView.swift` | Shared "What's New" sheet UI — New/Improved/Fixed sections (hidden when empty), version header, Continue button |
@@ -468,7 +468,7 @@ Platform-Specific:
 - **DVR logic:** `BASSRadioPlayer+DVR.swift` — state machine, recording, playback
 - **Data persistence:** `ShowDataManager` — `recordListen()`, `@Query` properties
 - **UI state:** `ShowDataManager.uiState` — now-playing selection and highlight
-- **Menubar (macOS):** `ZappaStreamApp.setupMenubar()` — icon and popover setup
+- **Menubar (macOS):** `UncleStreamusApp.setupMenubar()` — icon and popover setup
 - **Media controls (both):** `ContentView` / `ContentView_iOS` → `setupRemoteCommandCenter()`
 - **FX persistence:** `fetchShowInfo()` in both ContentViews — `fxRememberPerShow` (per-show snapshots) / `fxPersistAcrossShows` logic
 - **Track position matching:** `findCurrentTrackPosition()` — handles duplicate song names
@@ -528,7 +528,7 @@ Memory files track architectural decisions across Claude Code sessions:
 
 ### Testing Strategy
 
-**Unit test suite** (`ZappaStreamTests/`, macOS only, 188 tests as of Mar 2026):
+**Unit test suite** (`UncleStreamusTests/`, macOS only, 188 tests as of Mar 2026):
 - `ParsedTrackInfoTests` — 4 metadata formats, `tracksMatch`, `normalizeTrackName`, `normalizePluralForm`
 - `TourMappingTests` — tour boundaries, gap years, `GeoData.parseLocation`, `GeoData.periodName`, state/province sets
 - `ShowTimeFetcherTests` — `ShowTime` enum, exceptions dict, `decodeHTMLEntities`, `parseSetlist`, `parseShowFromHTML` with mock HTML

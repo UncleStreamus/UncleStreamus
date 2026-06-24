@@ -41,7 +41,7 @@ enum PlaybackState: Equatable {
     // MARK: - Public Interface
 
     /// Raw metadata string callback — same format as the old IcecastStreamReader callback.
-    /// Called on main thread. ZappaStream uses this to drive ParsedTrackInfo parsing.
+    /// Called on main thread. UncleStreamus uses this to drive ParsedTrackInfo parsing.
     var onMetadataUpdate: ((String) -> Void)?
 
     var isPlaying: Bool = false

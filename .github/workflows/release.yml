@@ -89,7 +89,7 @@ jobs:
       - name: Archive
         run: |
           xcodebuild archive \
-            -scheme ZappaStream \
+            -scheme UncleStreamus \
             -configuration Release \
             -archivePath $RUNNER_TEMP/UncleStreamus.xcarchive \
             ARCHS="arm64 x86_64" \

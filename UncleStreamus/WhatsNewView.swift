@@ -1,6 +1,6 @@
 //
 //  WhatsNewView.swift
-//  ZappaStream
+//  UncleStreamus
 //
 //  "What's New" sheet shown on first launch after a build update. Renders the
 //  bundled `ReleaseNotes` (New / Improved / Fixed) generated from commit messages.

@@ -1,6 +1,6 @@
 //
-//  ZappaStreamApp.swift
-//  ZappaStream
+//  UncleStreamusApp.swift
+//  UncleStreamus
 //
 //  Created by Darcy Taranto on 02/02/2026.
 //
@@ -13,7 +13,7 @@ import AppKit
 #endif
 
 @main
-struct ZappaStreamApp: App {
+struct UncleStreamusApp: App {
     @AppStorage("textScale") private var textScale: Double = 1.1
 
 // Text scale levels: Smaller, Default, Large, Largest

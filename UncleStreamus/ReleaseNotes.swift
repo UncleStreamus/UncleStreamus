@@ -1,6 +1,6 @@
 //
 //  ReleaseNotes.swift
-//  ZappaStream
+//  UncleStreamus
 //
 //  Model + loader for the bundled "What's New" release notes. The JSON is
 //  generated at build time by Scripts/generate_release_notes.sh from git commit

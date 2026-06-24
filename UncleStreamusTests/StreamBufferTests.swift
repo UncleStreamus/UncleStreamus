@@ -1,6 +1,6 @@
 #if os(macOS)
 import XCTest
-@testable import ZappaStream
+@testable import UncleStreamus
 
 final class StreamBufferTests: XCTestCase {
 
