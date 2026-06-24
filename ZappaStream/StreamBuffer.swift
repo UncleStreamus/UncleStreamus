@@ -47,7 +47,7 @@ final class StreamBuffer {
     private(set) var totalSamplesWritten:  Int64 = 0  // cumulative, never reset
 
     private var fileHandle: FileHandle?
-    private let writeQueue = DispatchQueue(label: "com.zappastream.dvr", qos: .utility)
+    private let writeQueue = DispatchQueue(label: "com.unclestreamus.dvr", qos: .utility)
     private var isRunning  = false
 
     private let tempDir: URL

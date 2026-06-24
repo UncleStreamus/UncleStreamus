@@ -7,11 +7,51 @@ enum StoreProtection {
 
     static var backupURL: URL? {
         guard let groupContainer = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.zappastream.shared"
+            forSecurityApplicationGroupIdentifier: "group.com.unclestreamus.shared"
         ) else { return nil }
         return groupContainer
-            .appendingPathComponent("ZappaStream", isDirectory: true)
-            .appendingPathComponent("ZappaStream-history.autobak")
+            .appendingPathComponent("UncleStreamus", isDirectory: true)
+            .appendingPathComponent("UncleStreamus-history.autobak")
+    }
+
+    // One-time rebrand migration (ZappaStream → UncleStreamus): copy the personal
+    // history store from the legacy `group.com.zappastream.shared` container into the
+    // new `group.com.unclestreamus.shared` container, then clear CloudKit metadata so
+    // the records re-upload to the new (empty) CloudKit container. Safe to call before
+    // the ModelContainer opens. Runs at most once (guarded by a UserDefaults flag).
+    static func migrateFromLegacyGroup() {
+        let flagKey = "didMigrateFromZappaStreamGroup"
+        guard !UserDefaults.standard.bool(forKey: flagKey) else { return }
+
+        let fm = FileManager.default
+        // If the new group container isn't available yet, bail WITHOUT setting the flag
+        // so the migration is retried on a later launch.
+        guard let newGroup = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.com.unclestreamus.shared") else { return }
+
+        if let oldGroup = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.com.zappastream.shared") {
+            let oldStore = oldGroup
+                .appendingPathComponent("ZappaStream", isDirectory: true)
+                .appendingPathComponent("ZappaStream-history.store")
+            let newDir = newGroup.appendingPathComponent("UncleStreamus", isDirectory: true)
+            let newStore = newDir.appendingPathComponent("UncleStreamus-history.store")
+
+            // Only migrate when legacy data exists and the new store hasn't been created yet.
+            if fm.fileExists(atPath: oldStore.path) && !fm.fileExists(atPath: newStore.path) {
+                try? fm.createDirectory(at: newDir, withIntermediateDirectories: true)
+                for suffix in ["", "-wal", "-shm"] {
+                    let src = URL(fileURLWithPath: oldStore.path + suffix)
+                    let dst = URL(fileURLWithPath: newStore.path + suffix)
+                    guard fm.fileExists(atPath: src.path) else { continue }
+                    try? fm.removeItem(at: dst)
+                    try? fm.copyItem(at: src, to: dst)
+                }
+                // The new CloudKit container is empty; clearing sync metadata makes the
+                // migrated records upload as new rather than awaiting a matching sync state.
+                clearCloudKitMetadata(at: newStore)
+            }
+        }
+
+        UserDefaults.standard.set(true, forKey: flagKey)
     }
 
     // Returns the number of ZSAVEDSHOW rows in a SQLite store, or -1 if the file doesn't

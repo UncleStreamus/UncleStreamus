@@ -94,7 +94,7 @@ class FZShowsFetcher {
         #else
         let platform = "iOS"
         #endif
-        return "ZappaStream/1.0 (\(platform))"
+        return "UncleStreamus/1.0 (\(platform))"
     }()
 
     // MARK: - Exceptions Dictionary

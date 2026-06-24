@@ -173,7 +173,7 @@ struct ContentView_iOS: View {
                     }
                     .toolbar {
                         ToolbarItem(placement: .principal) {
-                            Text("ZappaStream")
+                            Text("UncleStreamus")
                                 .font(.system(size: 30, weight: .semibold))
                         }
                         ToolbarItem(placement: .topBarLeading) {
@@ -1583,7 +1583,7 @@ struct ContentView_iOS: View {
         var nowPlayingInfo = [String: Any]()
 
         if let parsed = parsedTrack {
-            nowPlayingInfo[MPMediaItemPropertyTitle] = parsed.trackName ?? "ZappaStream"
+            nowPlayingInfo[MPMediaItemPropertyTitle] = parsed.trackName ?? "UncleStreamus"
 
             if let show = currentShow {
                 // Put all info in Artist line: "Frank Zappa • 1975 10 04 • Paramount Theatre, Seattle, WA"
@@ -1601,8 +1601,8 @@ struct ContentView_iOS: View {
                 #endif
             }
         } else {
-            nowPlayingInfo[MPMediaItemPropertyTitle] = "ZappaStream"
-            nowPlayingInfo[MPMediaItemPropertyArtist] = "ZappaStream"
+            nowPlayingInfo[MPMediaItemPropertyTitle] = "UncleStreamus"
+            nowPlayingInfo[MPMediaItemPropertyArtist] = "UncleStreamus"
             #if DEBUG
             print("🎵 Now Playing: Default (no parsed track)")
             #endif

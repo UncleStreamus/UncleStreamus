@@ -388,7 +388,7 @@ struct ContentView: View {
                     }
                     .buttonStyle(.plain)
                     Spacer()
-                    Text("ZappaStream")
+                    Text("UncleStreamus")
                         .font(.system(size: 26 * 1.1, weight: .bold))
                     Spacer()
                     Button(action: toggleSidebar) {
@@ -1510,15 +1510,15 @@ struct ContentView: View {
         var nowPlayingInfo = [String: Any]()
 
         if let parsed = parsedTrack {
-            nowPlayingInfo[MPMediaItemPropertyTitle] = parsed.trackName ?? "ZappaStream"
+            nowPlayingInfo[MPMediaItemPropertyTitle] = parsed.trackName ?? "UncleStreamus"
             nowPlayingInfo[MPMediaItemPropertyArtist] = artistName(from: parsed)
 
             if let show = currentShow {
                 nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = "\(show.date) • \(show.venue)"
             }
         } else {
-            nowPlayingInfo[MPMediaItemPropertyTitle] = "ZappaStream"
-            nowPlayingInfo[MPMediaItemPropertyArtist] = "ZappaStream"
+            nowPlayingInfo[MPMediaItemPropertyTitle] = "UncleStreamus"
+            nowPlayingInfo[MPMediaItemPropertyArtist] = "UncleStreamus"
         }
 
         // Set playback state

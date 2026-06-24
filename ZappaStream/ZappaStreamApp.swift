@@ -29,13 +29,17 @@ struct ZappaStreamApp: App {
         guard ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil else {
             return try! ModelContainer(for: Schema([SavedShow.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         }
+        // One-time rebrand migration: bring the personal history store over from the
+        // legacy ZappaStream app group before the store opens (no-op after the first run).
+        StoreProtection.migrateFromLegacyGroup()
+
         guard let groupContainer = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.zappastream.shared"
+            forSecurityApplicationGroupIdentifier: "group.com.unclestreamus.shared"
         ) else {
             fatalError("App Group container unavailable — check entitlements and Developer Portal configuration.")
         }
-        let storeDir = groupContainer.appendingPathComponent("ZappaStream", isDirectory: true)
-        let historyStoreURL = storeDir.appendingPathComponent("ZappaStream-history.store")
+        let storeDir = groupContainer.appendingPathComponent("UncleStreamus", isDirectory: true)
+        let historyStoreURL = storeDir.appendingPathComponent("UncleStreamus-history.store")
         try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
 
         // Pre-launch store protection: backup before CloudKit can wipe, and auto-restore
@@ -82,7 +86,7 @@ struct ZappaStreamApp: App {
             schema: Schema([SavedShow.self]),
             url: historyStoreURL,
             cloudKitDatabase: iCloudEnabled
-                ? .private("iCloud.com.zappastream.ZappaStream")
+                ? .private("iCloud.com.unclestreamus.UncleStreamus")
                 : .none
         )
 
@@ -106,13 +110,13 @@ struct ZappaStreamApp: App {
             return try! ModelContainer(for: Schema([CachedFZShow.self, FZShowsPageRecord.self]), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         }
         guard let groupContainer = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.zappastream.shared"
+            forSecurityApplicationGroupIdentifier: "group.com.unclestreamus.shared"
         ) else { fatalError("App Group container unavailable.") }
-        let storeDir = groupContainer.appendingPathComponent("ZappaStream", isDirectory: true)
+        let storeDir = groupContainer.appendingPathComponent("UncleStreamus", isDirectory: true)
         try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
         let config = ModelConfiguration(
             schema: Schema([CachedFZShow.self, FZShowsPageRecord.self]),
-            url: storeDir.appendingPathComponent("ZappaStreamCache.store"),
+            url: storeDir.appendingPathComponent("UncleStreamusCache.store"),
             cloudKitDatabase: .none
         )
         return (try? ModelContainer(for: Schema([CachedFZShow.self, FZShowsPageRecord.self]), configurations: [config]))
@@ -343,7 +347,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let button = statusItem?.button {
             // Use SF Symbol for the menubar icon
             let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-            if let image = NSImage(systemSymbolName: "radio", accessibilityDescription: "ZappaStream") {
+            if let image = NSImage(systemSymbolName: "radio", accessibilityDescription: "UncleStreamus") {
                 image.isTemplate = true  // Allows proper dark/light mode adaptation
                 if let configuredImage = image.withSymbolConfiguration(config) {
                     // Create a new image with adjusted alignment to center vertically
@@ -361,7 +365,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             button.action = #selector(menubarIconClicked(_:))
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.target = self
-            button.toolTip = "ZappaStream"
+            button.toolTip = "UncleStreamus"
         }
     }
 
@@ -478,7 +482,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // About submenu — Welcome guide + What's New sheets
         let aboutItem = NSMenuItem(title: "About", action: nil, keyEquivalent: "")
         let aboutSubmenu = NSMenu()
-        aboutSubmenu.addItem(NSMenuItem(title: "Welcome to ZappaStream", action: #selector(showWelcomeSheet), keyEquivalent: ""))
+        aboutSubmenu.addItem(NSMenuItem(title: "Welcome to UncleStreamus", action: #selector(showWelcomeSheet), keyEquivalent: ""))
         aboutSubmenu.addItem(NSMenuItem(title: "What's New", action: #selector(showWhatsNewSheet), keyEquivalent: ""))
         aboutItem.submenu = aboutSubmenu
         menu.addItem(aboutItem)
@@ -493,7 +497,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(NSMenuItem.separator())
 
         // Quit
-        let quitItem = NSMenuItem(title: "Quit ZappaStream", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit UncleStreamus", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quitItem.keyEquivalentModifierMask = .command
         menu.addItem(quitItem)
     }
@@ -545,7 +549,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             tooltipLines.append(show)
         }
 
-        let newTooltip = tooltipLines.isEmpty ? "ZappaStream" : tooltipLines.joined(separator: "\n")
+        let newTooltip = tooltipLines.isEmpty ? "UncleStreamus" : tooltipLines.joined(separator: "\n")
         #if DEBUG
         print("📻 Menubar tooltip update: \(newTooltip)")
         #endif

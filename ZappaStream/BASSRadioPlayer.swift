@@ -35,7 +35,7 @@ enum PlaybackState: Equatable {
         #else
         let platform = "iOS"
         #endif
-        return "ZappaStream/1.0 (\(platform))"
+        return "UncleStreamus/1.0 (\(platform))"
     }()
 
     // MARK: - Public Interface
@@ -81,7 +81,7 @@ enum PlaybackState: Equatable {
     var stateTimer: Timer?
     var fadeTimer: Timer?
     var fadeGeneration: Int = 0   // incremented by cancelFade(); guards stale async dispatches
-    let bassPollingQueue = DispatchQueue(label: "com.zappastream.bass-polling", qos: .utility)
+    let bassPollingQueue = DispatchQueue(label: "com.unclestreamus.bass-polling", qos: .utility)
     let metaPollInterval: TimeInterval = 3.0
     let statePollInterval: TimeInterval = 2.0
     let fadeInDuration: TimeInterval = 0.5
@@ -90,7 +90,7 @@ enum PlaybackState: Equatable {
     // MARK: - Network Resilience
 
     var pathMonitor: NWPathMonitor?
-    let networkMonitorQueue = DispatchQueue(label: "com.zappastream.network-monitor", qos: .utility)
+    let networkMonitorQueue = DispatchQueue(label: "com.unclestreamus.network-monitor", qos: .utility)
 
     /// Background task token used on iOS to keep the app alive during reconnect
     /// after audio output stops (network loss while locked).

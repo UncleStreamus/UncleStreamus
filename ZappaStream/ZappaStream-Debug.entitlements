@@ -10,6 +10,7 @@
 	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
+		<string>group.com.unclestreamus.shared</string>
 		<string>group.com.zappastream.shared</string>
 	</array>
 </dict>

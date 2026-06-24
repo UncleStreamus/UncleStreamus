@@ -299,7 +299,7 @@ struct SyncSettingsView: View {
                 }
 
                 if showRestartBanner {
-                    Text("Restart ZappaStream to apply.")
+                    Text("Restart UncleStreamus to apply.")
                         .font(.caption)
                         .foregroundColor(.orange)
                 }
@@ -311,7 +311,7 @@ struct SyncSettingsView: View {
                 DisclosureGroup(isExpanded: $isLocalExpanded) {
                     VStack(alignment: .leading, spacing: 8) {
                         if backupCount > 0 {
-                            Text("Each time you open ZappaStream, a snapshot of your history and favourites is automatically saved to this device. This backup is stored locally — it is not affected by iCloud and cannot be wiped by a sync error.\n\nYour backup contains \(backupSummary). Restoring will replace your current history (\(currentSummary)) with this snapshot. CloudKit sync metadata is cleared at the same time so the restored records are re-uploaded on the next launch rather than being overwritten again. The app must restart to apply the restore.")
+                            Text("Each time you open UncleStreamus, a snapshot of your history and favourites is automatically saved to this device. This backup is stored locally — it is not affected by iCloud and cannot be wiped by a sync error.\n\nYour backup contains \(backupSummary). Restoring will replace your current history (\(currentSummary)) with this snapshot. CloudKit sync metadata is cleared at the same time so the restored records are re-uploaded on the next launch rather than being overwritten again. The app must restart to apply the restore.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -336,7 +336,7 @@ struct SyncSettingsView: View {
                             }
 
                             if showRestartBanner {
-                                Text("Restart ZappaStream to apply.")
+                                Text("Restart UncleStreamus to apply.")
                                     .font(.caption)
                                     .foregroundColor(.orange)
                             }
@@ -633,12 +633,12 @@ struct CreditsView: View {
             SettingsSectionHeader(title: "App", systemImage: "chevron.left.forwardslash.chevron.right")
 
             SettingsSectionBox {
-                Text("ZappaStream is open source. Go here for general info and issue discussions.")
+                Text("UncleStreamus is open source. Go here for general info and issue discussions.")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
                 Button {
-                    if let url = URL(string: "https://github.com/ZappaStream/ZappaStream") {
+                    if let url = URL(string: "https://github.com/UncleStreamus/UncleStreamus") {
                         openURL(url)
                     }
                 } label: {

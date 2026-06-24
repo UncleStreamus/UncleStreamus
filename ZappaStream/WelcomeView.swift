@@ -103,7 +103,7 @@ struct WelcomeView: View {
                 .font(.system(size: 34))
                 .foregroundStyle(.tint)
                 .padding(.top, 24)
-            Text("Welcome to ZappaStream")
+            Text("Welcome to UncleStreamus")
                 .font(.largeTitle.bold())
                 .multilineTextAlignment(.center)
             Text("24/7 Zappateers radio — hosted by Norbert.de")

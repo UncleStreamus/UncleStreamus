@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "BE1A341A2F30C6D600647B01"
-               BuildableName = "ZappaStream.app"
+               BuildableName = "UncleStreamus.app"
                BlueprintName = "ZappaStream"
                ReferencedContainer = "container:ZappaStream.xcodeproj">
             </BuildableReference>
@@ -58,7 +58,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "BE1A341A2F30C6D600647B01"
-            BuildableName = "ZappaStream.app"
+            BuildableName = "UncleStreamus.app"
             BlueprintName = "ZappaStream"
             ReferencedContainer = "container:ZappaStream.xcodeproj">
          </BuildableReference>
@@ -75,7 +75,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "BE1A341A2F30C6D600647B01"
-            BuildableName = "ZappaStream.app"
+            BuildableName = "UncleStreamus.app"
             BlueprintName = "ZappaStream"
             ReferencedContainer = "container:ZappaStream.xcodeproj">
          </BuildableReference>

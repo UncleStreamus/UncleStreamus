@@ -12,8 +12,8 @@
     <string>Developer ID Application</string>
     <key>provisioningProfiles</key>
     <dict>
-        <key>com.zappastream.ZappaStream</key>
-        <string>ZappaStream Developer ID</string>
+        <key>com.unclestreamus.UncleStreamus</key>
+        <string>UncleStreamus Developer ID</string>
     </dict>
 </dict>
 </plist>

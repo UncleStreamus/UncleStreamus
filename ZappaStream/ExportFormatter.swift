@@ -27,7 +27,7 @@ enum ShowExporter {
         let today = exportDateString(Date())
         let countWord = shows.count == 1 ? "1 show" : "\(shows.count) shows"
 
-        lines.append("ZappaStream — \(sectionName)")
+        lines.append("UncleStreamus — \(sectionName)")
         lines.append("\(countWord)  ·  Exported \(today)")
         if let filter = filterDescription {
             lines.append("Filtered by: \(filter)")
@@ -145,7 +145,7 @@ enum ShowExporter {
         let iso = ISO8601DateFormatter().string(from: Date())
         let date = String(iso.prefix(10))
         let time = String(iso.dropFirst(11).prefix(5)).replacingOccurrences(of: ":", with: "-")
-        return "ZappaStream \(section) \(date) \(time).txt"
+        return "UncleStreamus \(section) \(date) \(time).txt"
     }
 
     static func formatShowDate(_ showDate: String) -> String {

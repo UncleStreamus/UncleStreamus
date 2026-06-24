@@ -1,4 +1,4 @@
-# ZappaStream
+# UncleStreamus
 
 A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted by [norbert.de](https://www.norbert.de/index.php/frank-zappa/).
 
@@ -113,9 +113,9 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 
 ### macOS
 
-Download the latest `.dmg` from the [Releases](../../releases) page, open it, and drag ZappaStream to your Applications folder.
+Download the latest `.dmg` from the [Releases](../../releases) page, open it, and drag UncleStreamus to your Applications folder.
 
-ZappaStream is notarized by Apple — it will open normally on first launch.
+UncleStreamus is notarized by Apple — it will open normally on first launch.
 
 Available in the App Store soon.
 

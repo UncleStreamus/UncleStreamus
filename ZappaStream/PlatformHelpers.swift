@@ -24,7 +24,7 @@ extension EnvironmentValues {
 // MARK: - Constants
 
 enum AppConstants {
-    static let supportEmail = "zappastreamapp@gmail.com"
+    static let supportEmail = "unclestreamusapp@gmail.com"
 }
 
 // MARK: - System Colors
@@ -71,7 +71,7 @@ struct BugReportData {
     let streamFormat: String?
 
     var subject: String {
-        "ZappaStream Bug Report - \(showDate) \(venue)"
+        "UncleStreamus Bug Report - \(showDate) \(venue)"
     }
 
     var body: String {
