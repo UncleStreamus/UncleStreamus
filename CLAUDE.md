@@ -124,6 +124,34 @@ from the in-app sheet. The GitHub release notes (`release.yml`) are **not** filt
 
 **To ship a macOS release:** bump `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`, commit, then push a `v*` tag (e.g. `v1.4.5-build20260612`). This is independent of TestFlight/App Store distribution, which is handled separately by Xcode Cloud.
 
+## TestFlight Distribution (iOS)
+
+iOS beta distribution is driven by **Xcode Cloud**, configured in the App Store
+Connect (ASC) web UI — **not** in this repo. The `v*` tag only triggers the
+GitHub Actions macOS DMG; it does not drive iOS TestFlight. Export compliance is
+already declared (`ITSAppUsesNonExemptEncryption = NO` in `Info.plist` and the
+iOS build settings), so external builds aren't blocked on encryption each build.
+
+**Two-group model:**
+
+| Audience | Group type | How a build gets there | Apple review |
+|----------|-----------|------------------------|--------------|
+| Private / dev | **Internal** | Automatic on every Xcode Cloud upload | None |
+| Public | **External** (`Public Beta`, public link) | **Manually** add the chosen build to the group | Beta App Review on the **first build of each `MARKETING_VERSION`** |
+
+Routing is **manual promotion**: every build lands in the Internal group instantly
+for dev testing; you hand-pick which builds go public. Builds you don't promote
+never reach the public.
+
+**To promote a build to the public beta** (ASC → TestFlight tab):
+1. Confirm **Test Information** is filled (beta description, feedback email, privacy URL) — required once for external testing.
+2. Open the build → add it to the **`Public Beta`** external group, provide "What to Test" notes.
+3. The first build of a new `MARKETING_VERSION` goes to Beta App Review (~24–48h); later builds of the same version usually skip review.
+
+Caveats: builds expire 90 days after upload; the public link can be paused/disabled
+anytime without affecting the Internal group; bumping `MARKETING_VERSION`
+re-triggers review for the first public build of that version (build-only bumps don't).
+
 ## Architecture
 
 ### Layers
