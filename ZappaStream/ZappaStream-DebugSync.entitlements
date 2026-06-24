@@ -12,5 +12,15 @@
 	<array>
 		<string>group.com.zappastream.shared</string>
 	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.com.zappastream.ZappaStream</string>
+	</array>
+	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
+	<string>$(TeamIdentifierPrefix)com.zappastream.ZappaStream</string>
 </dict>
 </plist>
