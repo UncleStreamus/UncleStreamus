@@ -46,14 +46,20 @@ extension BASSRadioPlayer {
             buffer.cleanup()
             streamBuffer = StreamBuffer(maxMinutes: newMax)
             streamBuffer?.start()
+            #if DEBUG
             print("📼 DVR buffer resized to \(newMax) min (live)")
+            #endif
         } else if Double(newMax) * 60.0 >= behindLiveSeconds {
             // Safe to apply: new window still covers everything already recorded.
             buffer.updateMaxSegments(newMax)
+            #if DEBUG
             print("📼 DVR buffer adjusted to \(newMax) min (recorded=\(Int(behindLiveSeconds))s, safe)")
+            #endif
         } else {
             // New value would truncate content the user could still play back — defer to next go-live.
+            #if DEBUG
             print("📼 DVR buffer decrease deferred (recorded \(Int(behindLiveSeconds / 60))min > new \(newMax)min)")
+            #endif
         }
     }
 
@@ -102,8 +108,8 @@ extension BASSRadioPlayer {
             // handlers request it, and startSilenceKeepalive() centrally suppresses it whenever
             // the app is in the foreground (guard on isAppInForeground).
         }
-        print("⏸️ DVR paused at t=\(String(format: "%.2f", dvrPauseTimestamp))s")
         #if DEBUG
+        print("⏸️ DVR paused at t=\(String(format: "%.2f", dvrPauseTimestamp))s")
         logDVRDiag("pause")   // baseline snapshot at the moment of pause
         #endif
     }
@@ -157,14 +163,18 @@ extension BASSRadioPlayer {
             self.startDVRRecordingPump()
             // Keepalive deferred to background transition — see dvrPause() comment.
         }
+        #if DEBUG
         print("⏸️ DVR playback paused at recording t=\(String(format: "%.2f", currentRecordingTime))s")
+        #endif
     }
 
     /// Start DVR playback from the saved pause timestamp.
     /// The live stream stays muted and continues recording.
     func dvrResume() {
         guard dvrState == .paused, let buffer = streamBuffer else {
+            #if DEBUG
             print("⚠️ dvrResume guard failed: dvrState=\(dvrState) hasBuffer=\(streamBuffer != nil)")
+            #endif
             return
         }
         stopDVRRecordingPump()
@@ -174,7 +184,9 @@ extension BASSRadioPlayer {
 
         let stream = buffer.createPlaybackStream(from: dvrPauseTimestamp)
         guard stream != 0 else {
+            #if DEBUG
             print("❌ DVR: failed to create playback stream at t=\(dvrPauseTimestamp)")
+            #endif
             return
         }
 
@@ -238,7 +250,9 @@ extension BASSRadioPlayer {
         dvrState = .playing
         startBehindTimer()
         startDVRMetadataPolling()
+        #if DEBUG
         print("▶️  DVR playback started from t=\(String(format: "%.2f", dvrPauseTimestamp))s")
+        #endif
         #if DEBUG
         logDVRDiag("resume")   // state at the moment playback resumes — compare buffered vs the paused tick
         #endif
@@ -302,7 +316,9 @@ extension BASSRadioPlayer {
         // connect is identical to a normal play-from-stopped experience.
         if activeFormat == "FLAC" || wasBufferFull {
             bassPollingQueue.async { [weak self] in self?.restartStream() }
+            #if DEBUG
             print("📡 DVR → LIVE (full restart)")
+            #endif
             return
         }
 
@@ -313,7 +329,9 @@ extension BASSRadioPlayer {
             cancelFade()                       // cancel any DVR stream ch-vol fade; advance generation
             startFadeIn(mixer: preMixerHandle) // fade live source ch-vol from 0→1
         }
+        #if DEBUG
         print("📡 DVR → LIVE")
+        #endif
     }
 
     // MARK: - DVR Private Helpers
@@ -344,7 +362,9 @@ extension BASSRadioPlayer {
         }
         // The buffer is preserved indefinitely — no expiry timer. The user is offered a
         // play-back-vs-go-live choice when they next bring the app to the foreground.
+        #if DEBUG
         print("📼 DVR buffer full (\(Int(maxSecs / 60)) min) — recording stopped; buffer preserved until the user returns")
+        #endif
     }
 
     /// Called when the app becomes active. If the buffer filled while the user was away
@@ -500,7 +520,9 @@ extension BASSRadioPlayer {
                 let nextOrigin = Double(nextSegNum) * (self.streamBuffer?.segmentDuration ?? 60.0)
                 self.registerDVREndSync(on: nextStream, segOriginTime: nextOrigin)
                 self.preloadDVRNextSegment()
+                #if DEBUG
                 print("⏭️  DVR → segment \(nextSegNum)")
+                #endif
             } else {
                 // Fallback: preload was skipped or the preloaded segment had only partial data.
                 // Continue from endedAt (the exact recording time where playback stopped) rather
@@ -527,7 +549,9 @@ extension BASSRadioPlayer {
         // indefinitely. Retry with increasing delays; give up and go live after ~10 s total.
         if recordingTime >= buffer.bufferedDuration - 0.5 {
             guard retryCount < 15 else {
+                #if DEBUG
                 print("📡 DVR end-of-buffer reached — going live")
+                #endif
                 goLive()
                 return
             }
@@ -558,16 +582,22 @@ extension BASSRadioPlayer {
             let segOriginTime = Double(dvrCurrentSegNum) * buffer.segmentDuration
             registerDVREndSync(on: stream, segOriginTime: segOriginTime)
             preloadDVRNextSegment()
+            #if DEBUG
             print("⏭️  DVR continue from t=\(String(format: "%.1f", recordingTime))s (seg \(dvrCurrentSegNum))")
+            #endif
         } else if retryCount < 3 {
             // Segment file may be transiently absent while the ring buffer rotates
             // (removeItem + createFile window). Retry up to 3 times with 100 ms gaps.
+            #if DEBUG
             print("⚠️  DVR segment not ready at t=\(String(format: "%.1f", recordingTime))s — retrying (\(retryCount + 1))")
+            #endif
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 self?.continueDVRFrom(recordingTime: recordingTime, retryCount: retryCount + 1)
             }
         } else {
+            #if DEBUG
             print("📡 DVR end-of-buffer reached — going live")
+            #endif
             goLive()
         }
     }
@@ -589,7 +619,9 @@ extension BASSRadioPlayer {
         guard let current = qualities.first(where: { $0.format == activeFormat }),
               let cURL = current.url.cString(using: .utf8) else { return }
 
+        #if DEBUG
         print("🔄 DVR partial restart: rebuilding \(current.format) live channel (DVR state preserved)")
+        #endif
 
         cancelFade()
         stopMetadataPolling()   // also stops state polling timer
@@ -624,7 +656,9 @@ extension BASSRadioPlayer {
         let newHandle = BASS_StreamCreateURL(cURL, 0, streamFlags, nil, nil)
         guard newHandle != 0 else {
             let err = BASS_ErrorGetCode()
+            #if DEBUG
             print("❌ DVR partial restart: BASS_StreamCreateURL failed (err=\(err)) — scheduling reconnect")
+            #endif
             scheduleReconnect()
             return
         }
@@ -664,7 +698,9 @@ extension BASSRadioPlayer {
             self.playbackState = .playing
             self.startMetadataPolling()
         }
+        #if DEBUG
         print("✅ DVR partial restart complete (gapless) — dvrState=\(dvrState) seg=\(dvrCurrentSegNum)")
+        #endif
     }
 
     // MARK: - DVR Metadata Playback
@@ -683,7 +719,9 @@ extension BASSRadioPlayer {
               entry.metadata != lastDVRPublishedMetadata else { return }
 
         lastDVRPublishedMetadata = entry.metadata
+        #if DEBUG
         print("📼 DVR metadata @ t=\(String(format: "%.1f", currentRecordingTime))s → \(entry.metadata)")
+        #endif
         onMetadataUpdate?(entry.metadata)
     }
 
@@ -722,14 +760,18 @@ extension BASSRadioPlayer {
         }
         src.resume()
         dvrRecordingPumpSource = src
+        #if DEBUG
         print("🎙️ DVR recording pump started")
+        #endif
     }
 
     func stopDVRRecordingPump() {
         guard dvrRecordingPumpSource != nil else { return }
         dvrRecordingPumpSource?.cancel()
         dvrRecordingPumpSource = nil
+        #if DEBUG
         print("🎙️ DVR recording pump stopped")
+        #endif
     }
 
     // MARK: - DVR Diagnostics (DEBUG only)

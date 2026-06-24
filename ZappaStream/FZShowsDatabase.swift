@@ -57,7 +57,9 @@ class FZShowsDatabase {
 
     private func log(_ message: String) {
         FZShowsLog.shared.append(message)
+        #if DEBUG
         print("📚 FZShowsDB: \(message)")
+        #endif
     }
 
     // MARK: - One-time Migrations

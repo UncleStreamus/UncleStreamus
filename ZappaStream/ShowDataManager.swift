@@ -120,7 +120,11 @@ class ShowDataManager {
             let alreadyFavorited = existing.contains { $0.isFavorite }
             modelContext.insert(SavedShow.from(show, isFavorite: alreadyFavorited, listenedAt: Date(), deviceName: currentDeviceName()))
         }
-        do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
+        do { try modelContext.save() } catch {
+            #if DEBUG
+            print("ShowDataManager: SwiftData save error — \(error)")
+            #endif
+        }
     }
 
     private func currentDeviceName() -> String {
@@ -150,7 +154,11 @@ class ShowDataManager {
         // Toggle: if any record is already a favourite → unfavourite all; otherwise favourite all
         let newValue = !records.contains { $0.isFavorite }
         records.forEach { $0.isFavorite = newValue }
-        do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
+        do { try modelContext.save() } catch {
+            #if DEBUG
+            print("ShowDataManager: SwiftData save error — \(error)")
+            #endif
+        }
         favoriteVersion += 1
     }
 
@@ -180,7 +188,11 @@ class ShowDataManager {
             }
         }
 
-        do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
+        do { try modelContext.save() } catch {
+            #if DEBUG
+            print("ShowDataManager: SwiftData save error — \(error)")
+            #endif
+        }
     }
 
     func clearFavorites() {
@@ -200,7 +212,11 @@ class ShowDataManager {
             }
         }
 
-        do { try modelContext.save() } catch { print("ShowDataManager: SwiftData save error — \(error)") }
+        do { try modelContext.save() } catch {
+            #if DEBUG
+            print("ShowDataManager: SwiftData save error — \(error)")
+            #endif
+        }
         favoriteVersion += 1
     }
 

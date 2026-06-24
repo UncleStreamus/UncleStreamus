@@ -44,7 +44,9 @@ struct ZappaStreamApp: App {
             if UserDefaults.standard.bool(forKey: "pendingStoreRestoreFromBackup") {
                 UserDefaults.standard.removeObject(forKey: "pendingStoreRestoreFromBackup")
                 StoreProtection.restoreAndClearMetadata(from: backupURL, to: historyStoreURL)
+                #if DEBUG
                 print("🔄 Applied pending restore from backup")
+                #endif
             } else {
                 let count = StoreProtection.countRecords(at: historyStoreURL)
                 if count > 0 {
@@ -53,7 +55,9 @@ struct ZappaStreamApp: App {
                     let backupCount = StoreProtection.countRecords(at: backupURL)
                     if backupCount > 0 {
                         StoreProtection.restoreAndClearMetadata(from: backupURL, to: historyStoreURL)
+                        #if DEBUG
                         print("🛡️ Auto-restored \(backupCount) records from backup (store was empty)")
+                        #endif
                     }
                 }
             }
@@ -70,7 +74,9 @@ struct ZappaStreamApp: App {
         // renders, so @AppStorage hasn't had a chance to write its default yet on a fresh install.
         let iCloudSyncPref = (UserDefaults.standard.object(forKey: "iCloudSyncEnabled") as? Bool) ?? true
         let iCloudEnabled = iCloudSyncPref && iCloudAvailable
+        #if DEBUG
         print("☁️ iCloudAvailable=\(iCloudAvailable) iCloudSyncEnabled=\(iCloudSyncPref) → cloudKit=\(iCloudEnabled ? "ON" : "OFF")")
+        #endif
 
         let config = ModelConfiguration(
             schema: Schema([SavedShow.self]),
@@ -85,7 +91,9 @@ struct ZappaStreamApp: App {
         } catch {
             // CloudKit config failed (e.g. entitlement misconfiguration) — fall back to local-only on the same
             // store file so existing data is preserved.
+            #if DEBUG
             print("⚠️ History store failed (\(error)) — retrying without CloudKit")
+            #endif
             let fallback = ModelConfiguration(schema: Schema([SavedShow.self]), url: historyStoreURL, cloudKitDatabase: .none)
             return (try? ModelContainer(for: Schema([SavedShow.self]), configurations: [fallback]))
                 ?? { fatalError("Could not create history ModelContainer: \(error)") }()
@@ -538,14 +546,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         let newTooltip = tooltipLines.isEmpty ? "ZappaStream" : tooltipLines.joined(separator: "\n")
+        #if DEBUG
         print("📻 Menubar tooltip update: \(newTooltip)")
+        #endif
         statusItem?.button?.toolTip = newTooltip
     }
 
     @objc private func handlePlaybackStateChanged(_ notification: Notification) {
         if let playing = notification.userInfo?["isPlaying"] as? Bool {
             isPlaying = playing
+            #if DEBUG
             print("📻 Menubar playback state: \(isPlaying ? "playing" : "paused")")
+            #endif
         }
     }
 
@@ -553,7 +565,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Stream format is read directly from UserDefaults via the computed property
         // This notification is mainly for logging/debugging
         if let format = notification.userInfo?["format"] as? String {
+            #if DEBUG
             print("📻 Menubar stream selection: \(format)")
+            #endif
         }
     }
 

@@ -488,14 +488,18 @@ extension BASSRadioPlayer {
                             p.cgMP3ScanEnd = now + 0.2   // extend by 200ms and keep watching
                         } else {
                             p.cgMP3ScanActive = false
+                            #if DEBUG
                             print("🛡️  MP3 scan expired — \(String(format: "%.0f", elapsed))ms rmsEMA=\(String(format: "%.4f", updatedRMSEMA))")
+                            #endif
                             return
                         }
                     }
 
                     // --- Log only when there's something to see ---
                     if spike > 0 || rms > 0.003 {
+                        #if DEBUG
                         print("🛡️  MP3 scan — \(String(format: "%.0f", elapsed))ms: spike=\(String(format: "%.1f", spike)) ema=\(String(format: "%.2f", ema)) rms=\(String(format: "%.3f", rms)) rmsEMA=\(String(format: "%.3f", rmsEMA)) sc=\(spikeCount)")
+                        #endif
                     }
 
                     // --- Detectors ---
@@ -531,7 +535,9 @@ extension BASSRadioPlayer {
                         else if isRMSJump    { reason = "rmsJump (\(String(format: "%.3f", rms)) > 2×\(String(format: "%.3f", rmsEMA)))" }
                         else if isSustained  { reason = "sustained (\(spikeCount+1) bufs spike>\(String(format: "%.1f", spike)))" }
                         else                 { reason = "silenceOnset (rmsEMA=\(String(format: "%.4f", rmsEMA)) rms=\(String(format: "%.3f", rms)))" }
+                        #if DEBUG
                         print("🛡️  MP3 late splice at \(String(format: "%.0f", elapsed))ms \(reason) → gate \(p.cgFadeBuffersRemaining) bufs")
+                        #endif
                         // Fall through to gate below.
                     } else {
                         return  // pass through

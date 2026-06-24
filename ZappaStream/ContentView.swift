@@ -677,9 +677,13 @@ struct ContentView: View {
 
                     // Play/Pause button
                     Button(action: {
+                        #if DEBUG
                         print("🖱️ Play/Stop button tapped — isPlaying=\(isPlaying) thread=\(Thread.isMainThread ? "main" : "bg")")
+                        #endif
                         guard bassPlayer.checkUserActionAllowed() else {
+                            #if DEBUG
                             print("🚫 Button action blocked by debounce")
+                            #endif
                             return
                         }
                         switch (isPlaying, bassPlayer.dvrState) {
@@ -1555,7 +1559,9 @@ struct ContentView: View {
 
     func playStream(showWarning: Bool = true) {
         guard let stream = selectedStream else { return }
+        #if DEBUG
         print("▶️ playStream() called — stack: \(Thread.callStackSymbols.prefix(5).joined(separator: " | "))")
+        #endif
 
         bassPlayer.play(format: stream.format, url: stream.url)
         isPlaying = true
@@ -1569,7 +1575,9 @@ struct ContentView: View {
     }
 
     func stopStream() {
+        #if DEBUG
         print("⏸️ stopStream() called — stack: \(Thread.callStackSymbols.prefix(5).joined(separator: " | "))")
+        #endif
         bassPlayer.stopWithFadeOut()
         isPlaying = false
         NotificationCenter.default.post(name: .playbackStateChanged, object: nil, userInfo: ["isPlaying": false])

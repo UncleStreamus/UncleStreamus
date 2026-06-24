@@ -173,7 +173,9 @@ final class StreamBuffer {
         // produces silence. BASS_SAMPLE_FLOAT: keep samples as Float32 matching the mixer.
         let stream = BASS_StreamCreateFile(0, cPath, 0, 0, DWORD(BASS_SAMPLE_FLOAT | BASS_STREAM_DECODE))
         guard stream != 0 else {
+            #if DEBUG
             print("❌ DVR: BASS_StreamCreateFile failed (err=\(BASS_ErrorGetCode())) path=\(path)")
+            #endif
             return 0
         }
 
