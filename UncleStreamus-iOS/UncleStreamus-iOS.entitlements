@@ -4,20 +4,19 @@
 <dict>
 	<key>com.apple.developer.carplay-audio</key>
 	<true/>
-	<key>com.apple.security.application-groups</key>
+	<key>com.apple.developer.icloud-container-identifiers</key>
 	<array>
-		<string>group.com.unclestreamus.shared</string>
-		<string>group.com.zappastream.shared</string>
+		<string>iCloud.com.unclestreamus.UncleStreamus</string>
 	</array>
 	<key>com.apple.developer.icloud-services</key>
 	<array>
 		<string>CloudKit</string>
 	</array>
-	<key>com.apple.developer.icloud-container-identifiers</key>
-	<array>
-		<string>iCloud.com.unclestreamus.UncleStreamus</string>
-	</array>
 	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
 	<string>$(TeamIdentifierPrefix)com.unclestreamus.UncleStreamus</string>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.unclestreamus.shared</string>
+	</array>
 </dict>
 </plist>
