@@ -261,6 +261,7 @@ extension BASSRadioPlayer {
         dvrState = .live
         dvrBufferFull = false
         dvrReturnOfferPending = false
+        dvrFullBufferDrainStarted = false
         behindLiveSeconds = 0
         dvrCurrentSegNum = 0
         dvrNextSegNum    = 0

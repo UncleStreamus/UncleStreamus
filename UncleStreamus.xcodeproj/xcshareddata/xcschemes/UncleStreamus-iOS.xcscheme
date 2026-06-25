@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "BE2FCA552F3CB6F60038E706"
-               BuildableName = "UncleStreamus-iOS.app"
+               BuildableName = "UncleStreamus.app"
                BlueprintName = "UncleStreamus-iOS"
                ReferencedContainer = "container:UncleStreamus.xcodeproj">
             </BuildableReference>
@@ -45,7 +45,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "BE2FCA552F3CB6F60038E706"
-            BuildableName = "UncleStreamus-iOS.app"
+            BuildableName = "UncleStreamus.app"
             BlueprintName = "UncleStreamus-iOS"
             ReferencedContainer = "container:UncleStreamus.xcodeproj">
          </BuildableReference>
@@ -62,7 +62,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "BE2FCA552F3CB6F60038E706"
-            BuildableName = "UncleStreamus-iOS.app"
+            BuildableName = "UncleStreamus.app"
             BlueprintName = "UncleStreamus-iOS"
             ReferencedContainer = "container:UncleStreamus.xcodeproj">
          </BuildableReference>

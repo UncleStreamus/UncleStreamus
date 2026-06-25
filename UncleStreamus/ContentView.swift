@@ -692,7 +692,7 @@ struct ContentView: View {
                         case (true, .live):
                             if dvrEnabled { bassPlayer.dvrPause() } else { stopStream() }
                         case (true, .paused):
-                            bassPlayer.dvrResume()
+                            resumeOrOfferBuffer()
                         case (true, .playing):
                             bassPlayer.dvrPausePlayback()
                         }
@@ -1227,7 +1227,7 @@ struct ContentView: View {
             case (true, .live):
                 if dvrEnabled { bassPlayer.dvrPause() } else { stopStream() }
             case (true, .paused):
-                bassPlayer.dvrResume()
+                resumeOrOfferBuffer()
             case (true, .playing):
                 bassPlayer.dvrPausePlayback()
             }
@@ -1289,9 +1289,10 @@ struct ContentView: View {
             queue: .main
         ) { [weak bassPlayer] _ in
             // Don't reconnect while the buffer is paused — that would restart the live stream
-            // and wipe a full buffer before the user can choose. Offer the buffer instead.
+            // and wipe a full buffer. The play-buffer-vs-go-live choice is offered when the
+            // user presses play (resumeOrOfferBuffer()), not on returning to the app.
             if bassPlayer?.dvrState == .paused {
-                bassPlayer?.offerBufferOnReturnIfNeeded()
+                // no-op: leave the paused buffer intact
             } else if bassPlayer?.isUserIntendedPlay == true && bassPlayer?.isStreamActive == false {
                 bassPlayer?.triggerImmediateReconnect()
             }
@@ -1454,7 +1455,7 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 guard self.bassPlayer.checkUserActionAllowed() else { return }
                 if self.bassPlayer.dvrState == .paused {
-                    self.bassPlayer.dvrResume()
+                    self.resumeOrOfferBuffer()
                 } else if !self.isPlaying {
                     self.playStream()
                 }
@@ -1492,7 +1493,7 @@ struct ContentView: View {
                 case (true, .live):
                     if self.dvrEnabled { self.bassPlayer.dvrPause() } else { self.stopStream() }
                 case (true, .paused):
-                    self.bassPlayer.dvrResume()
+                    self.resumeOrOfferBuffer()
                 case (true, .playing):
                     self.bassPlayer.dvrPausePlayback()
                 }
@@ -1556,6 +1557,20 @@ struct ContentView: View {
         )
     }
 
+
+    /// Resume from a paused buffer. If the buffer has filled and the user hasn't started
+    /// draining it yet, offer the play-buffer-vs-go-live choice instead of resuming directly —
+    /// bringing the window forward first (as if the menubar icon was clicked) so the alert is
+    /// visible even when triggered from a media key or the menubar toggle. Once draining has
+    /// begun (or the buffer isn't full), resume directly with no prompt.
+    func resumeOrOfferBuffer() {
+        if bassPlayer.dvrBufferFull && !bassPlayer.dvrFullBufferDrainStarted {
+            NotificationCenter.default.post(name: .bringWindowToFront, object: nil)
+            bassPlayer.dvrReturnOfferPending = true
+        } else {
+            bassPlayer.dvrResume()
+        }
+    }
 
     func playStream(showWarning: Bool = true) {
         guard let stream = selectedStream else { return }

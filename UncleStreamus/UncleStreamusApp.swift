@@ -273,6 +273,9 @@ extension Notification.Name {
     static let setVolume = Notification.Name("setVolume")
     static let showWelcomeSheet = Notification.Name("showWelcomeSheet")
     static let showWhatsNewSheet = Notification.Name("showWhatsNewSheet")
+    /// Posted from ContentView to bring the main window forward (same as clicking the
+    /// menubar icon) before presenting the buffer play-vs-live alert.
+    static let bringWindowToFront = Notification.Name("bringWindowToFront")
 }
 
 private class VolumeSliderView: NSView {
@@ -527,6 +530,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             name: .streamSelectionChanged,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleBringWindowToFront(_:)),
+            name: .bringWindowToFront,
+            object: nil
+        )
+    }
+
+    @objc private func handleBringWindowToFront(_ notification: Notification) {
+        showMainWindow()
     }
 
     @objc private func handleTrackInfoUpdate(_ notification: Notification) {
@@ -608,10 +621,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    /// The SwiftUI `WindowGroup(id: "main")` content window. SwiftUI appends a
+    /// suffix to the identifier (e.g. "main-AppWindow-1"), so match by prefix.
+    /// Title fallback uses the runtime display name rather than a hardcoded brand
+    /// string, so a rebrand can't silently break window detection again.
+    private var mainWindow: NSWindow? {
+        let displayName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+        return NSApplication.shared.windows.first {
+            $0.identifier?.rawValue.hasPrefix("main") == true
+                || ($0.title == displayName && !$0.title.isEmpty)
+        }
+    }
+
     private func toggleMainWindow() {
-        if let window = NSApplication.shared.windows.first(where: {
-            $0.identifier?.rawValue == "main" || $0.title.contains("Zappa")
-        }) {
+        if let window = mainWindow {
             // Ensure the window can move to the active space when shown, so
             // makeKeyAndOrderFront places it here rather than switching spaces.
             if !window.collectionBehavior.contains(.moveToActiveSpace) {
@@ -716,9 +739,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// first. When the window was closed it's freshly re-created, so delay the post
     /// long enough for `ContentView.onAppear` to register its observers.
     private func presentSheet(named name: Notification.Name) {
-        let window = NSApplication.shared.windows.first(where: {
-            $0.identifier?.rawValue == "main" || $0.title.contains("Zappa")
-        })
+        let window = mainWindow
         let alreadyVisible = (window?.isVisible == true) && (window?.isOnActiveSpace == true)
 
         if !alreadyVisible {
@@ -734,9 +755,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Brings the main window forward without toggling it closed (unlike
     /// `toggleMainWindow`, which hides an already-visible window).
     private func showMainWindow() {
-        if let window = NSApplication.shared.windows.first(where: {
-            $0.identifier?.rawValue == "main" || $0.title.contains("Zappa")
-        }) {
+        if let window = mainWindow {
             if !window.collectionBehavior.contains(.moveToActiveSpace) {
                 window.collectionBehavior.insert(.moveToActiveSpace)
             }

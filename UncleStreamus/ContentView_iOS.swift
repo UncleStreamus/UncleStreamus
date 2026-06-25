@@ -31,7 +31,6 @@ struct ContentView_iOS: View {
     @State private var currentShow: FZShow?
     @State private var isFetchingShowInfo: Bool = false
     @State private var availableWidth: CGFloat = 500
-    @State private var controlsRowWidth: CGFloat = 0
     @AppStorage("textScale") private var textScale: Double = 1.1
     @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "OGG"
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
@@ -68,34 +67,38 @@ struct ContentView_iOS: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // iPad: inline settings sidebar from left
+            // iPad: inline settings sidebar from left. The width-reveal transition grows
+            // its width 0↔391 so the main content (and transport buttons) push in lockstep
+            // with the visible sidebar rather than the sidebar sliding into reserved space.
             if horizontalSizeClass == .regular && showSettings {
-                NavigationStack {
-                    SettingsView()
-                        .navigationTitle("Settings")
-                        .navigationBarTitleDisplayMode(.inline)
-                }
-                .frame(width: 390)
-                .transition(.move(edge: .leading))
+                HStack(spacing: 0) {
+                    NavigationStack {
+                        SettingsView()
+                            .navigationTitle("Settings")
+                            .navigationBarTitleDisplayMode(.inline)
+                    }
+                    .frame(width: 360)
 
-                Divider()
-                    .overlay(
-                        // Invisible wider hit area for swipe gesture
-                        Color.clear
-                            .frame(width: 30)
-                            .contentShape(Rectangle())
-                            .gesture(
-                                DragGesture(minimumDistance: 30)
-                                    .onEnded { value in
-                                        // Swipe left to push sidebar away
-                                        if value.translation.width < -30 && abs(value.translation.height) < 100 {
-                                            withAnimation(.easeInOut(duration: 0.25)) {
-                                                showSettings = false
+                    Divider()
+                        .overlay(
+                            // Invisible wider hit area for swipe gesture
+                            Color.clear
+                                .frame(width: 30)
+                                .contentShape(Rectangle())
+                                .gesture(
+                                    DragGesture(minimumDistance: 30)
+                                        .onEnded { value in
+                                            // Swipe left to push sidebar away
+                                            if value.translation.width < -30 && abs(value.translation.height) < 100 {
+                                                withAnimation(.easeInOut(duration: 0.25)) {
+                                                    showSettings = false
+                                                }
                                             }
                                         }
-                                    }
-                            )
-                    )
+                                )
+                        )
+                }
+                .transition(.widthReveal(361, alignment: .leading))
             }
 
             // Main content with play bar
@@ -215,30 +218,33 @@ struct ContentView_iOS: View {
                 streamControlsBar
             }
 
-            // iPad: inline sidebar from right
+            // iPad: inline sidebar from right. The width-reveal transition grows its width
+            // 0↔321 so the main content (and transport buttons) push in lockstep with it.
             if horizontalSizeClass == .regular && showSidebar, let manager = showDataManager {
-                Divider()
-                    .overlay(
-                        // Invisible wider hit area for swipe gesture
-                        Color.clear
-                            .frame(width: 30)
-                            .contentShape(Rectangle())
-                            .gesture(
-                                DragGesture(minimumDistance: 30)
-                                    .onEnded { value in
-                                        // Swipe right to push sidebar away
-                                        if value.translation.width > 30 && abs(value.translation.height) < 100 {
-                                            withAnimation(.easeInOut(duration: 0.25)) {
-                                                showSidebar = false
+                HStack(spacing: 0) {
+                    Divider()
+                        .overlay(
+                            // Invisible wider hit area for swipe gesture
+                            Color.clear
+                                .frame(width: 30)
+                                .contentShape(Rectangle())
+                                .gesture(
+                                    DragGesture(minimumDistance: 30)
+                                        .onEnded { value in
+                                            // Swipe right to push sidebar away
+                                            if value.translation.width > 30 && abs(value.translation.height) < 100 {
+                                                withAnimation(.easeInOut(duration: 0.25)) {
+                                                    showSidebar = false
+                                                }
                                             }
                                         }
-                                    }
-                            )
-                    )
+                                )
+                        )
 
-                SidebarView(showDataManager: manager, selectedTab: $selectedSidebarTab)
-                    .frame(width: 320)
-                    .transition(.move(edge: .trailing))
+                    SidebarView(showDataManager: manager, selectedTab: $selectedSidebarTab)
+                        .frame(width: 360)
+                }
+                .transition(.widthRevealTrailing(361))
             }
         }
         .environment(\.fontScale, textScale)
@@ -423,10 +429,10 @@ struct ContentView_iOS: View {
                 // weren't cleared before suspension). triggerImmediateReconnect() guards
                 // internally against disrupting a legitimately playing stream.
                 // Skip while the buffer is paused: reconnecting would restart the live
-                // stream and wipe a full buffer before the user can choose. If the buffer
-                // filled while away, offer to play it back vs. go live instead.
+                // stream and wipe a full buffer. The play-buffer-vs-go-live choice is offered
+                // when the user presses play (resumeOrOfferBuffer()), not on returning.
                 if bassPlayer.dvrState == .paused {
-                    bassPlayer.offerBufferOnReturnIfNeeded()
+                    // no-op: leave the paused buffer intact
                 } else if bassPlayer.isUserIntendedPlay {
                     bassPlayer.triggerImmediateReconnect()
                 }
@@ -563,21 +569,9 @@ struct ContentView_iOS: View {
 
     // MARK: - Stream Controls Bar
 
-    // FX gets a smaller share of the transport row than the other buttons, but the
-    // widths are derived from the row's live width so every button still stretches /
-    // squishes and FX grows proportionally (e.g. landscape vs portrait) while staying
-    // a fixed fraction of a standard button. Tune via fxWidthWeight.
-    private let fxWidthWeight: CGFloat = 0.62
-
-    private func transportButtonWidth(isFX: Bool) -> CGFloat? {
-        guard controlsRowWidth > 0 else { return nil }      // not measured yet → stay flexible
-        let buttonCount = dvrEnabled ? 4 : 3                // Stop only shows when dvrEnabled
-        let standardCount = CGFloat(buttonCount) - 1        // all non-FX buttons
-        let totalSpacing = CGFloat(buttonCount - 1) * 10    // HStack spacing: 10
-        let totalWeight = standardCount + fxWidthWeight
-        let unit = max(0, controlsRowWidth - totalSpacing) / totalWeight
-        return isFX ? unit * fxWidthWeight : unit
-    }
+    // FX gets a smaller share of the transport row than the other buttons. The
+    // proportional sizing is handled by `ProportionalHStack` + `.buttonWeight(0.62)`
+    // on the FX button (see TransportControlsLayout.swift) — no width measurement.
 
     private var streamControlsBar: some View {
         VStack(spacing: 4) {
@@ -671,7 +665,7 @@ struct ContentView_iOS: View {
                 .padding(.bottom, 4)
             }
 
-            HStack(spacing: 10) {
+            ProportionalHStack(spacing: 10) {
                 // Stream picker
                 Menu {
                     ForEach(streams) { stream in
@@ -696,7 +690,6 @@ struct ContentView_iOS: View {
                             .scaledFont(.caption2)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(width: transportButtonWidth(isFX: false))
                     .padding(.vertical, 8)
                     .background(Color(.tertiarySystemBackground))
                     .cornerRadius(8)
@@ -722,7 +715,6 @@ struct ContentView_iOS: View {
                             .scaledFont(.subheadline, weight: .medium)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(width: transportButtonWidth(isFX: true))
                     .padding(.vertical, 8)
                     .background(
                         showFXPane
@@ -743,6 +735,7 @@ struct ContentView_iOS: View {
                     .cornerRadius(8)
                     .foregroundColor(showFXPane || bassPlayer.isFXBeingUsed ? .accentColor : .primary)
                 }
+                .buttonWeight(0.62)   // FX stays proportionally narrower than the other buttons
 
                 // Play/Pause button
                 Button {
@@ -761,9 +754,7 @@ struct ContentView_iOS: View {
                             stopStream()
                         }
                     case (true, .paused):
-                        configureAudioSession()
-                        bassPlayer.dvrResume()
-                        updateNowPlayingInfo()
+                        resumeOrOfferBuffer()
                     case (true, .playing):
                         bassPlayer.dvrPausePlayback()
                         updateNowPlayingInfo()
@@ -777,7 +768,6 @@ struct ContentView_iOS: View {
                             .scaledFont(.subheadline, weight: .medium)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(width: transportButtonWidth(isFX: false))
                     .padding(.vertical, 8)
                     .background(isPlaying && bassPlayer.dvrState != .paused ? Color.red.opacity(0.85) : Color.accentColor)
                     .foregroundColor(.white)
@@ -798,7 +788,6 @@ struct ContentView_iOS: View {
                                 .scaledFont(.subheadline, weight: .medium)
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(width: transportButtonWidth(isFX: false))
                         .padding(.vertical, 8)
                         .background(Color(.tertiarySystemBackground))
                         .foregroundColor(isPlaying ? .primary : .secondary)
@@ -807,13 +796,6 @@ struct ContentView_iOS: View {
                     .disabled(!isPlaying)
                 }
             }
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .onAppear { controlsRowWidth = geo.size.width }
-                        .onChange(of: geo.size.width) { _, w in controlsRowWidth = w }
-                }
-            )
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -1708,6 +1690,21 @@ struct ContentView_iOS: View {
         nc.addObserver(forName: .carPlaySceneDidConnect, object: nil, queue: .main) { [self] _ in
             updateNowPlayingInfo()
             syncCarPlayBridge()
+        }
+    }
+
+    /// Resume from a paused buffer (in-app play button only). If the buffer has filled and the
+    /// user hasn't started draining it yet, offer the play-buffer-vs-go-live choice instead of
+    /// resuming directly; the alert presents on the foreground app UI. Once draining has begun
+    /// (or the buffer isn't full), resume directly. Remote/lock-screen play paths intentionally
+    /// bypass this and resume directly with no prompt.
+    func resumeOrOfferBuffer() {
+        if bassPlayer.dvrBufferFull && !bassPlayer.dvrFullBufferDrainStarted {
+            bassPlayer.dvrReturnOfferPending = true
+        } else {
+            configureAudioSession()
+            bassPlayer.dvrResume()
+            updateNowPlayingInfo()
         }
     }
 

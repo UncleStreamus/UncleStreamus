@@ -68,6 +68,8 @@
 		BE2FCA692F3CBB2E0038E706 /* PlatformHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */; };
 		BE2FCA6B2F3CBB520038E706 /* ContentView_iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */; };
 		BE2FCA6C2F3CBBC90038E706 /* ContentView_iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */; };
+		BEFADE0100000000000000F2 /* TransportControlsLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEFADE0100000000000000F1 /* TransportControlsLayout.swift */; };
+		BEFADE0100000000000000F3 /* TransportControlsLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEFADE0100000000000000F1 /* TransportControlsLayout.swift */; };
 		BE2FCA6D2F3CBBCA0038E706 /* Stream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */; };
 		BE2FCA6E2F3CBBCA0038E706 /* ParsedTrackInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */; };
 		BE2FCA6F2F3CBBCA0038E706 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
@@ -202,6 +204,7 @@
 		BED5C49B2F30D50C009DB6FE /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FZShowsFetcher.swift; sourceTree = "<group>"; };
 		BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MarqueeText.swift; sourceTree = "<group>"; };
+		BEFADE0100000000000000F1 /* TransportControlsLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportControlsLayout.swift; sourceTree = "<group>"; };
 		C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamBuffer.swift; sourceTree = "<group>"; };
 		CC01DC000001DC0100CC01DC /* DonlopeIndexCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DonlopeIndexCache.swift; sourceTree = "<group>"; };
 		CC02DC000002DC0200CC02DC /* TrackInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackInfoView.swift; sourceTree = "<group>"; };
@@ -316,6 +319,7 @@
 				BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */,
 				AFAF780DA29F39C724E66902 /* FZShowsPageRecord.swift */,
 				BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */,
+				BEFADE0100000000000000F1 /* TransportControlsLayout.swift */,
 				BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */,
 				BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */,
 				BE1A34272F30C6D800647B01 /* Preview Content */,
@@ -570,6 +574,7 @@
 				BEAA00052F34000100AA0005 /* ShowDataManager.swift in Sources */,
 				BE5A1F012F5A1F0100BE5A11 /* StoreProtection.swift in Sources */,
 				BE2FCA6C2F3CBBC90038E706 /* ContentView_iOS.swift in Sources */,
+				BEFADE0100000000000000F2 /* TransportControlsLayout.swift in Sources */,
 				BEAA00072F34000100AA0007 /* SidebarView.swift in Sources */,
 				BEAA00092F34000100AA0009 /* ShowEntryRow.swift in Sources */,
 				BE1A341F2F30C6D600647B01 /* UncleStreamusApp.swift in Sources */,
@@ -633,6 +638,7 @@
 				BBBB000B2FBB000B00BB000B /* BASSRadioPlayer+DVR.swift in Sources */,
 				BE2FCA7C2F3CBBCA0038E706 /* MarqueeText.swift in Sources */,
 				BE2FCA6B2F3CBB520038E706 /* ContentView_iOS.swift in Sources */,
+				BEFADE0100000000000000F3 /* TransportControlsLayout.swift in Sources */,
 				D7AD703B5B1743C183C698F7 /* AudioFXView.swift in Sources */,
 				C3A1F8B62F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */,
 				CC04DC000004DC0400CC04DC /* DonlopeIndexCache.swift in Sources */,

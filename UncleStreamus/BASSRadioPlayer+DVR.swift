@@ -177,6 +177,9 @@ extension BASSRadioPlayer {
             #endif
             return
         }
+        // Mark the full-buffer episode as draining so a later mid-drain pause/resume
+        // (which also lands in dvrState == .paused) won't re-prompt the play-vs-live choice.
+        if dvrBufferFull { dvrFullBufferDrainStarted = true }
         stopDVRRecordingPump()
         #if os(iOS)
         stopSilenceKeepalive()   // real DVR audio takes over as the keepalive
@@ -303,6 +306,7 @@ extension BASSRadioPlayer {
         // WAV files and recreate StreamBuffer so DVR recording restarts immediately from live.
         let wasBufferFull = dvrBufferFull
         dvrReturnOfferPending = false
+        dvrFullBufferDrainStarted = false
         if dvrBufferFull {
             dvrBufferFull = false
             streamBuffer?.cleanup()       // delete the preserved WAV segment files
@@ -338,9 +342,9 @@ extension BASSRadioPlayer {
 
     /// Called when the recording ring buffer has been completely filled.
     /// Stops recording (flushing and closing segment files) but keeps the WAV files on disk
-    /// indefinitely so the user can play back the full buffer whenever they return — there is
-    /// no expiry. When the user next brings the app to the foreground, the UI offers a choice
-    /// (play the buffered audio vs. go live) via `offerBufferOnReturnIfNeeded()`.
+    /// indefinitely so the user can play back the full buffer whenever they choose — there is
+    /// no expiry. The play-the-buffer-vs-go-live choice is offered when the user next presses
+    /// play (see `resumeOrOfferBuffer()` in the ContentViews), not automatically.
     func handleDVRBufferFull(maxSecs: Double) {
         dvrBehindTimer?.invalidate()
         dvrBehindTimer = nil
@@ -361,16 +365,10 @@ extension BASSRadioPlayer {
             BASS_ChannelPause(streamHandle)
         }
         // The buffer is preserved indefinitely — no expiry timer. The user is offered a
-        // play-back-vs-go-live choice when they next bring the app to the foreground.
+        // play-back-vs-go-live choice the next time they press play (resumeOrOfferBuffer()).
         #if DEBUG
-        print("📼 DVR buffer full (\(Int(maxSecs / 60)) min) — recording stopped; buffer preserved until the user returns")
+        print("📼 DVR buffer full (\(Int(maxSecs / 60)) min) — recording stopped; buffer preserved until the user presses play")
         #endif
-    }
-
-    /// Called when the app becomes active. If the buffer filled while the user was away
-    /// (paused + full), flag the UI to offer playing it back vs. going live.
-    func offerBufferOnReturnIfNeeded() {
-        if dvrState == .paused && dvrBufferFull { dvrReturnOfferPending = true }
     }
 
     func startBehindTimer() {
