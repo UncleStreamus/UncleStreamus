@@ -664,8 +664,18 @@ extension BASSRadioPlayer {
         DispatchQueue.main.async { self.isReconnecting = false }
 
         streamHandle = newHandle
-        preMixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+        preMixerHandle = BASS_Mixer_StreamCreate(BASSConfig.sampleRate, BASSConfig.channels,
             DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE))
+        // Bail if the new pre-mixer failed to build; otherwise the relinked live
+        // source would be silently dead. Fail loudly into the reconnect path.
+        guard preMixerHandle != 0 else {
+            let err = BASS_ErrorGetCode()
+            #if DEBUG
+            print("❌ DVR partial restart: pre-mixer creation failed (err=\(err)) — scheduling reconnect")
+            #endif
+            scheduleReconnect()
+            return
+        }
         BASS_Mixer_StreamAddChannel(preMixerHandle, streamHandle,
             DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN))
 

@@ -34,7 +34,7 @@ extension BASSRadioPlayer {
 
         // FLAC needs a larger download pre-buffer due to ~900kbps bitrate
         if format == "FLAC" {
-            BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 30000)
+            BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), BASSConfig.netBufferMsFLAC)
             BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)
         }
 
@@ -42,7 +42,7 @@ extension BASSRadioPlayer {
         streamHandle = BASS_StreamCreateURL(cURL, 0, streamFlags, nil, nil)
 
         if format == "FLAC" {
-            BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 25000)
+            BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), BASSConfig.netBufferMs)
             BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)
         }
 
@@ -58,11 +58,11 @@ extension BASSRadioPlayer {
         if format == "FLAC" {
             // Two-mixer pipeline: DECODE-mode pre-mixer (3.0s stutter buffer + click guard)
             // feeds into the output post-mixer (0.1s FX latency). All DSP/FX live on the post-mixer.
-            preMixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+            preMixerHandle = BASS_Mixer_StreamCreate(BASSConfig.sampleRate, BASSConfig.channels,
                 DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE))
             BASS_Mixer_StreamAddChannel(preMixerHandle, streamHandle,
                 DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN))
-            mixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+            mixerHandle = BASS_Mixer_StreamCreate(BASSConfig.sampleRate, BASSConfig.channels,
                 DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
             BASS_Mixer_StreamAddChannel(mixerHandle, preMixerHandle,
                 DWORD(BASS_MIXER_CHAN_BUFFER))
@@ -70,14 +70,26 @@ extension BASSRadioPlayer {
             // Two-mixer pipeline for all formats: stream → DECODE-mode pre-mixer (0.3s buffer)
             // → FX output mixer (0.1s buffer). Uniform with FLAC; enables channel-vol fading
             // for DVR pause/resume without BASS output-mixer vol unreliability.
-            preMixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+            preMixerHandle = BASS_Mixer_StreamCreate(BASSConfig.sampleRate, BASSConfig.channels,
                 DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE))
             BASS_Mixer_StreamAddChannel(preMixerHandle, streamHandle,
                 DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN))
-            mixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+            mixerHandle = BASS_Mixer_StreamCreate(BASSConfig.sampleRate, BASSConfig.channels,
                 DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
             BASS_Mixer_StreamAddChannel(mixerHandle, preMixerHandle,
                 DWORD(BASS_MIXER_CHAN_BUFFER))
+        }
+
+        // Bail if the mixer pipeline failed to build (e.g. resource exhaustion):
+        // proceeding would leave the stream silently never playing. Fail loudly into
+        // the existing reconnect path, matching the BASS_StreamCreateURL check above.
+        guard preMixerHandle != 0, mixerHandle != 0 else {
+            let err = BASS_ErrorGetCode()
+            #if DEBUG
+            print("❌  Mixer pipeline creation failed (error \(err)) — scheduling reconnect")
+            #endif
+            scheduleReconnect()
+            return
         }
 
         activeFormat = format
@@ -523,15 +535,15 @@ extension BASSRadioPlayer {
         print("🔄 FLAC recovery: pre-creating recovery stream")
         #endif
 
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 30000)
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), BASSConfig.netBufferMsFLAC)
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 0)    // return immediately after connect; fill in background
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 3000) // fail fast; 10s default blocks bassPollingQueue
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), BASSConfig.netTimeoutFastMs) // fail fast; 10s default blocks bassPollingQueue
         let streamFlags = DWORD(BASS_STREAM_STATUS) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE)
         let newHandle = BASS_StreamCreateURL(cURL, 0, streamFlags, nil, nil)
         let streamErr = BASS_ErrorGetCode()  // capture before SetConfig overwrites it
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 25000)
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), BASSConfig.netBufferMs)
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)    // restore for normal stream creation
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 10000) // restore
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), BASSConfig.netTimeoutMs) // restore
 
         guard newHandle != 0 else {
             #if DEBUG
@@ -598,16 +610,27 @@ extension BASSRadioPlayer {
             BASS_StreamFree(mixerHandle)
             BASS_StreamFree(preMixerHandle)
 
-            let newPreMixer = BASS_Mixer_StreamCreate(44100, 2,
+            let newPreMixer = BASS_Mixer_StreamCreate(BASSConfig.sampleRate, BASSConfig.channels,
                 DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE))
             BASS_Mixer_StreamAddChannel(newPreMixer, handle,
                 DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN) | DWORD(BASS_MIXER_CHAN_PAUSE))
-            let newMixer = BASS_Mixer_StreamCreate(44100, 2,
+            let newMixer = BASS_Mixer_StreamCreate(BASSConfig.sampleRate, BASSConfig.channels,
                 DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
             BASS_Mixer_StreamAddChannel(newMixer, newPreMixer, DWORD(BASS_MIXER_CHAN_BUFFER))
 
             preMixerHandle = newPreMixer
             mixerHandle = newMixer
+
+            // Bail if the rebuilt mixer pipeline failed; otherwise recovery would
+            // silently produce no audio. Fail loudly into the reconnect path.
+            guard newPreMixer != 0, newMixer != 0 else {
+                let err = BASS_ErrorGetCode()
+                #if DEBUG
+                print("❌  FLAC recovery: mixer rebuild failed (error \(err)) — scheduling reconnect")
+                #endif
+                scheduleReconnect()
+                return
+            }
 
             // configureStreamAttributes sets buffer sizes and re-attaches all DSP/FX.
             // Recovery stream was added with PAUSE; the mixer runs but produces silence
@@ -658,7 +681,7 @@ extension BASSRadioPlayer {
               let cURL = current.url.cString(using: .utf8) else { return }
 
         if current.format == "FLAC" {
-            BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 30000)
+            BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), BASSConfig.netBufferMsFLAC)
             BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)
         }
         // Graduated connect timeout:
@@ -673,10 +696,10 @@ extension BASSRadioPlayer {
         let newHandle = BASS_StreamCreateURL(cURL, 0, streamFlags, nil, nil)
 
         if current.format == "FLAC" {
-            BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 25000)
+            BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), BASSConfig.netBufferMs)
             BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)
         }
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 10000)  // always restore
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), BASSConfig.netTimeoutMs)  // always restore
 
         guard newHandle != 0 else {
             let err = BASS_ErrorGetCode()
@@ -710,23 +733,34 @@ extension BASSRadioPlayer {
 
         streamHandle = newHandle
         if current.format == "FLAC" {
-            preMixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+            preMixerHandle = BASS_Mixer_StreamCreate(BASSConfig.sampleRate, BASSConfig.channels,
                 DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE))
             BASS_Mixer_StreamAddChannel(preMixerHandle, streamHandle,
                 DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN))
-            mixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+            mixerHandle = BASS_Mixer_StreamCreate(BASSConfig.sampleRate, BASSConfig.channels,
                 DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
             BASS_Mixer_StreamAddChannel(mixerHandle, preMixerHandle,
                 DWORD(BASS_MIXER_CHAN_BUFFER))
         } else {
-            preMixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+            preMixerHandle = BASS_Mixer_StreamCreate(BASSConfig.sampleRate, BASSConfig.channels,
                 DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE))
             BASS_Mixer_StreamAddChannel(preMixerHandle, streamHandle,
                 DWORD(BASS_MIXER_CHAN_BUFFER) | DWORD(BASS_MIXER_CHAN_NORAMPIN))
-            mixerHandle = BASS_Mixer_StreamCreate(44100, 2,
+            mixerHandle = BASS_Mixer_StreamCreate(BASSConfig.sampleRate, BASSConfig.channels,
                 DWORD(BASS_MIXER_END) | DWORD(BASS_SAMPLE_FLOAT))
             BASS_Mixer_StreamAddChannel(mixerHandle, preMixerHandle,
                 DWORD(BASS_MIXER_CHAN_BUFFER))
+        }
+
+        // Bail if the mixer pipeline failed to rebuild on restart; otherwise the
+        // restarted stream would be silently dead. Fail loudly into the reconnect path.
+        guard preMixerHandle != 0, mixerHandle != 0 else {
+            let err = BASS_ErrorGetCode()
+            #if DEBUG
+            print("❌  restartStream: mixer pipeline creation failed (error \(err)) — scheduling reconnect")
+            #endif
+            scheduleReconnect()
+            return
         }
 
         // Recreate StreamBuffer so recording resumes after restart (freeStream() cleared it).

@@ -22,6 +22,26 @@ enum PlaybackState: Equatable {
     case error(Int32)
 }
 
+// MARK: - BASS Audio Constants
+
+/// Centralized BASS engine constants that were previously repeated as literals
+/// across the playback/DVR/init paths. Same values, named once — no behavior change.
+enum BASSConfig {
+    /// Mixer sample rate (Hz). Matches the stream/output sample rate.
+    static let sampleRate: DWORD = 44100
+    /// Stereo channel count for the mixers.
+    static let channels: DWORD = 2
+    /// Network download buffer (ms) for normal streams.
+    static let netBufferMs: DWORD = 25000
+    /// Larger network buffer (ms) used while creating the FLAC stream.
+    static let netBufferMsFLAC: DWORD = 30000
+    /// Default network read timeout (ms).
+    static let netTimeoutMs: DWORD = 10000
+    /// Short network timeout (ms) used so a stalled read fails fast instead of
+    /// blocking the polling queue for the full default.
+    static let netTimeoutFastMs: DWORD = 3000
+}
+
 // MARK: - BASSRadioPlayer
 
 @Observable class BASSRadioPlayer: NSObject {
@@ -450,14 +470,14 @@ enum PlaybackState: Equatable {
         BASS_SetConfig(DWORD(BASS_CONFIG_UPDATEPERIOD), 20)
         BASS_SetConfig(DWORD(BASS_CONFIG_UPDATETHREADS), 2)
         BASS_SetConfig(DWORD(BASS_CONFIG_DEV_BUFFER), 500)
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 25000)
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), BASSConfig.netBufferMs)
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 10000)
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), BASSConfig.netTimeoutMs)
         BASS_SetConfig(DWORD(BASS_CONFIG_BUFFER), 15000)
         #if os(iOS)
         BASS_SetConfig(DWORD(BASS_CONFIG_IOS_SESSION), DWORD(BASS_IOS_SESSION_DISABLE))
         #endif
-        guard BASS_Init(-1, 44100, 0, nil, nil) != 0 else {
+        guard BASS_Init(-1, BASSConfig.sampleRate, 0, nil, nil) != 0 else {
             #if DEBUG
             print("❌  BASS_Init failed — error: \(BASS_ErrorGetCode())")
             #endif

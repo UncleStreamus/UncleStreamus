@@ -416,7 +416,7 @@ struct ContentView: View {
 
                             HStack {
                                 if let parsed = parsedTrack, currentTrack != "No track info" && !currentTrack.isEmpty {
-                                    Text(artistName(from: parsed))
+                                    Text(parsed.inferredArtist)
                                         .scaledFont(.subheadline)
                                         .foregroundColor(.secondary)
                                     if let trackNumber = parsed.trackNumber {
@@ -1052,13 +1052,6 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - DVR Helpers
-
-    private func dvrFormattedBehind(_ seconds: TimeInterval) -> String {
-        let total = Int(seconds)
-        return String(format: "%d:%02d", total / 60, total % 60)
-    }
-
     // MARK: - Placeholder Text
 
     private var placeholderText: String {
@@ -1101,52 +1094,12 @@ struct ContentView: View {
 
     // MARK: - Current Track Matching
 
-    /// Extracts the first N words from a string for comparison
-    private func firstWords(_ text: String, count: Int = 2) -> String {
-        // Remove content in parentheses/brackets first, then get words
-        let base = text.components(separatedBy: CharacterSet(charactersIn: "([")).first?
-            .trimmingCharacters(in: .whitespaces).lowercased() ?? ""
-        // Strip punctuation from each word (like commas, apostrophes, etc.)
-        let punctuation = CharacterSet.punctuationCharacters
-        let words = base.split(separator: " ").prefix(count).map { word in
-            String(word.unicodeScalars.filter { !punctuation.contains($0) })
-        }
-        return words.joined(separator: " ")
-    }
-
-    /// Finds the current track position in the setlist, handling duplicate song names
-    /// by picking the first match after the last confirmed position
+    /// Finds the current track position in the setlist (see `currentTrackPosition`
+    /// in ContentViewShared). Thin wrapper over the shared matcher using this view's state.
     private func findCurrentTrackPosition() -> Int? {
-        guard let trackName = parsedTrack?.trackName,
-              let setlist = currentShow?.setlist else { return nil }
-
-        let normalizedTrack = ParsedTrackInfo.normalizeTrackName(trackName) ?? trackName
-        let trackWords = firstWords(normalizedTrack)
-        guard !trackWords.isEmpty else { return nil }
-
-        // Find all positions where the song name matches
-        var matchingPositions: [Int] = []
-        for (index, song) in setlist.enumerated() {
-            let normalizedSong = ParsedTrackInfo.normalizeTrackName(song) ?? song
-            let songWords = firstWords(normalizedSong)
-            if songWords == trackWords || ParsedTrackInfo.tracksMatch(normalizedTrack, song) {
-                matchingPositions.append(index + 1)  // 1-based position
-            }
-        }
-
-        guard !matchingPositions.isEmpty else { return nil }
-
-        // Find the first match that comes after our last confirmed position
-        // This handles cases like multiple "Improvisations" in a setlist
-        for pos in matchingPositions {
-            if pos > currentSetlistPosition {
-                return pos
-            }
-        }
-
-        // If no match after current position, return the first match
-        // (handles edge cases like restarting mid-show)
-        return matchingPositions.first
+        currentTrackPosition(trackName: parsedTrack?.trackName,
+                             setlist: currentShow?.setlist,
+                             after: currentSetlistPosition)
     }
 
     /// Renders a setlist row with current track highlighting
@@ -1173,42 +1126,6 @@ struct ContentView: View {
             formatSong(song, acronyms: acronyms)
                 .scaledFont(.caption)
         }
-    }
-
-    // MARK: - Artist Name Helper
-
-    /// Returns the artist name from metadata, or infers it from the date.
-    /// - 1966 through 1974: "The Mothers of Invention"
-    /// - Jan-May 1975: "Zappa / Beefheart / Mothers" (Bongo Fury tour)
-    /// - June 1975 through 1992: "Frank Zappa"
-    private func artistName(from parsed: ParsedTrackInfo) -> String {
-        // If metadata has an artist, use it
-        if let artist = parsed.artist, !artist.isEmpty {
-            return artist
-        }
-
-        // Otherwise, infer from date
-        guard let dateStr = parsed.date else { return "Frank Zappa" }
-
-        let parts = dateStr.components(separatedBy: " ")
-        guard parts.count >= 2,
-              let year = Int(parts[0]),
-              let month = Int(parts[1]) else {
-            return "Frank Zappa"
-        }
-
-        // The Mothers of Invention era: 1966 through 1974
-        if year < 1975 {
-            return "The Mothers of Invention"
-        }
-
-        // Bongo Fury era: Jan-May 1975
-        if year == 1975 && month <= 5 {
-            return "Zappa / Beefheart / Mothers"
-        }
-
-        // Frank Zappa era: June 1975 onwards
-        return "Frank Zappa"
     }
 
     // MARK: - Menubar Menu Observers
@@ -1338,22 +1255,19 @@ struct ContentView: View {
         guard !didCheckWhatsNew else { return }
         didCheckWhatsNew = true
 
-        let current = ReleaseNotes.currentBuild
-        guard !current.isEmpty else { return }
-
-        if lastSeenBuild.isEmpty {
-            lastSeenBuild = current          // first-ever install: don't show What's New
-            if !hasSeenWelcome {             // …show the one-time Welcome guide instead
-                showWelcome = true
-                hasSeenWelcome = true
-            }
-        } else if lastSeenBuild != current {
-            // Only auto-popup for changes genuinely new in this build; a re-cut with
-            // no user-facing changes carries fallback notes (isCurrent == false).
-            if let notes = ReleaseNotes.loadBundled(), !notes.isEmpty, notes.isCurrent {
-                whatsNewNotes = notes        // triggers the sheet
-            }
-            lastSeenBuild = current          // record regardless, so it won't reappear
+        let result = decideWhatsNew(currentBuild: ReleaseNotes.currentBuild,
+                                    lastSeenBuild: lastSeenBuild,
+                                    hasSeenWelcome: hasSeenWelcome,
+                                    loadNotes: ReleaseNotes.loadBundled)
+        if let build = result.buildToRecord { lastSeenBuild = build }
+        switch result.action {
+        case .nothing:
+            break
+        case .showWelcome:
+            showWelcome = true
+            hasSeenWelcome = true
+        case .showNotes(let notes):
+            whatsNewNotes = notes
         }
     }
 
@@ -1371,28 +1285,10 @@ struct ContentView: View {
                 let durationSame = (self.parsedTrack?.trackDuration == newParsed.trackDuration)
                 guard !(trackNameSame && dateSame && durationSame) else { return }
 
-                // For FLAC: Vorbis short title arrives first (trackName only, date=nil).
-                // Merge it with the existing parsedTrack's show metadata so date/location/artist
-                // stay visible in the UI — no flash from sections disappearing mid-show.
-                let merged: ParsedTrackInfo
-                if newParsed.date == nil, let old = self.parsedTrack {
-                    // Only preserve old.trackDuration if track number hasn't changed (same track, partial update).
-                    // If track number changed, clear duration so the new duration from Icecast JSON will be used.
-                    let trackNumberChanged = newParsed.trackNumber != nil && newParsed.trackNumber != old.trackNumber
-                    let preservedDuration = trackNumberChanged ? nil : (newParsed.trackDuration ?? old.trackDuration)
-
-                    merged = ParsedTrackInfo(
-                        date: old.date, showTime: old.showTime,
-                        city: old.city, state: old.state,
-                        showDuration: old.showDuration, source: old.source,
-                        generation: old.generation, creator: old.creator,
-                        artist: old.artist, trackNumber: newParsed.trackNumber ?? old.trackNumber,
-                        trackName: newParsed.trackName, year: newParsed.year,
-                        trackDuration: preservedDuration, rawTitle: newParsed.rawTitle
-                    )
-                } else {
-                    merged = newParsed
-                }
+                // For FLAC the Vorbis short title arrives first (trackName only, date=nil);
+                // ParsedTrackInfo.merged preserves the existing show metadata so the UI
+                // doesn't flash mid-show. (See ContentViewShared / ParsedTrackInfo.)
+                let merged = ParsedTrackInfo.merged(new: newParsed, previous: self.parsedTrack)
 
                 self.currentTrack = metadata
                 self.parsedTrack = merged
@@ -1512,7 +1408,7 @@ struct ContentView: View {
 
         if let parsed = parsedTrack {
             nowPlayingInfo[MPMediaItemPropertyTitle] = parsed.trackName ?? "UncleStreamus"
-            nowPlayingInfo[MPMediaItemPropertyArtist] = artistName(from: parsed)
+            nowPlayingInfo[MPMediaItemPropertyArtist] = parsed.inferredArtist
 
             if let show = currentShow {
                 nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = "\(show.date) • \(show.venue)"
@@ -1543,7 +1439,7 @@ struct ContentView: View {
         // Mirror track info card - show info regardless of playing state
         if let parsed = parsedTrack, currentTrack != "No track info" && !currentTrack.isEmpty {
             userInfo["trackName"] = parsed.trackName
-            userInfo["artist"] = artistName(from: parsed)
+            userInfo["artist"] = parsed.inferredArtist
 
             if let show = currentShow {
                 userInfo["showInfo"] = "\(show.date) • \(show.venue)"
@@ -1612,27 +1508,23 @@ struct ContentView: View {
 
     func fetchShowInfo(date: String, showTime: ShowTime = .none) {
         // Build the variant date key (e.g. "1980 12 11 E") for accurate early/late deduplication
-        let variantDate: String
-        switch showTime {
-        case .early: variantDate = "\(date) E"
-        case .late:  variantDate = "\(date) L"
-        case .none:  variantDate = date
-        }
+        let variantDate = UncleStreamus.variantDate(date: date, showTime: showTime)
         // Only fetch if we don't already have this show (and same showTime)
         guard currentShow?.date != variantDate else { return }
 
         bassPlayer.currentShowDate = variantDate
 
-        // Determine whether to restore or reset FX based on persistence settings
+        // Determine whether to restore or reset FX based on persistence settings.
+        // On .restore with no snapshot yet, the reset is deferred to the fetch
+        // completion below so a one-poll metadata glitch (wrong date) that never
+        // resolves to a real show can't cause an audible mid-song FX dropout.
         let fxRememberPerShow = UserDefaults.standard.bool(forKey: "fxRememberPerShow")
-        if fxRememberPerShow {
-            // Returning to a show with saved FX: restore immediately. If there's no
-            // snapshot yet, the reset to defaults is deferred to the fetch completion
-            // below, so a one-poll metadata glitch (wrong date) that never resolves to
-            // a real show can't cause an audible mid-song FX dropout.
-            bassPlayer.restorePerShowFX(showDate: variantDate)
-        } else if !fxPersistAcrossShows {
-            bassPlayer.resetAllFX()
+        switch fxRestorePlan(variantDate: variantDate,
+                             rememberPerShow: fxRememberPerShow,
+                             persistAcrossShows: fxPersistAcrossShows) {
+        case .restore(let showDate): bassPlayer.restorePerShowFX(showDate: showDate)
+        case .reset: bassPlayer.resetAllFX()
+        case .keep: break
         }
 
         isFetchingShowInfo = true
@@ -1671,23 +1563,7 @@ struct ContentView: View {
 
                     // If parsed metadata lacks location, fill in from FZShow
                     if let parsed = self.parsedTrack, parsed.city == nil || parsed.state == nil {
-                        let updatedParsed = ParsedTrackInfo(
-                            date: parsed.date,
-                            showTime: parsed.showTime,
-                            city: parsed.city ?? show.city,
-                            state: parsed.state ?? show.state,
-                            showDuration: parsed.showDuration,
-                            source: parsed.source,
-                            generation: parsed.generation,
-                            creator: parsed.creator,
-                            artist: parsed.artist,
-                            trackNumber: parsed.trackNumber,
-                            trackName: parsed.trackName,
-                            year: parsed.year,
-                            trackDuration: parsed.trackDuration,
-                            rawTitle: parsed.rawTitle
-                        )
-                        self.parsedTrack = updatedParsed
+                        self.parsedTrack = parsed.fillingLocation(city: show.city, state: show.state)
                     }
 
                     // Auto-record to history
