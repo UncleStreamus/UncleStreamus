@@ -16,12 +16,10 @@ struct ContentView: View {
 
     @State private var isPlaying = false
     @State private var selectedStream: Stream?
-    @State private var currentTrack: String = "No track info"
-    @State private var parsedTrack: ParsedTrackInfo?
     @State private var bassPlayer = BASSRadioPlayer()
-    @State private var currentShow: FZShow?
+    /// Shared runtime state (track/show pipeline). See RadioViewModel.
+    @State private var vm = RadioViewModel()
     @AppStorage("showInfoExpanded") private var showInfoExpanded: Bool = false
-    @State private var isFetchingShowInfo: Bool = false
     @State private var availableWidth: CGFloat = 500
     @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = false
     @AppStorage("textScale") private var textScale: Double = 1.1
@@ -34,7 +32,6 @@ struct ContentView: View {
     @State private var bounceResetTask: DispatchWorkItem?
     @State private var setlistFrameInWindow: CGRect = .zero  // Track setlist area to exclude from bounce
     @AppStorage("delayWarningDismissed") private var delayWarningDismissed: Bool = false
-    @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
     @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
     @State private var showFXPane: Bool = false
     @State private var trackInfoURL: IdentifiableURL?
@@ -406,7 +403,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            if let parsed = parsedTrack, let trackName = parsed.trackName, currentTrack != "No track info" && !currentTrack.isEmpty {
+                            if let parsed = vm.parsedTrack, let trackName = parsed.trackName, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
                                 MarqueeText(text: trackName, style: .title2, weight: .semibold)
                             } else {
                                 Text(placeholderText)
@@ -415,7 +412,7 @@ struct ContentView: View {
                             }
 
                             HStack {
-                                if let parsed = parsedTrack, currentTrack != "No track info" && !currentTrack.isEmpty {
+                                if let parsed = vm.parsedTrack, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
                                     Text(parsed.inferredArtist)
                                         .scaledFont(.subheadline)
                                         .foregroundColor(.secondary)
@@ -436,7 +433,7 @@ struct ContentView: View {
                         Spacer()
 
                         // Favorite star button (only when show is loaded)
-                        if let show = currentShow {
+                        if let show = vm.currentShow {
                             Button(action: {
                                 showDataManager?.toggleFavorite(show: show)
                             }) {
@@ -450,7 +447,7 @@ struct ContentView: View {
                     Divider()
 
                     HStack {
-                        if let parsed = parsedTrack, let date = parsed.date, let city = parsed.city, let state = parsed.state, currentTrack != "No track info" && !currentTrack.isEmpty {
+                        if let parsed = vm.parsedTrack, let date = parsed.date, let city = parsed.city, let state = parsed.state, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
                             Text("\(date) • \(city), \(state)")
                                 .scaledFont(.caption)
                                 .foregroundColor(.secondary)
@@ -460,7 +457,7 @@ struct ContentView: View {
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
-                        if let source = displaySource, currentTrack != "No track info" && !currentTrack.isEmpty {
+                        if let source = displaySource, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
                             Text(source)
                                 .scaledFont(.caption)
                                 .padding(.horizontal, 8)
@@ -490,7 +487,7 @@ struct ContentView: View {
                 .transition(.opacity)
             } else {
                 // Show Info Section: dropdown and optional setlist
-                if showInfoExpanded && currentShow != nil {
+                if showInfoExpanded && vm.currentShow != nil {
                     showInfoSection
                         .padding(.horizontal)
                         .padding(.bottom, 8)
@@ -790,14 +787,14 @@ struct ContentView: View {
             // Show info header button (always visible)
             Button(action: {
                 // Only allow expanding if we have show data
-                if currentShow != nil {
+                if vm.currentShow != nil {
                     showInfoExpanded.toggle()
                     updateWindowMinHeight()
                 }
             }) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        if let show = currentShow {
+                        if let show = vm.currentShow {
                             Text(show.venue)
                                 .scaledFont(.headline, weight: .semibold)
 
@@ -812,7 +809,7 @@ struct ContentView: View {
                                     .scaledFont(.caption)
                                     .foregroundColor(.secondary)
                             }
-                        } else if isFetchingShowInfo {
+                        } else if vm.isFetchingShowInfo {
                             HStack(spacing: 6) {
                                 ProgressView()
                                     .scaleEffect(0.7)
@@ -830,7 +827,7 @@ struct ContentView: View {
                     Spacer()
 
                     // Only show chevron if we have show data
-                    if currentShow != nil {
+                    if vm.currentShow != nil {
                         Image(systemName: showInfoExpanded ? "chevron.up" : "chevron.down")
                     }
                 }
@@ -840,11 +837,11 @@ struct ContentView: View {
                 .cornerRadius(8)
             }
             .buttonStyle(.plain)
-            .disabled(currentShow == nil)
+            .disabled(vm.currentShow == nil)
             .offset(y: contentBounceOffset)
 
             // Expanded setlist section (only when show is loaded)
-            if showInfoExpanded, let show = currentShow {
+            if showInfoExpanded, let show = vm.currentShow {
                 VStack(alignment: .leading, spacing: 12) {
 
                     Text("Setlist:")
@@ -1003,7 +1000,7 @@ struct ContentView: View {
 
                     HStack(spacing: 8) {
                         Button("Track Info (donlope)...") {
-                            guard let trackName = parsedTrack?.trackName else { return }
+                            guard let trackName = vm.parsedTrack?.trackName else { return }
                             Task {
                                 let result = await DonlopeIndexCache.shared.lookupURL(for: trackName)
                                 let url: URL
@@ -1012,7 +1009,7 @@ struct ContentView: View {
                                 await MainActor.run { trackInfoURL = IdentifiableURL(url: url) }
                             }
                         }
-                        .disabled(parsedTrack?.trackName == nil)
+                        .disabled(vm.parsedTrack?.trackName == nil)
                         Spacer()
                         Button("Setlist Context (FZShows)...") {
                             if let url = URL(string: show.url) {
@@ -1033,15 +1030,15 @@ struct ContentView: View {
             }
         }
         .contextMenu {
-            if let show = currentShow {
+            if let show = vm.currentShow {
                 Button(action: {
                     let reportData = BugReportData(
                         showDate: show.date,
                         venue: show.venue,
                         url: show.url,
-                        rawMetadata: parsedTrack?.rawTitle,
-                        trackName: parsedTrack?.trackName,
-                        source: parsedTrack?.source,
+                        rawMetadata: vm.parsedTrack?.rawTitle,
+                        trackName: vm.parsedTrack?.trackName,
+                        source: vm.parsedTrack?.source,
                         streamFormat: selectedStream?.format
                     )
                     reportData.openMailClient()
@@ -1076,8 +1073,8 @@ struct ContentView: View {
 
     /// Source type (AUD/SBD/FM) from metadata, falling back to showInfo HTML when metadata lacks it
     private var displaySource: String? {
-        if let s = parsedTrack?.source { return s }
-        guard let info = currentShow?.showInfo else { return nil }
+        if let s = vm.parsedTrack?.source { return s }
+        guard let info = vm.currentShow?.showInfo else { return nil }
         let upper = info.uppercased()
         for src in ["SBD-AUD", "AUD-SBD", "SBD-FM", "FM-SBD", "AUD-FM", "FM-AUD"] where upper.contains(src) { return src }
         for src in ["AUD", "SBD", "FM", "STAGE"] where upper.contains(src) { return src }
@@ -1088,26 +1085,24 @@ struct ContentView: View {
         // Reading favoriteVersion creates an @Observable dependency,
         // so this recomputes whenever any star is toggled anywhere
         let _ = showDataManager?.favoriteVersion
-        guard let show = currentShow else { return false }
+        guard let show = vm.currentShow else { return false }
         return showDataManager?.isFavorite(showDate: show.date) ?? false
     }
 
     // MARK: - Current Track Matching
 
-    /// Finds the current track position in the setlist (see `currentTrackPosition`
-    /// in ContentViewShared). Thin wrapper over the shared matcher using this view's state.
+    /// Finds the current track position in the setlist. Delegates to the shared
+    /// view model (which holds the track/show state).
     private func findCurrentTrackPosition() -> Int? {
-        currentTrackPosition(trackName: parsedTrack?.trackName,
-                             setlist: currentShow?.setlist,
-                             after: currentSetlistPosition)
+        vm.findCurrentTrackPosition()
     }
 
     /// Renders a setlist row with current track highlighting
     @ViewBuilder
     private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {
         // Use the confirmed position directly — re-calling findCurrentTrackPosition() here
-        // would use "> currentSetlistPosition" and always highlight the *next* duplicate, not the current one.
-        let isCurrent = currentSetlistPosition == index
+        // would use "> vm.currentSetlistPosition" and always highlight the *next* duplicate, not the current one.
+        let isCurrent = vm.currentSetlistPosition == index
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             // Speaker icon for currently playing track (or invisible placeholder)
             Image(systemName: "speaker.wave.2.fill")
@@ -1274,46 +1269,17 @@ struct ContentView: View {
     // MARK: - Player Setup
 
     func setupPlayer() {
+        // Wire the shared view model: give it the references it needs and the
+        // platform side-effect hook (now-playing refresh). macOS has no CarPlay,
+        // so onShowDidLoad stays a no-op.
+        vm.bassPlayer = bassPlayer
+        vm.showDataManager = showDataManager
+        vm.fzShowsDB = fzShowsDB
+        vm.onNowPlayingShouldUpdate = { [self] in updateNowPlayingInfo() }
+
         bassPlayer.onMetadataUpdate = { metadata in
             DispatchQueue.main.async {
-                let newParsed = ParsedTrackInfo.parse(metadata)
-
-                // Block if truly nothing meaningful changed (same track name, date, AND duration).
-                // Duration can update independently when Icecast JSON arrives after Vorbis short title.
-                let trackNameSame = (self.parsedTrack?.trackName == newParsed.trackName)
-                let dateSame = (self.parsedTrack?.date == newParsed.date)
-                let durationSame = (self.parsedTrack?.trackDuration == newParsed.trackDuration)
-                guard !(trackNameSame && dateSame && durationSame) else { return }
-
-                // For FLAC the Vorbis short title arrives first (trackName only, date=nil);
-                // ParsedTrackInfo.merged preserves the existing show metadata so the UI
-                // doesn't flash mid-show. (See ContentViewShared / ParsedTrackInfo.)
-                let merged = ParsedTrackInfo.merged(new: newParsed, previous: self.parsedTrack)
-
-                self.currentTrack = metadata
-                self.parsedTrack = merged
-
-                if let parsed = self.parsedTrack, let date = parsed.date {
-                    #if DEBUG
-                    print("📊 Parsed meta")
-                    print("   Date: \(date)")
-                    print("   City: \(parsed.city ?? "?"), State: \(parsed.state ?? "?")")
-                    print("   Artist: \(parsed.artist ?? "?")")
-                    print("   Track: #\(parsed.trackNumber ?? "?") - \(parsed.trackName ?? "?")")
-                    print("   Source: \(parsed.source ?? "?") Gen: \(parsed.generation ?? "?")")
-                    print("   Duration: \(parsed.trackDuration ?? "?")")
-                    print("   ShowTime: \(parsed.showTime ?? "none")")
-                    #endif
-
-                    let showTime = ShowTime(from: parsed.showTime)
-                    self.fetchShowInfo(date: date, showTime: showTime)
-                }
-
-                if let position = self.findCurrentTrackPosition() {
-                    self.currentSetlistPosition = position
-                }
-
-                self.updateNowPlayingInfo()
+                self.vm.handleMetadata(metadata, fxPersistAcrossShows: self.fxPersistAcrossShows)
             }
         }
 
@@ -1406,11 +1372,11 @@ struct ContentView: View {
     private func updateNowPlayingInfo() {
         var nowPlayingInfo = [String: Any]()
 
-        if let parsed = parsedTrack {
+        if let parsed = vm.parsedTrack {
             nowPlayingInfo[MPMediaItemPropertyTitle] = parsed.trackName ?? "UncleStreamus"
             nowPlayingInfo[MPMediaItemPropertyArtist] = parsed.inferredArtist
 
-            if let show = currentShow {
+            if let show = vm.currentShow {
                 nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = "\(show.date) • \(show.venue)"
             }
         } else {
@@ -1437,11 +1403,11 @@ struct ContentView: View {
         var userInfo: [String: Any] = [:]
 
         // Mirror track info card - show info regardless of playing state
-        if let parsed = parsedTrack, currentTrack != "No track info" && !currentTrack.isEmpty {
+        if let parsed = vm.parsedTrack, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
             userInfo["trackName"] = parsed.trackName
             userInfo["artist"] = parsed.inferredArtist
 
-            if let show = currentShow {
+            if let show = vm.currentShow {
                 userInfo["showInfo"] = "\(show.date) • \(show.venue)"
             }
         }
@@ -1507,73 +1473,7 @@ struct ContentView: View {
     }
 
     func fetchShowInfo(date: String, showTime: ShowTime = .none) {
-        // Build the variant date key (e.g. "1980 12 11 E") for accurate early/late deduplication
-        let variantDate = UncleStreamus.variantDate(date: date, showTime: showTime)
-        // Only fetch if we don't already have this show (and same showTime)
-        guard currentShow?.date != variantDate else { return }
-
-        bassPlayer.currentShowDate = variantDate
-
-        // Determine whether to restore or reset FX based on persistence settings.
-        // On .restore with no snapshot yet, the reset is deferred to the fetch
-        // completion below so a one-poll metadata glitch (wrong date) that never
-        // resolves to a real show can't cause an audible mid-song FX dropout.
-        let fxRememberPerShow = UserDefaults.standard.bool(forKey: "fxRememberPerShow")
-        switch fxRestorePlan(variantDate: variantDate,
-                             rememberPerShow: fxRememberPerShow,
-                             persistAcrossShows: fxPersistAcrossShows) {
-        case .restore(let showDate): bassPlayer.restorePerShowFX(showDate: showDate)
-        case .reset: bassPlayer.resetAllFX()
-        case .keep: break
-        }
-
-        isFetchingShowInfo = true
-        let fetch: (@escaping (FZShow?) -> Void) -> Void = { completion in
-            if let db = self.fzShowsDB {
-                db.fetchShow(date: date, showTime: showTime, completion: completion)
-            } else {
-                FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime, completion: completion)
-            }
-        }
-        fetch { show in
-            DispatchQueue.main.async {
-                self.currentShow = show
-                self.currentSetlistPosition = 0  // Reset position for new show
-                // Re-compute from parsedTrack so the speaker appears on first load
-                // without waiting for the next metadata poll.
-                if let position = self.findCurrentTrackPosition() {
-                    self.currentSetlistPosition = position
-                }
-                self.isFetchingShowInfo = false
-
-                // Per-show FX: now that a real show has loaded, reset to defaults if it
-                // has no saved snapshot (a genuine new show). Deferring to here means a
-                // transient metadata glitch that returns no show never resets the FX.
-                if show != nil, fxRememberPerShow,
-                   !self.bassPlayer.hasPerShowFX(showDate: variantDate) {
-                    self.bassPlayer.resetAllFX()
-                }
-
-                if let show = show {
-                    #if DEBUG
-                    print("✅ Fetched show info for \(show.date)")
-                    print("   Venue: \(show.venue)")
-                    print("   Setlist: \(show.setlist.count) songs")
-                    #endif
-
-                    // If parsed metadata lacks location, fill in from FZShow
-                    if let parsed = self.parsedTrack, parsed.city == nil || parsed.state == nil {
-                        self.parsedTrack = parsed.fillingLocation(city: show.city, state: show.state)
-                    }
-
-                    // Auto-record to history
-                    self.showDataManager?.recordListen(show: show)
-
-                    // Update menubar tooltip with show info
-                    self.updateNowPlayingInfo()
-                }
-            }
-        }
+        vm.fetchShowInfo(date: date, showTime: showTime, fxPersistAcrossShows: fxPersistAcrossShows)
     }
 }
 

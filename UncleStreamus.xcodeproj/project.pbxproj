@@ -74,6 +74,7 @@
 		BE2FCA6D2F3CBBCA0038E706 /* Stream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */; };
 		BE2FCA6E2F3CBBCA0038E706 /* ParsedTrackInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */; };
 		AA0000000000000000000003 /* ContentViewShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* ContentViewShared.swift */; };
+		AA0000000000000000000023 /* RadioViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000021 /* RadioViewModel.swift */; };
 		BE2FCA6F2F3CBBCA0038E706 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
 		BE2FCA702F3CBBCA0038E706 /* ShowEntryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00082F34000100AA0009 /* ShowEntryRow.swift */; };
 		BE2FCA712F3CBBCA0038E706 /* TourPeriods.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */; };
@@ -91,6 +92,7 @@
 		BE5A1F022F5A1F0200BE5A12 /* StoreProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */; };
 		BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */; };
 		AA0000000000000000000002 /* ContentViewShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* ContentViewShared.swift */; };
+		AA0000000000000000000022 /* RadioViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000021 /* RadioViewModel.swift */; };
 		BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */; };
 		BEAA00012F34000100AA0001 /* Acronym.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00002F34000100AA0001 /* Acronym.swift */; };
 		BEAA00032F34000100AA0003 /* SavedShow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00022F34000100AA0003 /* SavedShow.swift */; };
@@ -196,6 +198,7 @@
 		BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreProtection.swift; sourceTree = "<group>"; };
 		BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfo.swift; sourceTree = "<group>"; };
 		AA0000000000000000000001 /* ContentViewShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewShared.swift; sourceTree = "<group>"; };
+		AA0000000000000000000021 /* RadioViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadioViewModel.swift; sourceTree = "<group>"; };
 		BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stream.swift; sourceTree = "<group>"; };
 		BEA501FE2FD98D8A00C2A02F /* UncleStreamusTests.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = UncleStreamusTests.entitlements; sourceTree = "<group>"; };
 		BEA501FF2FD9904000C2A02F /* UncleStreamus-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "UncleStreamus-Debug.entitlements"; path = "UncleStreamus/UncleStreamus-Debug.entitlements"; sourceTree = "<group>"; };
@@ -328,6 +331,7 @@
 				BEFADE0100000000000000F1 /* TransportControlsLayout.swift */,
 				BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */,
 				AA0000000000000000000001 /* ContentViewShared.swift */,
+				AA0000000000000000000021 /* RadioViewModel.swift */,
 				BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */,
 				BE1A34272F30C6D800647B01 /* Preview Content */,
 				BEB8D8F12FC4F7B100286967 /* PrivacyInfo.xcprivacy */,
@@ -588,6 +592,7 @@
 				BE1A341F2F30C6D600647B01 /* UncleStreamusApp.swift in Sources */,
 				BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */,
 				AA0000000000000000000002 /* ContentViewShared.swift in Sources */,
+				AA0000000000000000000022 /* RadioViewModel.swift in Sources */,
 				BE17E5000005E5000017E504 /* ReleaseNotes.swift in Sources */,
 				BE17E5000007E5000017E506 /* WhatsNewView.swift in Sources */,
 				BE17E5000007E5000017E516 /* WelcomeView.swift in Sources */,
@@ -622,6 +627,7 @@
 				BE2FCA6D2F3CBBCA0038E706 /* Stream.swift in Sources */,
 				BE2FCA6E2F3CBBCA0038E706 /* ParsedTrackInfo.swift in Sources */,
 				AA0000000000000000000003 /* ContentViewShared.swift in Sources */,
+				AA0000000000000000000023 /* RadioViewModel.swift in Sources */,
 				BE17E5000004E5000017E503 /* ReleaseNotes.swift in Sources */,
 				BE17E5000006E5000017E505 /* WhatsNewView.swift in Sources */,
 				BE17E5000006E5000017E515 /* WelcomeView.swift in Sources */,
