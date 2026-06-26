@@ -5,6 +5,7 @@ import UIKit
 #endif
 
 @Observable
+@MainActor
 class ShowDataManager {
     private var modelContext: ModelContext
     var favoriteVersion: Int = 0
@@ -222,7 +223,7 @@ class ShowDataManager {
 
     // MARK: - iCloud Sync
 
-    @MainActor
+    // (class is @MainActor; this stays async only for the post-save settle delay)
     func triggerCloudKitSync() async {
         try? modelContext.save()
         try? await Task.sleep(for: .seconds(1.5))
