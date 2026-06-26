@@ -122,11 +122,6 @@ struct ContentView: View {
             setupMenubarObservers()
             checkWhatsNew()
 
-            // Send initial state to menubar
-            if let stream = selectedStream {
-                NotificationCenter.default.post(name: .streamSelectionChanged, object: nil, userInfo: ["format": stream.format])
-            }
-
             // Auto-play if stream was playing when app was last quit (and auto-resume is enabled)
             // Read directly from UserDefaults to ensure we get the persisted value
             let wasPlaying = UserDefaults.standard.bool(forKey: "wasPlayingOnQuit")
@@ -153,6 +148,7 @@ struct ContentView: View {
             #if DEBUG
             print("💾 onDisappear - saving playing state: \(isPlaying)")
             #endif
+            AppDelegate.shared?.detach()
             stopStream()
         }
         #if os(macOS)
@@ -629,7 +625,6 @@ struct ContentView: View {
                     .onChange(of: selectedStream) { _, newValue in
                         if let stream = newValue {
                             lastStreamFormat = stream.format
-                            NotificationCenter.default.post(name: .streamSelectionChanged, object: nil, userInfo: ["format": stream.format])
                             if isPlaying {
                                 playStream()
                             }
@@ -1126,73 +1121,9 @@ struct ContentView: View {
     // MARK: - Menubar Menu Observers
 
     private func setupMenubarObservers() {
-        // Listen for play/pause toggle from menubar
-        NotificationCenter.default.addObserver(
-            forName: .togglePlayback,
-            object: nil,
-            queue: .main
-        ) { [self] _ in
-            guard bassPlayer.checkUserActionAllowed() else { return }
-            switch (isPlaying, bassPlayer.dvrState) {
-            case (false, _):
-                playStream()
-            case (true, .live):
-                if dvrEnabled { bassPlayer.dvrPause() } else { stopStream() }
-            case (true, .paused):
-                resumeOrOfferBuffer()
-            case (true, .playing):
-                bassPlayer.dvrPausePlayback()
-            }
-        }
-
-        // Listen for stop from menubar
-        NotificationCenter.default.addObserver(
-            forName: .stopPlayback,
-            object: nil,
-            queue: .main
-        ) { [self] _ in
-            guard bassPlayer.checkUserActionAllowed() else { return }
-            if isPlaying { stopStream() }
-        }
-
-        // Listen for stream selection from menubar
-        NotificationCenter.default.addObserver(
-            forName: .selectStream,
-            object: nil,
-            queue: .main
-        ) { [self] notification in
-            if let format = notification.userInfo?["format"] as? String,
-               let stream = streams.first(where: { $0.format == format }) {
-                selectedStream = stream
-            }
-        }
-
-        // Listen for volume controls from menu / keyboard shortcut
-        NotificationCenter.default.addObserver(
-            forName: .volumeUp,
-            object: nil,
-            queue: .main
-        ) { [weak bassPlayer] _ in
-            bassPlayer?.volumeUp()
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: .volumeDown,
-            object: nil,
-            queue: .main
-        ) { [weak bassPlayer] _ in
-            bassPlayer?.volumeDown()
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: .setVolume,
-            object: nil,
-            queue: .main
-        ) { [weak bassPlayer] notification in
-            if let volume = notification.userInfo?["volume"] as? Float {
-                bassPlayer?.setMasterVolume(volume)
-            }
-        }
+        // Menubar commands (play/pause, stop, stream pick, volume, sheets) are now
+        // routed directly through `vm`/`bassPlayer` — see `setupPlayer()`. Only the
+        // system-sourced reconnect notifications remain here.
 
         // Reconnect when app becomes active (e.g. after switch away and back)
         NotificationCenter.default.addObserver(
@@ -1219,25 +1150,6 @@ struct ContentView: View {
             if bassPlayer?.dvrState == .live,
                bassPlayer?.isUserIntendedPlay == true && bassPlayer?.isStreamActive == false {
                 bassPlayer?.triggerImmediateReconnect()
-            }
-        }
-
-        // Open the Welcome / What's New sheets from the menubar "About" submenu
-        NotificationCenter.default.addObserver(
-            forName: .showWelcomeSheet,
-            object: nil,
-            queue: .main
-        ) { [self] _ in
-            showWelcome = true
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: .showWhatsNewSheet,
-            object: nil,
-            queue: .main
-        ) { [self] _ in
-            if let notes = ReleaseNotes.loadBundled() {
-                whatsNewNotes = notes
             }
         }
     }
@@ -1276,6 +1188,39 @@ struct ContentView: View {
         vm.showDataManager = showDataManager
         vm.fzShowsDB = fzShowsDB
         vm.onNowPlayingShouldUpdate = { [self] in updateNowPlayingInfo() }
+
+        // Bridge the AppKit menubar to this view's playback state/actions, replacing
+        // the old NotificationCenter menubar channel. The AppDelegate holds weak
+        // references and invokes these closures from its menu items.
+        AppDelegate.shared?.attach(vm: vm, bassPlayer: bassPlayer)
+        vm.menubarToggle = { [self] in
+            guard bassPlayer.checkUserActionAllowed() else { return }
+            switch (isPlaying, bassPlayer.dvrState) {
+            case (false, _):
+                playStream()
+            case (true, .live):
+                if dvrEnabled { bassPlayer.dvrPause() } else { stopStream() }
+            case (true, .paused):
+                resumeOrOfferBuffer()
+            case (true, .playing):
+                bassPlayer.dvrPausePlayback()
+            }
+        }
+        vm.menubarStop = { [self] in
+            guard bassPlayer.checkUserActionAllowed() else { return }
+            if isPlaying { stopStream() }
+        }
+        vm.menubarSelectStream = { [self] format in
+            if let stream = streams.first(where: { $0.format == format }) {
+                selectedStream = stream
+            }
+        }
+        vm.menubarShowWelcome = { [self] in showWelcome = true }
+        vm.menubarShowWhatsNew = { [self] in
+            if let notes = ReleaseNotes.loadBundled() {
+                whatsNewNotes = notes
+            }
+        }
 
         bassPlayer.onMetadataUpdate = { metadata in
             DispatchQueue.main.async {
@@ -1398,24 +1343,26 @@ struct ContentView: View {
         updateMenubarTooltip()
     }
 
-    /// Posts notification to update menubar icon tooltip with current track info
+    /// Pushes current track info to the menubar (icon tooltip + Now Playing menu).
     private func updateMenubarTooltip() {
-        var userInfo: [String: Any] = [:]
+        var trackName: String?
+        var artist: String?
+        var showInfo: String?
 
         // Mirror track info card - show info regardless of playing state
         if let parsed = vm.parsedTrack, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
-            userInfo["trackName"] = parsed.trackName
-            userInfo["artist"] = parsed.inferredArtist
+            trackName = parsed.trackName
+            artist = parsed.inferredArtist
 
             if let show = vm.currentShow {
-                userInfo["showInfo"] = "\(show.date) • \(show.venue)"
+                showInfo = "\(show.date) • \(show.venue)"
             }
         }
 
-        NotificationCenter.default.post(
-            name: .trackInfoUpdated,
-            object: nil,
-            userInfo: userInfo
+        AppDelegate.shared?.updateNowPlaying(
+            trackName: trackName,
+            artist: artist,
+            showInfo: showInfo
         )
     }
 
@@ -1427,7 +1374,7 @@ struct ContentView: View {
     /// begun (or the buffer isn't full), resume directly with no prompt.
     func resumeOrOfferBuffer() {
         if bassPlayer.dvrBufferFull && !bassPlayer.dvrFullBufferDrainStarted {
-            NotificationCenter.default.post(name: .bringWindowToFront, object: nil)
+            AppDelegate.shared?.showMainWindow()
             bassPlayer.dvrReturnOfferPending = true
         } else {
             bassPlayer.dvrResume()
@@ -1442,7 +1389,7 @@ struct ContentView: View {
 
         bassPlayer.play(format: stream.format, url: stream.url)
         isPlaying = true
-        NotificationCenter.default.post(name: .playbackStateChanged, object: nil, userInfo: ["isPlaying": true])
+        vm.isPlaying = true
         updateNowPlayingInfo()
 
         UserDefaults.standard.set(true, forKey: "wasPlayingOnQuit")
@@ -1457,7 +1404,7 @@ struct ContentView: View {
         #endif
         bassPlayer.stopWithFadeOut()
         isPlaying = false
-        NotificationCenter.default.post(name: .playbackStateChanged, object: nil, userInfo: ["isPlaying": false])
+        vm.isPlaying = false
         updateNowPlayingInfo()
 
         UserDefaults.standard.set(false, forKey: "wasPlayingOnQuit")

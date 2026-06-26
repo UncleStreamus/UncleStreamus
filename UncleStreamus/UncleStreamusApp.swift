@@ -191,12 +191,12 @@ struct UncleStreamusApp: App {
         .commands {
             CommandMenu("Audio") {
                 Button("Volume Up") {
-                    NotificationCenter.default.post(name: .volumeUp, object: nil)
+                    appDelegate.bassPlayer?.volumeUp()
                 }
                 .keyboardShortcut("=", modifiers: [.command, .shift])
 
                 Button("Volume Down") {
-                    NotificationCenter.default.post(name: .volumeDown, object: nil)
+                    appDelegate.bassPlayer?.volumeDown()
                 }
                 .keyboardShortcut("-", modifiers: [.command, .shift])
             }
@@ -260,26 +260,12 @@ struct UncleStreamusApp: App {
 // MARK: - macOS App Delegate for Menubar
 
 #if os(macOS)
-/// Notification names for menubar updates
-extension Notification.Name {
-    static let trackInfoUpdated = Notification.Name("trackInfoUpdated")
-    static let playbackStateChanged = Notification.Name("playbackStateChanged")
-    static let streamSelectionChanged = Notification.Name("streamSelectionChanged")
-    static let togglePlayback = Notification.Name("togglePlayback")
-    static let stopPlayback = Notification.Name("stopPlayback")
-    static let selectStream = Notification.Name("selectStream")
-    static let volumeUp = Notification.Name("volumeUp")
-    static let volumeDown = Notification.Name("volumeDown")
-    static let setVolume = Notification.Name("setVolume")
-    static let showWelcomeSheet = Notification.Name("showWelcomeSheet")
-    static let showWhatsNewSheet = Notification.Name("showWhatsNewSheet")
-    /// Posted from ContentView to bring the main window forward (same as clicking the
-    /// menubar icon) before presenting the buffer play-vs-live alert.
-    static let bringWindowToFront = Notification.Name("bringWindowToFront")
-}
-
 private class VolumeSliderView: NSView {
     private let slider: NSSlider
+
+    /// Set by `rebuildMenu` to forward slider changes to the player. Replaces the
+    /// old `.setVolume` NotificationCenter post.
+    var onVolumeChange: ((Float) -> Void)?
 
     init() {
         slider = NSSlider()
@@ -306,24 +292,37 @@ private class VolumeSliderView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     @objc private func sliderChanged() {
-        NotificationCenter.default.post(
-            name: .setVolume,
-            object: nil,
-            userInfo: ["volume": Float(slider.doubleValue)]
-        )
+        onVolumeChange?(Float(slider.doubleValue))
     }
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    /// The single instance created by `@NSApplicationDelegateAdaptor`. SwiftUI sets
+    /// its *own* `SwiftUI.AppDelegate` as `NSApp.delegate` and merely *wraps* this
+    /// one, so `NSApp.delegate as? AppDelegate` is always nil — views reach the
+    /// real delegate through this instead.
+    static private(set) var shared: AppDelegate?
+
+    override init() {
+        super.init()
+        AppDelegate.shared = self
+    }
+
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
     private let textScaleLevels: [Double] = [1.0, 1.1, 1.2, 1.3]
 
-    // Current state for menu
+    // Shared view state, set by ContentView.setupPlayer(). The menubar drives
+    // playback and reads now-playing state through these instead of the old
+    // NotificationCenter bridge; weak so a closing window doesn't keep them alive.
+    weak var radioVM: RadioViewModel?
+    weak var bassPlayer: BASSRadioPlayer?
+
+    // Cached now-playing strings for the menu's Now Playing section, pushed from
+    // ContentView via updateNowPlaying(_:).
     private var currentTrackName: String?
     private var currentArtist: String?
     private var currentShowInfo: String?
-    private var isPlaying: Bool = false
     private var selectedStreamFormat: String {
         get {
             let format = UserDefaults.standard.string(forKey: "lastStreamFormat") ?? "MP3"
@@ -341,7 +340,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil else { return }
         setupMenubarIcon()
         setupStatusMenu()
-        setupObservers()
     }
 
     private func setupMenubarIcon() {
@@ -381,6 +379,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func rebuildMenu() {
         guard let menu = statusMenu else { return }
         menu.removeAllItems()
+
+        let isPlaying = radioVM?.isPlaying ?? false
 
         // Now Playing info (if available)
         if currentTrackName != nil || currentShowInfo != nil {
@@ -441,7 +441,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let audioSubmenu = NSMenu()
 
         let sliderItem = NSMenuItem()
-        sliderItem.view = VolumeSliderView()
+        let sliderView = VolumeSliderView()
+        sliderView.onVolumeChange = { [weak self] volume in
+            self?.bassPlayer?.setMasterVolume(volume)
+        }
+        sliderItem.view = sliderView
         audioSubmenu.addItem(sliderItem)
 
         audioSubmenu.addItem(NSMenuItem.separator())
@@ -511,56 +515,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildMenu()
     }
 
-    private func setupObservers() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleTrackInfoUpdate(_:)),
-            name: .trackInfoUpdated,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handlePlaybackStateChanged(_:)),
-            name: .playbackStateChanged,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleStreamSelectionChanged(_:)),
-            name: .streamSelectionChanged,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleBringWindowToFront(_:)),
-            name: .bringWindowToFront,
-            object: nil
-        )
+    // MARK: - View bridge
+
+    /// Wired by `ContentView.setupPlayer()` so the menubar can drive playback and
+    /// read now-playing state directly — replaces the old NotificationCenter
+    /// command/state bridge.
+    func attach(vm: RadioViewModel, bassPlayer: BASSRadioPlayer) {
+        self.radioVM = vm
+        self.bassPlayer = bassPlayer
     }
 
-    @objc private func handleBringWindowToFront(_ notification: Notification) {
-        showMainWindow()
+    func detach() {
+        radioVM = nil
+        bassPlayer = nil
     }
 
-    @objc private func handleTrackInfoUpdate(_ notification: Notification) {
-        let userInfo = notification.userInfo
-
-        currentTrackName = userInfo?["trackName"] as? String
-        currentArtist = userInfo?["artist"] as? String
-        currentShowInfo = userInfo?["showInfo"] as? String
+    /// Pushed from `ContentView` whenever now-playing changes: caches the strings
+    /// the menu's Now Playing section renders and refreshes the icon tooltip.
+    /// Replaces the old `.trackInfoUpdated` observer.
+    func updateNowPlaying(trackName: String?, artist: String?, showInfo: String?) {
+        currentTrackName = trackName
+        currentArtist = artist
+        currentShowInfo = showInfo
 
         var tooltipLines: [String] = []
-
-        // Mirror track info card - show info regardless of playing state
-        if let track = currentTrackName, !track.isEmpty {
-            tooltipLines.append(track)
-        }
-        if let artist = currentArtist, !artist.isEmpty {
-            tooltipLines.append(artist)
-        }
-        if let show = currentShowInfo, !show.isEmpty {
-            tooltipLines.append(show)
-        }
+        if let track = trackName, !track.isEmpty { tooltipLines.append(track) }
+        if let artist, !artist.isEmpty { tooltipLines.append(artist) }
+        if let show = showInfo, !show.isEmpty { tooltipLines.append(show) }
 
         let newTooltip = tooltipLines.isEmpty ? "UncleStreamus" : tooltipLines.joined(separator: "\n")
         #if DEBUG
@@ -569,40 +550,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem?.button?.toolTip = newTooltip
     }
 
-    @objc private func handlePlaybackStateChanged(_ notification: Notification) {
-        if let playing = notification.userInfo?["isPlaying"] as? Bool {
-            isPlaying = playing
-            #if DEBUG
-            print("📻 Menubar playback state: \(isPlaying ? "playing" : "paused")")
-            #endif
-        }
-    }
-
-    @objc private func handleStreamSelectionChanged(_ notification: Notification) {
-        // Stream format is read directly from UserDefaults via the computed property
-        // This notification is mainly for logging/debugging
-        if let format = notification.userInfo?["format"] as? String {
-            #if DEBUG
-            print("📻 Menubar stream selection: \(format)")
-            #endif
-        }
-    }
-
     @objc private func togglePlayPause() {
-        NotificationCenter.default.post(name: .togglePlayback, object: nil)
+        radioVM?.menubarToggle()
     }
 
     @objc private func stopPlayback() {
-        NotificationCenter.default.post(name: .stopPlayback, object: nil)
+        radioVM?.menubarStop()
     }
 
     @objc private func selectStreamFormat(_ sender: NSMenuItem) {
         guard let format = sender.representedObject as? String else { return }
-        NotificationCenter.default.post(
-            name: .selectStream,
-            object: nil,
-            userInfo: ["format": format]
-        )
+        radioVM?.menubarSelectStream(format)
     }
 
     @objc private func menubarIconClicked(_ sender: NSStatusBarButton) {
@@ -699,11 +657,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Volume Actions
 
     @objc private func handleVolumeUp() {
-        NotificationCenter.default.post(name: .volumeUp, object: nil)
+        bassPlayer?.volumeUp()
     }
 
     @objc private func handleVolumeDown() {
-        NotificationCenter.default.post(name: .volumeDown, object: nil)
+        bassPlayer?.volumeDown()
     }
 
     @objc private func openSettings() {
@@ -727,18 +685,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func showWelcomeSheet() {
-        presentSheet(named: .showWelcomeSheet)
+        presentSheet { [weak self] in self?.radioVM?.menubarShowWelcome() }
     }
 
     @objc private func showWhatsNewSheet() {
-        presentSheet(named: .showWhatsNewSheet)
+        presentSheet { [weak self] in self?.radioVM?.menubarShowWhatsNew() }
     }
 
-    /// Posts a sheet-presentation notification to the live `ContentView`. The sheet
-    /// can only attach to an on-screen window, so ensure the main window is open
-    /// first. When the window was closed it's freshly re-created, so delay the post
-    /// long enough for `ContentView.onAppear` to register its observers.
-    private func presentSheet(named name: Notification.Name) {
+    /// Presents a sheet on the live `ContentView`. The sheet can only attach to an
+    /// on-screen window, so ensure the main window is open first. When the window
+    /// was closed it's freshly re-created, so delay the call long enough for
+    /// `ContentView.onAppear`/`setupPlayer()` to re-attach the view model.
+    private func presentSheet(_ present: @escaping () -> Void) {
         let window = mainWindow
         let alreadyVisible = (window?.isVisible == true) && (window?.isOnActiveSpace == true)
 
@@ -747,14 +705,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         let delay = alreadyVisible ? 0.0 : 0.25
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            NotificationCenter.default.post(name: name, object: nil)
-        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: present)
     }
 
     /// Brings the main window forward without toggling it closed (unlike
     /// `toggleMainWindow`, which hides an already-visible window).
-    private func showMainWindow() {
+    func showMainWindow() {
         if let window = mainWindow {
             if !window.collectionBehavior.contains(.moveToActiveSpace) {
                 window.collectionBehavior.insert(.moveToActiveSpace)

@@ -43,6 +43,24 @@ final class RadioViewModel {
     /// Fired after show state changes — iOS mirrors to CarPlay; macOS no-ops.
     var onShowDidLoad: () -> Void = {}
 
+    // MARK: - Menubar command hooks (macOS)
+    //
+    // The AppKit menubar lives outside SwiftUI and can't reach the view's
+    // @State, so ContentView assigns these in setupPlayer() and the AppDelegate
+    // invokes them — replacing the old NotificationCenter command bridge. Same
+    // side-effect-hook pattern as onNowPlayingShouldUpdate / onShowDidLoad above.
+    #if os(macOS)
+    var menubarToggle: () -> Void = {}
+    var menubarStop: () -> Void = {}
+    var menubarSelectStream: (String) -> Void = { _ in }
+    var menubarShowWelcome: () -> Void = {}
+    var menubarShowWhatsNew: () -> Void = {}
+
+    /// Mirrors the view's `isPlaying` @State so the menubar can render Play/Pause
+    /// and enable Stop at rebuild time without observing a notification.
+    var isPlaying: Bool = false
+    #endif
+
     // MARK: - Track matching
 
     /// Current track's setlist position (see `currentTrackPosition` in ContentViewShared).
