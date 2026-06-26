@@ -158,13 +158,15 @@ re-triggers review for the first public build of that version (build-only bumps 
 
 1. **Audio Playback & Metadata** — `BASSRadioPlayer` (`@Observable`) wraps BASS and handles all 4 formats. Exposes `onMetadataUpdate` callback. `ParsedTrackInfo` regex-parses raw ICY/Vorbis/Icecast strings into structured fields.
 
-2. **Show Data Fetching** — `FZShowsFetcher` takes parsed date/time, scrapes zappateers.com HTML for setlist, venue, acronyms, tour info. Hardcoded exceptions dict for known date mismatches; falls back to `rehearsals.html`.
+2. **Show Data Fetching** — Cache-first. `FZShowsDatabase` (`@Observable` singleton, SwiftData-backed) is the entry point: `fetchShow()` first does a local `lookup()` against cached `CachedFZShow` records and returns immediately on a hit; on a miss it falls back to live scraping via `FZShowsFetcher.fetchShowInfo()` and upserts the result for next time. `FZShowsFetcher` takes parsed date/time, scrapes zappateers.com HTML for setlist, venue, acronyms, tour info, and returns a `Result<FZShow, FetchError>` (so callers can distinguish a real network failure from a genuine not-found — the DB only caches confirmed results, never an unconfirmed miss). Hardcoded exceptions dict for known date mismatches; falls back to `rehearsals.html`. `FZShowsDatabase` can also bulk-`downloadAllPages()` / `refreshStalePages()` to pre-populate the offline cache.
 
-3. **Persistence** — `ShowDataManager` wraps SwiftData. `SavedShow` is the `@Model` with `showDate` as unique identifier (`"YYYY MM DD"`). Setlist entries and acronyms are JSON-encoded into `Data` fields.
+3. **Persistence** — Two SwiftData stores. (a) Listen history/favorites: `ShowDataManager` (`@Observable`, **`@MainActor`-isolated**) wraps SwiftData; `SavedShow` is the `@Model` with `showDate` as unique identifier (`"YYYY MM DD"`), setlist/acronyms JSON-encoded into `Data` fields. (b) Show cache: `FZShowsDatabase` persists `CachedFZShow` (scraped show data, keyed by `showDate` incl. optional `E`/`L` suffix) and `FZShowsPageRecord` (per-page fetch bookkeeping for staleness).
 
-4. **UI** — `ContentView.swift` (macOS) and `ContentView_iOS.swift` (iOS) are separate files. `SidebarView`, `FilterView`, `ShowEntryRow`, `AudioFXView` are shared. Platform conditionals use `#if os(macOS)` / `#if os(iOS)`.
+4. **Shared runtime model** — `RadioViewModel` (`@Observable`) owns the now-playing / show-fetch runtime state that was previously duplicated between the two ContentViews (`currentTrack`, `parsedTrack`, `currentShow`, `currentSetlistPosition`, `isFetchingShowInfo`) and the two methods that drive it (`updateTrackInfo`, `fetchShowInfo`, including the deferred per-show FX reset). Platform side effects (now-playing info, CarPlay mirroring) and the macOS menubar commands are delivered through injected closures the views assign in `setupPlayer()`. `ContentViewShared.swift` holds the pure, platform-neutral helper logic (unit-testable without a SwiftUI host).
 
-5. **App Entry & Menubar** — `UncleStreamusApp.swift` sets up SwiftData `ModelContainer`, registers menubar icon (macOS via `NSStatusBar`), handles `AppDelegate`. Menubar popover and main window communicate via `NotificationCenter`.
+5. **UI** — `ContentView.swift` (macOS) and `ContentView_iOS.swift` (iOS) are separate files. `SidebarView`, `FilterView`, `ShowEntryRow`, `AudioFXView`, `WelcomeView`, `WhatsNewView`, `TransportControlsLayout` are shared. Platform conditionals use `#if os(macOS)` / `#if os(iOS)`.
+
+6. **App Entry & Menubar** — `UncleStreamusApp.swift` sets up SwiftData `ModelContainer`, registers menubar icon (macOS via `NSStatusBar`), handles `AppDelegate`. The AppKit menubar (which can't reach SwiftUI `@State`) drives playback by invoking weak command closures the view assigns on `RadioViewModel` — this replaced the old `NotificationCenter` command bus. iOS CarPlay uses the same closure pattern via `CarPlayBridge` (a singleton the `CarPlaySceneDelegate`, running in its own `UIScene`, reads state from and posts commands to). NotificationCenter now survives only for genuine OS events and the `.refreshShowDatabase` signal.
 
 ### Data Flow Summary
 
@@ -172,8 +174,11 @@ re-triggers review for the first public build of that version (build-only bumps 
 BASS Audio Stream
   → BASSRadioPlayer.pollMetadata() (raw ICY/Vorbis/JSON metadata)
   → ParsedTrackInfo.parse() (structured show/track info via regex)
-  → FZShowsFetcher.fetchShowInfo() (scrape HTML for full setlist)
-  → ShowDataManager.recordListen() (persist via SwiftData)
+  → RadioViewModel.fetchShowInfo() (shared, both platforms)
+      → FZShowsDatabase.fetchShow() (cache-first)
+          → lookup() local CachedFZShow ──hit──▶ return
+          └─miss─▶ FZShowsFetcher.fetchShowInfo() (scrape HTML) → upsert into cache
+  → ShowDataManager.recordListen() (persist listen via SwiftData, @MainActor)
   → UI update (now playing highlight, setlist display, menubar tooltip)
 ```
 
@@ -200,22 +205,33 @@ BASS Audio Stream
     │ (4 formats)  │      │ + AudioFXView (shared)    │
     └───┬──────────┘      └────────┬──────────────────┘
         │                          │
-    (show date/time)       (format selection)
-        │                          │
-    ┌───▼──────────────┐          │
-    │ FZShowsFetcher   │◄─────────┘
-    │ .fetchShowInfo() │ ← HTML scraping, setlist fetch
-    └───┬──────────────┘
-        │
-    ┌───▼──────────────┐
-    │ ShowDataManager  │ ← Persistence, history/favorites
-    │ (@Observable)    │
-    └───┬──────────────┘
-        │
-    ┌───▼──────────┐
-    │ SavedShow     │ ← SwiftData @Model
-    │ (persisted)   │   showDate unique key
-    └───────────────┘
+        └───────────┬──────────────┘ (format selection)
+                    │
+          ┌─────────▼───────────┐
+          │ RadioViewModel      │ ← Shared @Observable runtime state +
+          │ (@Observable)       │   fetch logic; menubar/CarPlay command
+          └─────────┬───────────┘   closures (replaced NotificationCenter)
+                    │ (show date/time)
+          ┌─────────▼───────────┐
+          │ FZShowsDatabase     │ ← Cache-first lookup; bulk page download
+          │ (@Observable, SD)   │   lookup hit → return immediately
+          └────┬───────────┬────┘
+        (hit)  │           │ (miss → live scrape, then upsert)
+    ┌──────────▼───┐   ┌───▼──────────────┐
+    │ CachedFZShow │   │ FZShowsFetcher   │ ← HTML scraping;
+    │ FZShowsPage  │   │ .fetchShowInfo() │   Result<FZShow,FetchError>
+    │ Record (@Mdl)│   └──────────────────┘
+    └──────────────┘
+                    │ (listen recorded)
+          ┌─────────▼───────────┐
+          │ ShowDataManager     │ ← History/favorites (@MainActor)
+          │ (@Observable)       │
+          └─────────┬───────────┘
+                    │
+              ┌─────▼────────┐
+              │ SavedShow    │ ← SwiftData @Model
+              │ (persisted)  │   showDate unique key
+              └──────────────┘
 
 UI Components (Shared):
 ┌─────────────────────────────────────┐
@@ -232,8 +248,9 @@ Platform-Specific:
 │ macOS (ContentView)            │ iOS (ContentView_iOS)            │
 │ • Menubar + main window        │ • NavigationStack layout         │
 │ • NSStatusBar icon             │ • iPhone: settings overlay drawer│
-│ • NotificationCenter comms     │ • iPad: inline sidebars          │
-│ • Media keys (MPRemoteCommand) │ • Lock screen controls           │
+│ • Menubar → VM closures        │ • iPad: inline sidebars          │
+│ • Media keys (MPRemoteCommand) │ • CarPlay via CarPlayBridge      │
+│ • (was NotificationCenter)     │ • Lock screen controls           │
 │ • Scroll wheel bounce effect   │ • Drag bounce gesture            │
 │ • FX panel replaces setlist    │ • FX panel as sheet              │
 │ • Window resizes for FX        │ • TrackInfoView pane             │
@@ -244,8 +261,11 @@ Platform-Specific:
 
 **State Management:**
 - `@State` for local view state, `@AppStorage` for persistent user preferences
-- `ShowDataManager` is `@Observable` global singleton, shared across both platforms
+- `ShowDataManager` is an `@Observable`, **`@MainActor`-isolated** global singleton, shared across both platforms
+- `RadioViewModel` (`@Observable`) holds the shared now-playing/show-fetch runtime state; each ContentView keeps its own `@State` instance and assigns references + side-effect closures onto it in `setupPlayer()`
+- `FZShowsDatabase` is an `@Observable` SwiftData-backed singleton (offline show cache)
 - `@Query` properties on views reactively track SwiftData model changes
+- **Cross-component commands** (menubar → playback on macOS, CarPlay → playback on iOS) use injected closures rather than `NotificationCenter`; the AppKit menubar invokes weak closures on `RadioViewModel`, CarPlay goes through `CarPlayBridge`
 
 **Key AppStorage Keys (both platforms unless noted):**
 - `showInfoExpanded` — setlist expand/collapse state
@@ -262,7 +282,8 @@ Platform-Specific:
 - `isSidebarVisible` — sidebar open state (macOS only)
 - `setlistWasOpenBeforeFX` — macOS: restore setlist after closing FX panel
 - `lastShowDateOnQuit` — date of last show, for FX persistence logic
-- `lastSeenBuild` — last build number (`CFBundleVersion`) for which the "What's New" sheet was shown (iOS); drives once-per-build presentation
+- `lastSeenBuild` — last build number (`CFBundleVersion`) for which the "What's New" sheet was shown (both platforms); drives once-per-build presentation
+- `hasSeenWelcome` — whether the first-launch Welcome sheet has been shown (both platforms)
 
 **Async/Concurrency:**
 - Uses `DispatchQueue` + `URLSession.dataTask` with completion handlers (not async/await)
@@ -298,7 +319,7 @@ Platform-Specific:
 - Falls back to scanning `currentShow.showInfo` HTML for AUD/SBD/FM/STAGE strings
 - Displayed as a blue badge in the track info card
 
-**FX Persistence Logic (in `fetchShowInfo()`, both ContentViews):**
+**FX Persistence Logic (in `RadioViewModel.fetchShowInfo()`, shared by both platforms):**
 - `fxRememberPerShow=true`: `restorePerShowFX(showDate:)` for the show's variant date applies a saved snapshot immediately. If the show has **no** snapshot, the reset to defaults is **deferred to the fetch completion** and only fires once a real show has loaded (`show != nil && !hasPerShowFX(variantDate)`) — so a transient Icecast metadata glitch that never resolves to a real show can't cause an audible mid-song FX dropout. Snapshots saved on every FX change via `saveFXToDefaults()` → `savePerShowFX()`. Covers both across-show and app-restart cases.
 - `fxRememberPerShow=false` + `fxPersistAcrossShows=false`: `resetAllFX()` (default)
 - `fxRememberPerShow=false` + `fxPersistAcrossShows=true`: keep FX settings across shows
@@ -389,7 +410,7 @@ Platform-Specific:
 - Current track highlighting: speaker icon on matching setlist row; handles duplicate song names by advancing through matches
 - Band Info / Official Releases: collapsible footer section; acronyms decoded inline
 - "Track Info (donlope)..." button: looks up current track on donlope.net via `DonlopeIndexCache`
-- "Setlist Info (FZShows)..." button: opens `SetlistInfoPaneView` scrolled to show date
+- "Setlist Info (FZShows)..." button: opens `SetlistInfoView` scrolled to show date
 - Context menu "Report Issue...": opens `BugReportData` → email via `MailComposerView` (iOS) or `openMailClient()` (macOS)
 - Bounce/rubber-band effect: macOS via `ScrollWheelOverlay` (excludes setlist area); iOS via `DragGesture`
 - Swipe left gesture → opens history sidebar (both platforms)
@@ -404,7 +425,7 @@ Platform-Specific:
 - Interruption handling: resumes stream on `AVAudioSession.InterruptionType.ended` with `.shouldResume`
 - App foreground/background transitions (`scenePhase`) trigger `triggerImmediateReconnect()` if user intended to play
 - Bluetooth A2DP allowed for AirPods/headphones
-- **"What's New" sheet:** shown on first launch after a build update (for beta testers). On `.onAppear`, `checkWhatsNew()` (in `ContentView_iOS`) compares `ReleaseNotes.currentBuild` (`CFBundleVersion`) against `@AppStorage("lastSeenBuild")`. First-ever install records the build silently (no sheet); a changed build with non-empty notes presents `WhatsNewView` as a detented sheet, then records the build. Notes come from the bundled `ReleaseNotes.json` generated at build time by `Scripts/generate_release_notes.sh` (a Run Script phase on the iOS target, ordered after Copy Bundle Resources, `alwaysOutOfDate` so it runs every build). The script categorizes commit subjects since the latest git tag exactly like `release.yml`. Missing/empty notes → no sheet (never blocks launch). Also re-openable on demand via **Settings → Credits → "View release notes"** (iOS-only section in `CreditsView`, hidden when no bundled notes). macOS reuse is possible (view is platform-neutral) but not yet wired.
+- **"Welcome" + "What's New" sheets (both platforms):** The launch-sheet decision lives in shared logic (`ContentViewShared.swift`) and is called on `.onAppear` by `checkWhatsNew()` in each ContentView, returning one of: show Welcome, show What's New, or nothing. **Welcome** (`WelcomeView`) is shown once on a fresh install (gated by `@AppStorage("hasSeenWelcome")`), introducing the four stream formats. **What's New** (`WhatsNewView`) is shown on first launch after a build update: the decision compares `ReleaseNotes.currentBuild` (`CFBundleVersion`) against `@AppStorage("lastSeenBuild")`; a first-ever install records the build silently (Welcome covers that case), a changed build with non-empty notes presents the detented sheet, then records the build. Notes come from the bundled `ReleaseNotes.json` generated at build time by `Scripts/generate_release_notes.sh` (a Run Script phase, ordered after Copy Bundle Resources, `alwaysOutOfDate` so it runs every build). The script categorizes commit subjects since the latest git tag exactly like `release.yml`. Missing/empty notes → no sheet (never blocks launch). Both sheets are wired on **macOS and iOS** (the views are platform-neutral). What's New is also re-openable on demand via **Settings → Credits → "View release notes"** (hidden when no bundled notes).
 
 **macOS-Specific UI:**
 - Menubar popover (`NSStatusBar` + `NSPopover`); menubar icon shows tooltip with current track
@@ -415,8 +436,8 @@ Platform-Specific:
 - `ScrollWheelOverlay`: tracks scroll events, triggers bounce animation on non-setlist areas
 - Media keys support via `MPRemoteCommandCenter` (play/pause/toggle on F8 key)
 - Now Playing: title = track, artist = artist name, album = "Date • Venue"
-- Menubar observers via `NotificationCenter`: `togglePlayback`, `stopPlayback`, `selectStream`, `volumeUp`, `volumeDown`, `setVolume`
-- Reconnects on `NSApplication.didBecomeActiveNotification` and `NSWorkspace.didWakeNotification`
+- Menubar commands invoke weak closures the view assigns on `RadioViewModel` (`menubarTogglePlayback`, `menubarStop`, `menubarSelectStream`, volume, `menubarShowWelcome`, …) — the AppDelegate holds the references and calls them; this replaced the old `NotificationCenter` menubar bus. The AppDelegate also reads now-playing state directly off the model.
+- Reconnects on `NSApplication.didBecomeActiveNotification` and `NSWorkspace.didWakeNotification` (genuine OS events still use `NotificationCenter`)
 
 **Tour/Geo Data:**
 - `GeoData` (in `TourPeriods.swift`) maps tour periods to zappateers.com HTML filenames
@@ -434,11 +455,21 @@ Platform-Specific:
 | `BASSRadioPlayer+AudioFX.swift` | DSP pipeline — `applyEffects()`, EQ, adaptive compressor, stereo M/S + freq-spreading + APF mono synthesis, soft limiter, click guard, `flushEffects()`, `resetAllFX()`, `savePerShowFX()`/`restorePerShowFX()`, `PerShowFXSync`, `masterBypassEnabled` |
 | `BASSRadioPlayer+DVR.swift` | DVR ring buffer (both platforms) — `dvrPause()`, `dvrResume()`, `dvrPausePlayback()`, `goLive()`, `handleDVRStreamEnd()`, `behindLiveSeconds`, `updateDVRBufferSize()`, recording DSP |
 | `ParsedTrackInfo.swift` | Metadata parsing (4 formats), date/location/track extraction via regex |
-| `FZShowsFetcher.swift` | HTML scraping for zappateers.com setlists, exceptions dict, fallback to rehearsals.html |
-| `ShowDataManager.swift` | SwiftData persistence — `@Observable` singleton, `recordListen()`, history/favorites queries, `toggleFavorite()` |
+| `FZShowsFetcher.swift` | Live HTML scraping for zappateers.com setlists — `fetchShowInfo()` returns `Result<FZShow, FetchError>` (`.network`/`.showNotFound`/`.invalidURL`/`.noData`), exceptions dict, fallback to rehearsals.html |
+| `FZShowsDatabase.swift` | `@Observable` SwiftData-backed offline show cache — cache-first `lookup()`/`fetchShow()`, bulk `downloadAllPages()`, `refreshStalePages()`, `upsert()`; falls back to `FZShowsFetcher` on a miss and caches confirmed results |
+| `CachedFZShow.swift` | SwiftData `@Model` for a cached scraped show (keyed by `showDate` incl. optional E/L); `toFZShow()` |
+| `FZShowsPageRecord.swift` | SwiftData `@Model` for per-page fetch bookkeeping (filename, `lastFetchedAt`, `showCount`) driving staleness |
+| `RadioViewModel.swift` | Shared `@Observable` runtime state (now-playing/show-fetch) + `updateTrackInfo`/`fetchShowInfo`; menubar (macOS) + CarPlay/now-playing side-effect closures injected by each view |
+| `ContentViewShared.swift` | Pure, platform-neutral logic shared by both ContentViews (variant-date, FX restore plan, launch-sheet decision, current-track matching, inferred artist); unit-tested without a SwiftUI host |
+| `ShowDataManager.swift` | SwiftData persistence — `@Observable`, **`@MainActor`** singleton, `recordListen()`, history/favorites queries, `toggleFavorite()` |
 | `SavedShow.swift` | SwiftData `@Model` — unique key `showDate` ("YYYY MM DD"); setlist/acronyms as JSON `Data` |
-| `ContentView.swift` | macOS main window — track info card, show info section, FX panel (inline), DVR controls, menubar observers, `DraggableDivider`, `ScrollWheelOverlay` |
-| `ContentView_iOS.swift` | iOS/iPadOS — NavigationStack, iPhone overlay + iPad inline sidebars, DVR controls, sheet-based FX/settings, lock screen integration |
+| `ContentView.swift` | macOS main window — track info card, show info section, FX panel (inline), DVR controls, menubar command closures, `DraggableDivider`, `ScrollWheelOverlay` |
+| `ContentView_iOS.swift` | iOS/iPadOS — NavigationStack, iPhone overlay + iPad inline sidebars, DVR controls, sheet-based FX/settings, lock screen integration, CarPlay bridge sync |
+| `CarPlayBridge.swift` / `CarPlaySceneDelegate.swift` | iOS CarPlay — singleton state/command bridge between `ContentView_iOS` and the CarPlay `UIScene` (templates render from mirrored state; commands invoke injected closures) |
+| `TransportControlsLayout.swift` | Shared proportional transport-row layout (`ProportionalHStack` + per-subview weights) |
+| `ExportFormatter.swift` | Formats a show as shareable/exportable text |
+| `StoreProtection.swift` | Guards the SwiftData history store against CloudKit zone-reset data loss; safe before the `ModelContainer` opens |
+| `WelcomeView.swift` | Shared first-launch Welcome sheet — introduces the four stream formats (static content) |
 | `AudioFXView.swift` | Shared FX panel — `VerticalEQSlider` (iOS: relative drag + haptics; macOS: absolute), `FXHorizontalSlider`, `StereoWidthSlider`, `StereoPanSlider`, `EQScaleView`; Canvas-based rendering |
 | `SidebarView.swift` | Shared history/favorites — collapsible time periods (Day/Week/Month/Year), search/filter integration |
 | `FilterView.swift` | Tag-based filtering (tour, year, location) — leverages `GeoData` |
@@ -448,10 +479,10 @@ Platform-Specific:
 | `MarqueeText.swift` | Animated scrolling text for long track titles (macOS) |
 | `ReleaseNotes.swift` | Codable model + loader for bundled `ReleaseNotes.json` (`loadBundled()`, `currentBuild`); drives the "What's New" sheet |
 | `WhatsNewView.swift` | Shared "What's New" sheet UI — New/Improved/Fixed sections (hidden when empty), version header, Continue button |
-| `Scripts/generate_release_notes.sh` | Build-phase script: writes `ReleaseNotes.json` into the iOS app bundle from git commit subjects (same `Add:`/`Improve:`/`Fix:` categories as release.yml), but **filters out backend/dev commits** (scoped backend commits + a keyword denylist) so the tester-facing sheet shows only user-level changes |
+| `Scripts/generate_release_notes.sh` | Build-phase script: writes `ReleaseNotes.json` into the app bundle from git commit subjects (same `Add:`/`Improve:`/`Fix:` categories as release.yml), but **filters out backend/dev commits** (scoped backend commits + a keyword denylist) so the tester-facing sheet shows only user-level changes |
 | `StreamBuffer.swift` | Rolling WAV segment ring buffer for DVR (both platforms) — 16-bit PCM, 44.1 kHz stereo, 15 × 60s segments |
 | `DonlopeIndexCache.swift` | Async cache for donlope.net track URL lookups |
-| `SetlistInfoPaneView.swift` | Sheet that loads zappateers.com show page and scrolls to the show date |
+| `SetlistInfoView.swift` | Sheet that loads zappateers.com show page and scrolls to the show date |
 | `TrackInfoView.swift` | iOS inline pane showing donlope track info with Safari link |
 | `BugReportData.swift` / `MailComposerView.swift` | Bug reporting via email — captures show/track/metadata context |
 | Shared utilities | `Acronym.swift`, `Stream.swift`, `PlatformHelpers.swift`, `SongFormatter.swift`, `ScaledFont.swift` |
@@ -462,16 +493,16 @@ Platform-Specific:
 ### Finding Key Code
 
 - **Stream metadata parsing:** `ParsedTrackInfo.parse()` — all format variations
-- **Show data fetching:** `FZShowsFetcher.fetchShowInfo()` — update `tourFilenames` when tours change
+- **Show data fetching:** `RadioViewModel.fetchShowInfo()` → `FZShowsDatabase.fetchShow()` (cache-first) → `FZShowsFetcher.fetchShowInfo()` on a miss — update `tourFilenames` when tours change
 - **Audio playback:** `BASSRadioPlayer` + extensions
 - **FX pipeline:** `BASSRadioPlayer+AudioFX.swift` — `applyEffects()` and DSP callbacks
 - **DVR logic:** `BASSRadioPlayer+DVR.swift` — state machine, recording, playback
-- **Data persistence:** `ShowDataManager` — `recordListen()`, `@Query` properties
+- **Data persistence:** `ShowDataManager` — `recordListen()`, `@Query` properties (history); `FZShowsDatabase` — show cache
 - **UI state:** `ShowDataManager.uiState` — now-playing selection and highlight
-- **Menubar (macOS):** `UncleStreamusApp.setupMenubar()` — icon and popover setup
+- **Menubar (macOS):** `UncleStreamusApp.setupMenubar()` — icon and popover setup; commands via `RadioViewModel` closures
 - **Media controls (both):** `ContentView` / `ContentView_iOS` → `setupRemoteCommandCenter()`
-- **FX persistence:** `fetchShowInfo()` in both ContentViews — `fxRememberPerShow` (per-show snapshots) / `fxPersistAcrossShows` logic
-- **Track position matching:** `findCurrentTrackPosition()` — handles duplicate song names
+- **FX persistence:** `RadioViewModel.fetchShowInfo()` — `fxRememberPerShow` (per-show snapshots) / `fxPersistAcrossShows` logic
+- **Track position matching:** `findCurrentTrackPosition()` (in `ContentViewShared.swift`) — handles duplicate song names
 - **iOS layout:** `ContentView_iOS.body` — iPad inline sidebar vs iPhone overlay via `horizontalSizeClass`
 
 ### Common Tasks
@@ -528,12 +559,14 @@ Memory files track architectural decisions across Claude Code sessions:
 
 ### Testing Strategy
 
-**Unit test suite** (`UncleStreamusTests/`, macOS only, 188 tests as of Mar 2026):
+**Unit test suite** (`UncleStreamusTests/`, macOS only, ~245 tests as of Jun 2026):
 - `ParsedTrackInfoTests` — 4 metadata formats, `tracksMatch`, `normalizeTrackName`, `normalizePluralForm`
 - `TourMappingTests` — tour boundaries, gap years, `GeoData.parseLocation`, `GeoData.periodName`, state/province sets
 - `ShowTimeFetcherTests` — `ShowTime` enum, exceptions dict, `decodeHTMLEntities`, `parseSetlist`, `parseShowFromHTML` with mock HTML
 - `SavedShowTests` — `SavedShow.from()`, computed properties, corrupt-data fallbacks, `toFZShow()` round-trip
 - `StreamBufferTests` — `init` clamping, `bufferedDuration` formula, WAV header validation, `updateMaxSegments`
+- `ContentViewSharedTests` — shared pure logic from `ContentViewShared.swift`: `variantDate`, FX restore-plan decisions, the Welcome/What's-New launch-sheet decision, current-track-position matching (incl. duplicates), inferred-artist eras
+- `FZShowsImportTests` — `FZShowsDatabase` page-import parsing across every tour-period page (66–69 … orchestral/unreleased/rehearsals)
 
 All tests cover pure/stateless business logic. `BASSRadioPlayer` has no unit tests (requires audio hardware).
 
