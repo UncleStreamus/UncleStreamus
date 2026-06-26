@@ -53,36 +53,44 @@ final class ShowTimeFetcherTests: XCTestCase {
 
     // MARK: - FZShowsFetcher.exceptions
 
+    // The dict is keyed by base date only; Early/Late section keywords are derived
+    // at lookup via `sectionKeywords(for:)`. These assertions mirror the resolution
+    // the old per-suffix keys used to encode directly.
+
     func testException_1972_12_31_searchDate() {
         let exc = FZShowsFetcher.exceptions["1972 12 31"]
         XCTAssertNotNil(exc)
         XCTAssertEqual(exc?.searchDate, "1972 11 11")
     }
 
-    func testException_1972_12_31_noSectionKeywords() {
+    func testException_1972_12_31_earlyLateKeywords() {
         let exc = FZShowsFetcher.exceptions["1972 12 31"]
-        XCTAssertNil(exc?.sectionKeywords)
+        XCTAssertNil(exc?.sectionKeywords(for: .none))
+        XCTAssertEqual(exc?.sectionKeywords(for: .early), ["Early"])
+        XCTAssertEqual(exc?.sectionKeywords(for: .late), ["Late"])
     }
 
-    func testException_1970_11_13_E_sectionKeywords() {
-        let exc = FZShowsFetcher.exceptions["1970 11 13 E"]
-        XCTAssertEqual(exc?.sectionKeywords, ["Tape 1"])
+    func testException_1970_11_13_tapeKeywords() {
+        let exc = FZShowsFetcher.exceptions["1970 11 13"]
+        // No E/L designation defaults to Tape 1.
+        XCTAssertEqual(exc?.sectionKeywords(for: .none), ["Tape 1"])
+        XCTAssertEqual(exc?.sectionKeywords(for: .early), ["Tape 1"])
+        XCTAssertEqual(exc?.sectionKeywords(for: .late), ["Tape 2"])
     }
 
-    func testException_1970_11_14_L_sectionKeywords() {
-        let exc = FZShowsFetcher.exceptions["1970 11 14 L"]
-        XCTAssertEqual(exc?.sectionKeywords, ["Tape 2"])
-    }
-
-    func testException_1970_11_13_L_sectionKeywords() {
-        let exc = FZShowsFetcher.exceptions["1970 11 13 L"]
-        XCTAssertEqual(exc?.sectionKeywords, ["Tape 2"])
+    func testException_1970_11_14_tapeKeywords() {
+        let exc = FZShowsFetcher.exceptions["1970 11 14"]
+        XCTAssertEqual(exc?.sectionKeywords(for: .early), ["Tape 1"])
+        XCTAssertEqual(exc?.sectionKeywords(for: .late), ["Tape 2"])
     }
 
     func testException_1970_05_08_searchDate() {
         let exc = FZShowsFetcher.exceptions["1970 05 08"]
         XCTAssertEqual(exc?.searchDate, "1970 05 08 or 09")
-        XCTAssertNil(exc?.sectionKeywords)
+        // No split — every show time resolves to no keyword filter.
+        XCTAssertNil(exc?.sectionKeywords(for: .none))
+        XCTAssertNil(exc?.sectionKeywords(for: .early))
+        XCTAssertNil(exc?.sectionKeywords(for: .late))
     }
 
     func testException_1970_05_09_searchDate() {
@@ -97,6 +105,27 @@ final class ShowTimeFetcherTests: XCTestCase {
     func testException_1972_12_12_wrongDate() {
         let exc = FZShowsFetcher.exceptions["1972 12 12"]
         XCTAssertEqual(exc?.searchDate, "1972 12 09")
+        XCTAssertEqual(exc?.sectionKeywords(for: .early), ["Early"])
+    }
+
+    // Suffixed keys no longer exist — only base dates are stored.
+    func testException_suffixedKeysAbsent() {
+        XCTAssertNil(FZShowsFetcher.exceptions["1972 12 31 E"])
+        XCTAssertNil(FZShowsFetcher.exceptions["1970 11 13 L"])
+    }
+
+    // A non-split exception produces only its bare metadata key; a split one
+    // produces bare + E + L.
+    func testMetadataVariants_noSplit() {
+        let exc = FZShowsFetcher.exceptions["1970 05 08"]
+        let keys = exc?.metadataVariants(baseDate: "1970 05 08").map(\.key)
+        XCTAssertEqual(keys, ["1970 05 08"])
+    }
+
+    func testMetadataVariants_split() {
+        let exc = FZShowsFetcher.exceptions["1972 12 31"]
+        let keys = exc?.metadataVariants(baseDate: "1972 12 31").map(\.key)
+        XCTAssertEqual(keys, ["1972 12 31", "1972 12 31 E", "1972 12 31 L"])
     }
 
     // MARK: - String.decodeHTMLEntities

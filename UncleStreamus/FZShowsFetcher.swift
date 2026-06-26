@@ -108,48 +108,82 @@ class FZShowsFetcher {
     }()
 
     // MARK: - Exceptions Dictionary
-    // Maps (metadata_date, showTime) -> (search_date, section_keywords)
-    // For shows where the HTML structure doesn't match standard patterns
+    // Maps a base metadata date -> (search_date, section split) for shows where the
+    // HTML structure doesn't match standard patterns. Keyed by base date ONLY; the
+    // Early/Late variants and their section keywords are derived at lookup time via
+    // `sectionKeywords(for:)` / `metadataVariants(baseDate:)`.
+
+    /// How an exception's show splits into sections, and which keywords pick each one.
+    enum SectionSplit {
+        /// No Early/Late split — every `ShowTime` resolves to no keyword filter.
+        case none
+        /// Standard split: `.early` → ["Early"], `.late` → ["Late"], `.none` → nil.
+        case earlyLate
+        /// Non-standard split (e.g. "Tape 1"/"Tape 2"). `none` is the keyword used
+        /// when no Early/Late is specified.
+        case custom(none: [String]?, early: [String], late: [String])
+    }
 
     struct ShowException {
         let searchDate: String          // Date to search for in HTML (may differ from metadata)
-        let sectionKeywords: [String]?  // Keywords to find the right section (e.g., "Tape 2", "Late")
         let altFilename: String?        // Alternative filename if not on standard tour page
+        let split: SectionSplit         // How the show splits into Early/Late sections
+
+        /// Keywords used to locate the correct section for a given show time.
+        func sectionKeywords(for showTime: ShowTime) -> [String]? {
+            switch split {
+            case .none:
+                return nil
+            case .earlyLate:
+                switch showTime {
+                case .none:  return nil
+                case .early: return ["Early"]
+                case .late:  return ["Late"]
+                }
+            case .custom(let none, let early, let late):
+                switch showTime {
+                case .none:  return none
+                case .early: return early
+                case .late:  return late
+                }
+            }
+        }
+
+        /// The metadata date keys this exception produces, paired with their show time.
+        /// Split shows produce bare + " E" + " L" variants; non-split shows only the bare key.
+        func metadataVariants(baseDate: String) -> [(key: String, showTime: ShowTime)] {
+            switch split {
+            case .none:
+                return [(baseDate, .none)]
+            case .earlyLate, .custom:
+                return [(baseDate, .none), ("\(baseDate) E", .early), ("\(baseDate) L", .late)]
+            }
+        }
     }
 
     static let exceptions: [String: ShowException] = [
         // === 1970 11 13/14 Fillmore East ===
-        // Uncertain dates, listed as "1970 11 13 and/or 14" with "Tape 1" / "Tape 2" sections
-        "1970 11 13 E": ShowException(searchDate: "1970 11 13 and/or 14", sectionKeywords: ["Tape 1"], altFilename: nil),
-        "1970 11 13 L": ShowException(searchDate: "1970 11 13 and/or 14", sectionKeywords: ["Tape 2"], altFilename: nil),
-        "1970 11 14 E": ShowException(searchDate: "1970 11 13 and/or 14", sectionKeywords: ["Tape 1"], altFilename: nil),
-        "1970 11 14 L": ShowException(searchDate: "1970 11 13 and/or 14", sectionKeywords: ["Tape 2"], altFilename: nil),
-        // Without E/L designation, default to Tape 1
-        "1970 11 13": ShowException(searchDate: "1970 11 13 and/or 14", sectionKeywords: ["Tape 1"], altFilename: nil),
-        "1970 11 14": ShowException(searchDate: "1970 11 13 and/or 14", sectionKeywords: ["Tape 1"], altFilename: nil),
+        // Uncertain dates, listed as "1970 11 13 and/or 14" with "Tape 1" / "Tape 2"
+        // sections; without an E/L designation, default to Tape 1.
+        "1970 11 13": ShowException(searchDate: "1970 11 13 and/or 14", altFilename: nil,
+                                    split: .custom(none: ["Tape 1"], early: ["Tape 1"], late: ["Tape 2"])),
+        "1970 11 14": ShowException(searchDate: "1970 11 13 and/or 14", altFilename: nil,
+                                    split: .custom(none: ["Tape 1"], early: ["Tape 1"], late: ["Tape 2"])),
 
         // === 1970 05 08/09 Fillmore East ===
         // Listed as "1970 05 08 or 09"
-        "1970 05 08": ShowException(searchDate: "1970 05 08 or 09", sectionKeywords: nil, altFilename: nil),
-        "1970 05 09": ShowException(searchDate: "1970 05 08 or 09", sectionKeywords: nil, altFilename: nil),
+        "1970 05 08": ShowException(searchDate: "1970 05 08 or 09", altFilename: nil, split: .none),
+        "1970 05 09": ShowException(searchDate: "1970 05 08 or 09", altFilename: nil, split: .none),
 
         // === 1972 date confusions ===
         // Some recordings circulate with wrong dates
-        "1972 12 31": ShowException(searchDate: "1972 11 11", sectionKeywords: nil, altFilename: nil),  // Wrong date, actually 11 11
-        "1972 12 31 E": ShowException(searchDate: "1972 11 11", sectionKeywords: ["Early"], altFilename: nil),
-        "1972 12 31 L": ShowException(searchDate: "1972 11 11", sectionKeywords: ["Late"], altFilename: nil),
-        "1972 12 12": ShowException(searchDate: "1972 12 09", sectionKeywords: nil, altFilename: nil),  // Wrong date, actually 12 09
-        "1972 12 12 E": ShowException(searchDate: "1972 12 09", sectionKeywords: ["Early"], altFilename: nil),
-        "1972 12 12 L": ShowException(searchDate: "1972 12 09", sectionKeywords: ["Late"], altFilename: nil),
+        "1972 12 31": ShowException(searchDate: "1972 11 11", altFilename: nil, split: .earlyLate),  // Wrong date, actually 11 11
+        "1972 12 12": ShowException(searchDate: "1972 12 09", altFilename: nil, split: .earlyLate),  // Wrong date, actually 12 09
 
         // === 1973 11 23 Massey Hall, Toronto ===
         // Circulates as "Toronto 11 24" and "Edmonton 11 26"; zappateers notes both as wrong dates
-        "1973 11 24": ShowException(searchDate: "1973 11 23", sectionKeywords: nil, altFilename: nil),
-        "1973 11 24 E": ShowException(searchDate: "1973 11 23", sectionKeywords: ["Early"], altFilename: nil),
-        "1973 11 24 L": ShowException(searchDate: "1973 11 23", sectionKeywords: ["Late"], altFilename: nil),
-        "1973 11 26": ShowException(searchDate: "1973 11 23", sectionKeywords: nil, altFilename: nil),
-        "1973 11 26 E": ShowException(searchDate: "1973 11 23", sectionKeywords: ["Early"], altFilename: nil),
-        "1973 11 26 L": ShowException(searchDate: "1973 11 23", sectionKeywords: ["Late"], altFilename: nil),
+        "1973 11 24": ShowException(searchDate: "1973 11 23", altFilename: nil, split: .earlyLate),
+        "1973 11 26": ShowException(searchDate: "1973 11 23", altFilename: nil, split: .earlyLate),
     ]
 
     // MARK: - Tour Page Mapping
@@ -203,31 +237,19 @@ class FZShowsFetcher {
             return
         }
 
-        // Check for exceptions
-        let exceptionKey = showTime == .none ? baseDate : "\(baseDate) \(showTime == .early ? "E" : "L")"
-        let exception = exceptions[exceptionKey] ?? exceptions[baseDate]
+        // Check for exceptions (keyed by base date; E/L keywords derived at lookup)
+        let exception = exceptions[baseDate]
+        let searchDate = exception?.searchDate ?? baseDate
+        let sectionKeywords = exception?.sectionKeywords(for: showTime)
 
-        let searchDate: String
-        let sectionKeywords: [String]?
-
-        if let exc = exception {
-            searchDate = exc.searchDate
-            sectionKeywords = exc.sectionKeywords
-            #if DEBUG
+        #if DEBUG
+        if exception != nil {
             print("📋 Using exception mapping: \(baseDate) -> \(searchDate)")
-            #endif
-        } else {
-            searchDate = baseDate
-            sectionKeywords = nil
         }
+        #endif
 
         // Determine filename
-        let filename: String?
-        if let exc = exception, let altFile = exc.altFilename {
-            filename = altFile
-        } else {
-            filename = getTourPageFilename(year: year, month: month)
-        }
+        let filename = exception?.altFilename ?? getTourPageFilename(year: year, month: month)
 
         guard let primaryFilename = filename else {
             completion(nil)
@@ -815,34 +837,32 @@ class FZShowsFetcher {
         }
 
         // Step 2: Exception mappings — import under metadata date keys so lookup needs no translation
-        for (metadataDateKey, exc) in exceptions {
+        for (baseDate, exc) in exceptions {
             // Determine which page this exception belongs to
-            let stripped = metadataDateKey.hasSuffix(" E") || metadataDateKey.hasSuffix(" L")
-                ? String(metadataDateKey.dropLast(2)) : metadataDateKey
-            let parts = stripped.components(separatedBy: " ")
+            let parts = baseDate.components(separatedBy: " ")
             guard parts.count >= 3, let year = Int(parts[0]), let month = Int(parts[1]) else { continue }
 
             let expectedFilename = exc.altFilename ?? getTourPageFilename(year: year, month: month)
             guard expectedFilename == filename else { continue }
 
-            let showTime: ShowTime = metadataDateKey.hasSuffix(" E") ? .early
-                                   : metadataDateKey.hasSuffix(" L") ? .late : .none
-            let baseDate = parts.prefix(3).joined(separator: " ")
+            // Expand the base date into its metadata variants (bare + E/L when split).
+            for variant in exc.metadataVariants(baseDate: baseDate) {
+                guard let parsed = parseShowFromHTML(html: html, filename: filename,
+                                                     searchDate: exc.searchDate, originalDate: baseDate,
+                                                     showTime: variant.showTime,
+                                                     sectionKeywords: exc.sectionKeywords(for: variant.showTime),
+                                                     url: url) else { continue }
 
-            guard let parsed = parseShowFromHTML(html: html, filename: filename,
-                                                 searchDate: exc.searchDate, originalDate: baseDate,
-                                                 showTime: showTime, sectionKeywords: exc.sectionKeywords,
-                                                 url: url) else { continue }
-
-            // Build a show with the metadata date key so DB lookup needs no exceptions dict
-            let metadataShow = FZShow(
-                date: metadataDateKey,
-                venue: parsed.venue, soundcheck: parsed.soundcheck, note: parsed.note,
-                showInfo: parsed.showInfo, setlist: parsed.setlist, acronyms: parsed.acronyms,
-                url: parsed.url, city: parsed.city, state: parsed.state, country: parsed.country,
-                period: parsed.period, tour: parsed.tour, bandInfo: parsed.bandInfo
-            )
-            shows.append(metadataShow)
+                // Build a show with the metadata date key so DB lookup needs no exceptions dict
+                let metadataShow = FZShow(
+                    date: variant.key,
+                    venue: parsed.venue, soundcheck: parsed.soundcheck, note: parsed.note,
+                    showInfo: parsed.showInfo, setlist: parsed.setlist, acronyms: parsed.acronyms,
+                    url: parsed.url, city: parsed.city, state: parsed.state, country: parsed.country,
+                    period: parsed.period, tour: parsed.tour, bandInfo: parsed.bandInfo
+                )
+                shows.append(metadataShow)
+            }
         }
 
         return shows
