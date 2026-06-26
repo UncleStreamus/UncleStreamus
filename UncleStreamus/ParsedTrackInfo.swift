@@ -44,6 +44,10 @@ struct ParsedTrackInfo {
         ["Eric Dolphy Memorial Barbecue", "The Eric Dolphy Memorial Barbecue"],
     ]
 
+    /// Combined source-type tokens (e.g. "SBD-AUD"), checked before single sources.
+    /// Used as a `.regularExpression` search pattern in `parse()`.
+    static let combinedSourcePattern = #"(SBD-AUD|AUD-SBD|SBD-FM|FM-SBD|AUD-FM|FM-AUD)"#
+
     /// Normalizes a track name for display purposes
     static func normalizeTrackName(_ name: String?) -> String? {
         guard let name = name else { return nil }
@@ -199,8 +203,7 @@ struct ParsedTrackInfo {
                 
                 // Check for combined sources first (e.g., "SBD-AUD", "AUD-SBD")
                 // Then fall back to single sources
-                let combinedSourcePattern = #"(SBD-AUD|AUD-SBD|SBD-FM|FM-SBD|AUD-FM|FM-AUD)"#
-                if let combinedMatch = bracketContent.range(of: combinedSourcePattern, options: .regularExpression) {
+                if let combinedMatch = bracketContent.range(of: Self.combinedSourcePattern, options: .regularExpression) {
                     source = String(bracketContent[combinedMatch])
                 } else {
                     let sources = ["AUD", "SBD", "FM", "STAGE"]
@@ -305,8 +308,7 @@ struct ParsedTrackInfo {
             // Check for combined sources first (e.g., "SBD-AUD", "AUD-SBD")
             // Then fall back to single sources
             let fullTitleUpper = title.uppercased()
-            let combinedSourcePattern = #"(SBD-AUD|AUD-SBD|SBD-FM|FM-SBD|AUD-FM|FM-AUD)"#
-            if let combinedRange = fullTitleUpper.range(of: combinedSourcePattern, options: .regularExpression) {
+            if let combinedRange = fullTitleUpper.range(of: Self.combinedSourcePattern, options: .regularExpression) {
                 source = String(fullTitleUpper[combinedRange])
             } else {
                 let sources = ["AUD", "SBD", "FM", "STAGE"]
@@ -344,6 +346,78 @@ struct ParsedTrackInfo {
             year: year,
             trackDuration: trackDuration,
             rawTitle: title
+        )
+    }
+}
+
+// MARK: - Derived / Merge Helpers
+
+extension ParsedTrackInfo {
+    /// The artist to display: the metadata's artist if present, otherwise inferred
+    /// from the show date (Mothers of Invention pre-1975, Bongo Fury Jan–May 1975,
+    /// Frank Zappa from June 1975 on).
+    var inferredArtist: String {
+        if let artist = artist, !artist.isEmpty {
+            return artist
+        }
+
+        guard let dateStr = date else { return "Frank Zappa" }
+
+        let parts = dateStr.components(separatedBy: " ")
+        guard parts.count >= 2,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]) else {
+            return "Frank Zappa"
+        }
+
+        // The Mothers of Invention era: 1966 through 1974
+        if year < 1975 {
+            return "The Mothers of Invention"
+        }
+
+        // Bongo Fury era: Jan-May 1975
+        if year == 1975 && month <= 5 {
+            return "Zappa / Beefheart / Mothers"
+        }
+
+        // Frank Zappa era: June 1975 onwards
+        return "Frank Zappa"
+    }
+
+    /// Merges a freshly-parsed update with the previous track info. For FLAC the
+    /// Vorbis short title arrives first (trackName only, date == nil); preserving
+    /// the previous show metadata keeps date/location/artist visible so the UI
+    /// doesn't flash mid-show. When the track number changes the preserved
+    /// duration is cleared so the new Icecast duration is used.
+    static func merged(new newParsed: ParsedTrackInfo, previous old: ParsedTrackInfo?) -> ParsedTrackInfo {
+        guard newParsed.date == nil, let old = old else { return newParsed }
+
+        let trackNumberChanged = newParsed.trackNumber != nil && newParsed.trackNumber != old.trackNumber
+        let preservedDuration = trackNumberChanged ? nil : (newParsed.trackDuration ?? old.trackDuration)
+
+        return ParsedTrackInfo(
+            date: old.date, showTime: old.showTime,
+            city: old.city, state: old.state,
+            showDuration: old.showDuration, source: old.source,
+            generation: old.generation, creator: old.creator,
+            artist: old.artist, trackNumber: newParsed.trackNumber ?? old.trackNumber,
+            trackName: newParsed.trackName, year: newParsed.year,
+            trackDuration: preservedDuration, rawTitle: newParsed.rawTitle
+        )
+    }
+
+    /// Returns a copy with city/state filled in from a fetched show when the
+    /// metadata lacked them. Returns `self` unchanged when both are already set.
+    func fillingLocation(city fallbackCity: String?, state fallbackState: String?) -> ParsedTrackInfo {
+        guard city == nil || state == nil else { return self }
+        return ParsedTrackInfo(
+            date: date, showTime: showTime,
+            city: city ?? fallbackCity, state: state ?? fallbackState,
+            showDuration: showDuration, source: source,
+            generation: generation, creator: creator,
+            artist: artist, trackNumber: trackNumber,
+            trackName: trackName, year: year,
+            trackDuration: trackDuration, rawTitle: rawTitle
         )
     }
 }

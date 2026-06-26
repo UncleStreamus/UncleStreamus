@@ -22,6 +22,26 @@ enum PlaybackState: Equatable {
     case error(Int32)
 }
 
+// MARK: - BASS Audio Constants
+
+/// Centralized BASS engine constants that were previously repeated as literals
+/// across the playback/DVR/init paths. Same values, named once — no behavior change.
+enum BASSConfig {
+    /// Mixer sample rate (Hz). Matches the stream/output sample rate.
+    static let sampleRate: DWORD = 44100
+    /// Stereo channel count for the mixers.
+    static let channels: DWORD = 2
+    /// Network download buffer (ms) for normal streams.
+    static let netBufferMs: DWORD = 25000
+    /// Larger network buffer (ms) used while creating the FLAC stream.
+    static let netBufferMsFLAC: DWORD = 30000
+    /// Default network read timeout (ms).
+    static let netTimeoutMs: DWORD = 10000
+    /// Short network timeout (ms) used so a stalled read fails fast instead of
+    /// blocking the polling queue for the full default.
+    static let netTimeoutFastMs: DWORD = 3000
+}
+
 // MARK: - BASSRadioPlayer
 
 @Observable class BASSRadioPlayer: NSObject {
@@ -450,14 +470,14 @@ enum PlaybackState: Equatable {
         BASS_SetConfig(DWORD(BASS_CONFIG_UPDATEPERIOD), 20)
         BASS_SetConfig(DWORD(BASS_CONFIG_UPDATETHREADS), 2)
         BASS_SetConfig(DWORD(BASS_CONFIG_DEV_BUFFER), 500)
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), 25000)
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), BASSConfig.netBufferMs)
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)
-        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), 10000)
+        BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), BASSConfig.netTimeoutMs)
         BASS_SetConfig(DWORD(BASS_CONFIG_BUFFER), 15000)
         #if os(iOS)
         BASS_SetConfig(DWORD(BASS_CONFIG_IOS_SESSION), DWORD(BASS_IOS_SESSION_DISABLE))
         #endif
-        guard BASS_Init(-1, 44100, 0, nil, nil) != 0 else {
+        guard BASS_Init(-1, BASSConfig.sampleRate, 0, nil, nil) != 0 else {
             #if DEBUG
             print("❌  BASS_Init failed — error: \(BASS_ErrorGetCode())")
             #endif
@@ -483,7 +503,12 @@ enum PlaybackState: Equatable {
     }
 
     deinit {
-        stop()
+        // Use the synchronous teardown only. `stop()` schedules `DispatchQueue.main.async`
+        // closures that capture `self`; from `deinit` the refcount is already 0, so those
+        // closures would dereference a freed object when the main queue drains
+        // (EXC_BAD_ACCESS). The async hops exist solely to push @Observable UI-state updates
+        // onto the main thread, which is meaningless for an object that's going away.
+        stopSync()
         if bassInitialized { BASS_Free() }
     }
 
@@ -512,10 +537,25 @@ enum PlaybackState: Equatable {
 
     /// Stop playback and reset state.
     func stop() {
+        stopSync()
+        // Push the @Observable UI-state resets onto the main thread for runtime callers
+        // (which may invoke `stop()` off-main). Never call this path from `deinit` — see
+        // `stopSync()` and the `deinit` comment.
+        DispatchQueue.main.async {
+            self.isReconnecting = false
+            self.currentQuality = ""
+            self.isPlaying = false
+            self.playbackState = .stopped
+        }
+    }
+
+    /// Synchronous teardown shared by `stop()` and `deinit`. Tears down timers, the stream,
+    /// and resets non-UI bookkeeping without scheduling any async work that captures `self`,
+    /// so it is safe to call while the object is being deallocated.
+    private func stopSync() {
         isUserIntendedPlay = false
         cancelReconnectTimer()
         reconnectAttempt = 0
-        DispatchQueue.main.async { self.isReconnecting = false }
         #if os(iOS)
         endBackgroundReconnectTask()
         stopSilenceKeepalive()
@@ -525,11 +565,6 @@ enum PlaybackState: Equatable {
         lastIcecastTitle = nil
         lastPublishedTitle = nil
         lastFlacTitle = nil
-        DispatchQueue.main.async {
-            self.currentQuality = ""
-            self.isPlaying = false
-            self.playbackState = .stopped
-        }
     }
 
     /// Stop playback with a fade-out effect (user-initiated stop only).

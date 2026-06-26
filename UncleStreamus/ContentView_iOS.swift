@@ -25,11 +25,9 @@ struct ContentView_iOS: View {
 
     @State private var isPlaying = false
     @State private var selectedStream: Stream?
-    @State private var currentTrack: String = "No track info"
-    @State private var parsedTrack: ParsedTrackInfo?
     @State private var bassPlayer = BASSRadioPlayer()
-    @State private var currentShow: FZShow?
-    @State private var isFetchingShowInfo: Bool = false
+    /// Shared runtime state (track/show pipeline). See RadioViewModel.
+    @State private var vm = RadioViewModel()
     @State private var availableWidth: CGFloat = 500
     @AppStorage("textScale") private var textScale: Double = 1.1
     @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "OGG"
@@ -49,9 +47,17 @@ struct ContentView_iOS: View {
     @AppStorage("hasSeenWelcome") private var hasSeenWelcome: Bool = false
     @State private var showWelcome: Bool = false
     @AppStorage("delayWarningDismissed") private var delayWarningDismissed: Bool = false
-    @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
     @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    // MARK: - Layout Constants
+
+    /// Horizontal drag (pt) past which an edge panel is dismissed.
+    private let panelSwipeDismissThreshold: CGFloat = 30
+    /// FX sheet detent height (fraction of screen) on regular-width (iPad) layouts.
+    private let fxSheetDetentRegular: CGFloat = 0.88
+    /// FX sheet detent height (fraction of screen) on compact-width (iPhone) layouts.
+    private let fxSheetDetentCompact: CGFloat = 0.78
 
     let streams = [
         Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
@@ -63,7 +69,11 @@ struct ContentView_iOS: View {
     @State private var sidebarNavigationActive: Bool = false
     @State private var contentBounceOffset: CGFloat = 0
     @State private var interruptionHandlerSetUp = false
-    @State private var carPlayObserversSetUp = false
+    @State private var carPlayHandlersSetUp = false
+    // Opaque tokens for the closure-based AVAudioSession observers (interruption +
+    // two route-change handlers). Held so onDisappear can remove them rather than
+    // leaking them for the process lifetime.
+    @State private var systemObservers: [NSObjectProtocol] = []
 
     var body: some View {
         HStack(spacing: 0) {
@@ -118,7 +128,7 @@ struct ContentView_iOS: View {
                                 .simultaneousGesture(contentBounceGesture)
 
                             // Show info section OR Track Info pane (with fade transition)
-                            if showTrackInfoPane, let trackName = parsedTrack?.trackName {
+                            if showTrackInfoPane, let trackName = vm.parsedTrack?.trackName {
                                 VStack(spacing: 0) {
                                     HStack {
                                         Text("Track Info")
@@ -232,7 +242,7 @@ struct ContentView_iOS: View {
                                     DragGesture(minimumDistance: 30)
                                         .onEnded { value in
                                             // Swipe right to push sidebar away
-                                            if value.translation.width > 30 && abs(value.translation.height) < 100 {
+                                            if value.translation.width > panelSwipeDismissThreshold && abs(value.translation.height) < 100 {
                                                 withAnimation(.easeInOut(duration: 0.25)) {
                                                     showSidebar = false
                                                 }
@@ -299,8 +309,8 @@ struct ContentView_iOS: View {
                     }
             }
             .presentationDetents(horizontalSizeClass == .regular
-                ? [.fraction(0.88), .large]
-                : [.fraction(0.78), .large])
+                ? [.fraction(fxSheetDetentRegular), .large]
+                : [.fraction(fxSheetDetentCompact), .large])
             .presentationDragIndicator(.visible)
         }
         .sheet(item: $safariURL) { item in
@@ -382,10 +392,10 @@ struct ContentView_iOS: View {
                 setupInterruptionHandler()
                 interruptionHandlerSetUp = true
             }
-            if !carPlayObserversSetUp {
+            if !carPlayHandlersSetUp {
                 CarPlayBridge.shared.availableFormats = streams.map { .init(format: $0.format, label: $0.name) }
-                setupCarPlayObservers()
-                carPlayObserversSetUp = true
+                setupCarPlayHandlers()
+                carPlayHandlersSetUp = true
             }
             syncCarPlayBridge()
 
@@ -400,6 +410,13 @@ struct ContentView_iOS: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .refreshShowDatabase)) { _ in
             fzShowsDB?.downloadAllPages()
+        }
+        .onDisappear {
+            // Remove the AVAudioSession observers so they don't outlive the view. Reset
+            // the guard so they re-register cleanly if the view reappears.
+            systemObservers.forEach(NotificationCenter.default.removeObserver)
+            systemObservers.removeAll()
+            interruptionHandlerSetUp = false
         }
         .onChange(of: scenePhase) { _, newPhase in
             // Track foreground state first so startSilenceKeepalive()'s foreground guard sees the
@@ -488,7 +505,7 @@ struct ContentView_iOS: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    if let parsed = parsedTrack, let trackName = parsed.trackName, currentTrack != "No track info" && !currentTrack.isEmpty {
+                    if let parsed = vm.parsedTrack, let trackName = parsed.trackName, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
                         Text(trackName)
                             .scaledFont(.title2, weight: .semibold)
                             .lineLimit(2)
@@ -499,8 +516,8 @@ struct ContentView_iOS: View {
                     }
 
                     HStack {
-                        if let parsed = parsedTrack, currentTrack != "No track info" && !currentTrack.isEmpty {
-                            Text(artistName(from: parsed))
+                        if let parsed = vm.parsedTrack, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
+                            Text(parsed.inferredArtist)
                                 .scaledFont(.subheadline)
                                 .foregroundColor(.secondary)
                             if let trackNumber = parsed.trackNumber {
@@ -523,7 +540,7 @@ struct ContentView_iOS: View {
 
                 Spacer()
 
-                if let show = currentShow {
+                if let show = vm.currentShow {
                     Button {
                         showDataManager?.toggleFavorite(show: show)
                     } label: {
@@ -537,7 +554,7 @@ struct ContentView_iOS: View {
             Divider()
 
             HStack {
-                if let parsed = parsedTrack, let date = parsed.date, let city = parsed.city, let state = parsed.state, currentTrack != "No track info" && !currentTrack.isEmpty {
+                if let parsed = vm.parsedTrack, let date = parsed.date, let city = parsed.city, let state = parsed.state, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
                     Text("\(date) • \(city), \(state)")
                         .scaledFont(.caption)
                         .foregroundColor(.secondary)
@@ -547,7 +564,7 @@ struct ContentView_iOS: View {
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                if let source = displaySource, currentTrack != "No track info" && !currentTrack.isEmpty {
+                if let source = displaySource, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
                     Text(source)
                         .scaledFont(.caption)
                         .padding(.horizontal, 8)
@@ -562,10 +579,6 @@ struct ContentView_iOS: View {
         .cornerRadius(12)
     }
 
-    private func dvrFormattedBehind(_ seconds: TimeInterval) -> String {
-        let total = Int(seconds)
-        return String(format: "%d:%02d", total / 60, total % 60)
-    }
 
     // MARK: - Stream Controls Bar
 
@@ -811,7 +824,7 @@ struct ContentView_iOS: View {
             // Venue header - with bounce effect
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    if let show = currentShow {
+                    if let show = vm.currentShow {
                         Text(show.venue)
                             .scaledFont(.headline, weight: .semibold)
                             .foregroundColor(.primary)
@@ -827,7 +840,7 @@ struct ContentView_iOS: View {
                                 .scaledFont(.caption)
                                 .foregroundColor(.secondary)
                         }
-                    } else if isFetchingShowInfo {
+                    } else if vm.isFetchingShowInfo {
                         HStack(spacing: 6) {
                             ProgressView()
                                 .scaleEffect(0.7)
@@ -849,7 +862,7 @@ struct ContentView_iOS: View {
             .cornerRadius(12)
             .simultaneousGesture(contentBounceGesture)
 
-            if let show = currentShow {
+            if let show = vm.currentShow {
                 VStack(alignment: .leading, spacing: 0) {
                     // Setlist header
                     Text("Setlist:")
@@ -997,7 +1010,7 @@ struct ContentView_iOS: View {
 
                         HStack(spacing: 8) {
                             Button("Track Info (donlope)...") {
-                                guard let trackName = parsedTrack?.trackName else { return }
+                                guard let trackName = vm.parsedTrack?.trackName else { return }
                                 Task {
                                     let result = await DonlopeIndexCache.shared.lookupURL(for: trackName)
                                     let url: URL
@@ -1009,7 +1022,7 @@ struct ContentView_iOS: View {
                                     await MainActor.run { safariURL = IdentifiableURL(url: url) }
                                 }
                             }
-                            .disabled(parsedTrack?.trackName == nil)
+                            .disabled(vm.parsedTrack?.trackName == nil)
                             Spacer()
                             Button("Setlist Context (FZShows)...") {
                                 if let url = URL(string: show.url) {
@@ -1030,15 +1043,15 @@ struct ContentView_iOS: View {
             }
         }
         .contextMenu {
-            if let show = currentShow {
+            if let show = vm.currentShow {
                 Button(action: {
                     bugReportData = BugReportData(
                         showDate: show.date,
                         venue: show.venue,
                         url: show.url,
-                        rawMetadata: parsedTrack?.rawTitle,
-                        trackName: parsedTrack?.trackName,
-                        source: parsedTrack?.source,
+                        rawMetadata: vm.parsedTrack?.rawTitle,
+                        trackName: vm.parsedTrack?.trackName,
+                        source: vm.parsedTrack?.source,
                         streamFormat: selectedStream?.format
                     )
                 }) {
@@ -1053,8 +1066,8 @@ struct ContentView_iOS: View {
     @ViewBuilder
     private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {
         // Use the confirmed position directly — re-calling findCurrentTrackPosition() here
-        // would use "> currentSetlistPosition" and always highlight the *next* duplicate, not the current one.
-        let isCurrent = currentSetlistPosition == index
+        // would use "> vm.currentSetlistPosition" and always highlight the *next* duplicate, not the current one.
+        let isCurrent = vm.currentSetlistPosition == index
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Image(systemName: "speaker.wave.2.fill")
                 .scaledFont(.caption2)
@@ -1087,8 +1100,8 @@ struct ContentView_iOS: View {
 
     /// Source type (AUD/SBD/FM) from metadata, falling back to showInfo HTML when metadata lacks it
     private var displaySource: String? {
-        if let s = parsedTrack?.source { return s }
-        guard let info = currentShow?.showInfo else { return nil }
+        if let s = vm.parsedTrack?.source { return s }
+        guard let info = vm.currentShow?.showInfo else { return nil }
         let upper = info.uppercased()
         for src in ["SBD-AUD", "AUD-SBD", "SBD-FM", "FM-SBD", "AUD-FM", "FM-AUD"] where upper.contains(src) { return src }
         for src in ["AUD", "SBD", "FM", "STAGE"] where upper.contains(src) { return src }
@@ -1134,80 +1147,16 @@ struct ContentView_iOS: View {
 
     private var isCurrentShowFavorite: Bool {
         let _ = showDataManager?.favoriteVersion
-        guard let show = currentShow else { return false }
+        guard let show = vm.currentShow else { return false }
         return showDataManager?.isFavorite(showDate: show.date) ?? false
     }
 
     // MARK: - Current Track Matching
 
-    private func firstWords(_ text: String, count: Int = 2) -> String {
-        let base = text.components(separatedBy: CharacterSet(charactersIn: "([")).first?
-            .trimmingCharacters(in: .whitespaces).lowercased() ?? ""
-        let punctuation = CharacterSet.punctuationCharacters
-        let words = base.split(separator: " ").prefix(count).map { word in
-            String(word.unicodeScalars.filter { !punctuation.contains($0) })
-        }
-        return words.joined(separator: " ")
-    }
-
-    /// Finds the current track position in the setlist, handling duplicate song names
-    /// by picking the first match after the last confirmed position
+    /// Finds the current track position in the setlist. Delegates to the shared
+    /// view model (which holds the track/show state).
     private func findCurrentTrackPosition() -> Int? {
-        guard let trackName = parsedTrack?.trackName,
-              let setlist = currentShow?.setlist else { return nil }
-
-        let trackWords = firstWords(trackName)
-        guard !trackWords.isEmpty else { return nil }
-
-        // Find all positions where the song name matches
-        var matchingPositions: [Int] = []
-        for (index, song) in setlist.enumerated() {
-            let songWords = firstWords(song)
-            if songWords == trackWords || ParsedTrackInfo.tracksMatch(trackName, song) {
-                matchingPositions.append(index + 1)  // 1-based position
-            }
-        }
-
-        guard !matchingPositions.isEmpty else { return nil }
-
-        // Find the first match that comes after our last confirmed position
-        // This handles cases like multiple "Improvisations" in a setlist
-        for pos in matchingPositions {
-            if pos > currentSetlistPosition {
-                return pos
-            }
-        }
-
-        // If no match after current position, return the first match
-        // (handles edge cases like restarting mid-show)
-        return matchingPositions.first
-    }
-
-    // MARK: - Artist Name Helper
-
-    private func artistName(from parsed: ParsedTrackInfo) -> String {
-        if let artist = parsed.artist, !artist.isEmpty {
-            return artist
-        }
-
-        guard let dateStr = parsed.date else { return "Frank Zappa" }
-
-        let parts = dateStr.components(separatedBy: " ")
-        guard parts.count >= 2,
-              let year = Int(parts[0]),
-              let month = Int(parts[1]) else {
-            return "Frank Zappa"
-        }
-
-        if year < 1975 {
-            return "The Mothers of Invention"
-        }
-
-        if year == 1975 && month <= 5 {
-            return "Zappa / Beefheart / Mothers"
-        }
-
-        return "Frank Zappa"
+        vm.findCurrentTrackPosition()
     }
 
     // MARK: - Song Formatting
@@ -1219,7 +1168,7 @@ struct ContentView_iOS: View {
     // MARK: - Audio Session Interruption Handler
 
     private func setupInterruptionHandler() {
-        NotificationCenter.default.addObserver(
+        systemObservers.append(NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification,
             object: AVAudioSession.sharedInstance(),
             queue: .main
@@ -1259,7 +1208,7 @@ struct ContentView_iOS: View {
                     bassPlayer.triggerImmediateReconnect()
                 }
             }
-        }
+        })
 
         // Pause to DVR when headphones are removed (AirPod taken out of ear, Bluetooth
         // disconnect, wired headphones unplugged). Without this, audio routes to the
@@ -1268,7 +1217,7 @@ struct ContentView_iOS: View {
         // weak class reference instead. dvrEnabled is read from UserDefaults at fire time
         // so it reflects the current setting, not the value at observer-registration time.
         // updateNowPlayingInfo() is triggered automatically via .onChange(of: bassPlayer.dvrState).
-        NotificationCenter.default.addObserver(
+        systemObservers.append(NotificationCenter.default.addObserver(
             forName: AVAudioSession.routeChangeNotification,
             object: AVAudioSession.sharedInstance(),
             queue: .main
@@ -1298,13 +1247,13 @@ struct ContentView_iOS: View {
             case .paused:
                 break   // already paused
             }
-        }
+        })
 
         // Re-activate the audio session when a Bluetooth device (AirPods) reconnects.
         // After BASS_ChannelPause during DVR pause, CoreAudio's output unit goes idle.
         // Re-calling setActive(true) here re-routes the session to the new device so
         // BASS_ChannelPlay in dvrResume() can start rendering audio immediately.
-        NotificationCenter.default.addObserver(
+        systemObservers.append(NotificationCenter.default.addObserver(
             forName: AVAudioSession.routeChangeNotification,
             object: AVAudioSession.sharedInstance(),
             queue: .main
@@ -1330,7 +1279,7 @@ struct ContentView_iOS: View {
             try? session.setCategory(.playback, mode: .default, options: [.allowBluetoothA2DP, .allowAirPlay])
             try? session.setActive(true)
             bassPlayer.restartOutputAfterRouteChange()
-        }
+        })
     }
 
     // MARK: - Audio Session Setup
@@ -1343,22 +1292,19 @@ struct ContentView_iOS: View {
         guard !didCheckWhatsNew else { return }
         didCheckWhatsNew = true
 
-        let current = ReleaseNotes.currentBuild
-        guard !current.isEmpty else { return }
-
-        if lastSeenBuild.isEmpty {
-            lastSeenBuild = current          // first-ever install: don't show What's New
-            if !hasSeenWelcome {             // …show the one-time Welcome guide instead
-                showWelcome = true
-                hasSeenWelcome = true
-            }
-        } else if lastSeenBuild != current {
-            // Only auto-popup for changes genuinely new in this build; the generator
-            // may bundle older fallback notes (current == false) for manual viewing.
-            if let notes = ReleaseNotes.loadBundled(), !notes.isEmpty, notes.isCurrent {
-                whatsNewNotes = notes        // triggers the sheet
-            }
-            lastSeenBuild = current          // record regardless, so it won't reappear
+        let result = decideWhatsNew(currentBuild: ReleaseNotes.currentBuild,
+                                    lastSeenBuild: lastSeenBuild,
+                                    hasSeenWelcome: hasSeenWelcome,
+                                    loadNotes: ReleaseNotes.loadBundled)
+        if let build = result.buildToRecord { lastSeenBuild = build }
+        switch result.action {
+        case .nothing:
+            break
+        case .showWelcome:
+            showWelcome = true
+            hasSeenWelcome = true
+        case .showNotes(let notes):
+            whatsNewNotes = notes
         }
     }
 
@@ -1392,47 +1338,17 @@ struct ContentView_iOS: View {
     // MARK: - Player Setup
 
     func setupPlayer() {
+        // Wire the shared view model: references it needs + platform side-effect
+        // hooks (now-playing refresh + CarPlay mirror).
+        vm.bassPlayer = bassPlayer
+        vm.showDataManager = showDataManager
+        vm.fzShowsDB = fzShowsDB
+        vm.onNowPlayingShouldUpdate = { [self] in updateNowPlayingInfo() }
+        vm.onShowDidLoad = { [self] in syncCarPlayBridge() }
+
         bassPlayer.onMetadataUpdate = { metadata in
             DispatchQueue.main.async {
-                let newParsed = ParsedTrackInfo.parse(metadata)
-
-                // Block if truly nothing meaningful changed (same track name and same date).
-                let trackNameSame = (self.parsedTrack?.trackName == newParsed.trackName)
-                let dateSame = (self.parsedTrack?.date == newParsed.date)
-                guard !(trackNameSame && dateSame) else { return }
-
-                // For FLAC: Vorbis short title arrives first (trackName only, date=nil).
-                // Merge it with the existing parsedTrack's show metadata so date/location/artist
-                // stay visible in the UI — no flash from sections disappearing mid-show.
-                let merged: ParsedTrackInfo
-                if newParsed.date == nil, let old = self.parsedTrack {
-                    merged = ParsedTrackInfo(
-                        date: old.date, showTime: old.showTime,
-                        city: old.city, state: old.state,
-                        showDuration: old.showDuration, source: old.source,
-                        generation: old.generation, creator: old.creator,
-                        artist: old.artist, trackNumber: newParsed.trackNumber ?? old.trackNumber,
-                        trackName: newParsed.trackName, year: newParsed.year,
-                        trackDuration: newParsed.trackDuration ?? old.trackDuration, rawTitle: newParsed.rawTitle
-                    )
-                } else {
-                    merged = newParsed
-                }
-
-                self.currentTrack = metadata
-                self.parsedTrack = merged
-
-                if let parsed = self.parsedTrack, let date = parsed.date {
-                    let showTime = ShowTime(from: parsed.showTime)
-                    self.fetchShowInfo(date: date, showTime: showTime)
-                }
-
-                if let position = self.findCurrentTrackPosition() {
-                    self.currentSetlistPosition = position
-                }
-
-                self.updateNowPlayingInfo()
-                self.syncCarPlayBridge()
+                self.vm.handleMetadata(metadata, fxPersistAcrossShows: self.fxPersistAcrossShows)
             }
         }
 
@@ -1564,20 +1480,20 @@ struct ContentView_iOS: View {
     private func updateNowPlayingInfo() {
         var nowPlayingInfo = [String: Any]()
 
-        if let parsed = parsedTrack {
+        if let parsed = vm.parsedTrack {
             nowPlayingInfo[MPMediaItemPropertyTitle] = parsed.trackName ?? "UncleStreamus"
 
-            if let show = currentShow {
+            if let show = vm.currentShow {
                 // Put all info in Artist line: "Frank Zappa • 1975 10 04 • Paramount Theatre, Seattle, WA"
                 // The venue field already includes location, so no need to add city/state/country
-                let artist = artistName(from: parsed)
+                let artist = parsed.inferredArtist
                 let artistLine = "\(artist) • \(show.date) • \(show.venue)"
                 nowPlayingInfo[MPMediaItemPropertyArtist] = artistLine
                 #if DEBUG
                 print("🎵 Now Playing: \(parsed.trackName ?? "?") | \(artistLine)")
                 #endif
             } else {
-                nowPlayingInfo[MPMediaItemPropertyArtist] = artistName(from: parsed)
+                nowPlayingInfo[MPMediaItemPropertyArtist] = parsed.inferredArtist
                 #if DEBUG
                 print("🎵 Now Playing: No show info available yet")
                 #endif
@@ -1650,44 +1566,43 @@ struct ContentView_iOS: View {
 
     // MARK: - CarPlay
 
-    /// Mirrors current state into `CarPlayBridge.shared` and notifies the CarPlay
-    /// scene delegate to refresh its templates. CarPlay runs in a separate scene and
-    /// can't read this view's `@State`, so this is the one-way data path to it —
-    /// the reverse path (CarPlay buttons → playback actions) is `setupCarPlayObservers()`.
+    /// Mirrors current state into `CarPlayBridge.shared` and asks the CarPlay scene
+    /// delegate to refresh its templates. CarPlay runs in a separate scene and can't
+    /// read this view's `@State`, so this is the one-way data path to it — the
+    /// reverse path (CarPlay buttons → playback actions) is `setupCarPlayHandlers()`.
     private func syncCarPlayBridge() {
         let bridge = CarPlayBridge.shared
         bridge.isPlaying = isPlaying
         bridge.dvrState = bassPlayer.dvrState
-        bridge.setlist = currentShow?.setlist ?? []
-        bridge.currentTrackIndex = currentShow != nil ? currentSetlistPosition : nil
+        bridge.setlist = vm.currentShow?.setlist ?? []
+        bridge.currentTrackIndex = vm.currentShow != nil ? vm.currentSetlistPosition : nil
         bridge.selectedFormat = selectedStream?.format ?? lastStreamFormat
-        NotificationCenter.default.post(name: .carPlayDataChanged, object: nil)
+        bridge.onDataChanged?()
     }
 
-    /// Observes commands posted by `CarPlaySceneDelegate`'s buttons and routes them
-    /// to the actual `bassPlayer` instance — mirrors how the macOS menubar drives
-    /// `ContentView` via `togglePlayback`/`stopPlayback`/`selectStream`.
-    private func setupCarPlayObservers() {
-        let nc = NotificationCenter.default
+    /// Wires `CarPlaySceneDelegate`'s buttons to this view's playback actions via
+    /// typed closures on `CarPlayBridge.shared` — mirrors how the macOS menubar
+    /// drives `ContentView` through `RadioViewModel`'s command hooks.
+    private func setupCarPlayHandlers() {
+        let bridge = CarPlayBridge.shared
 
-        nc.addObserver(forName: .carPlayStop, object: nil, queue: .main) { [self] _ in
+        bridge.onStop = { [self] in
             stopStream()
         }
-        nc.addObserver(forName: .carPlayGoLive, object: nil, queue: .main) { [self] _ in
+        bridge.onGoLive = { [self] in
             bassPlayer.goLive()
             updateNowPlayingInfo()
             syncCarPlayBridge()
         }
-        nc.addObserver(forName: .carPlaySelectFormat, object: nil, queue: .main) { [self] notification in
-            if let format = notification.userInfo?["format"] as? String,
-               let stream = streams.first(where: { $0.format == format }) {
+        bridge.onSelectFormat = { [self] format in
+            if let stream = streams.first(where: { $0.format == format }) {
                 selectedStream = stream
             }
         }
         // CarPlay can connect after this app already published its initial Now
         // Playing state (e.g. auto-resume on launch) — force a fresh republish so
         // its transport controls never start out of sync with actual playback.
-        nc.addObserver(forName: .carPlaySceneDidConnect, object: nil, queue: .main) { [self] _ in
+        bridge.onSceneConnect = { [self] in
             updateNowPlayingInfo()
             syncCarPlayBridge()
         }
@@ -1735,86 +1650,7 @@ struct ContentView_iOS: View {
     }
 
     func fetchShowInfo(date: String, showTime: ShowTime = .none) {
-        // Build the variant date key (e.g. "1980 12 11 E") for accurate early/late deduplication
-        let variantDate: String
-        switch showTime {
-        case .early: variantDate = "\(date) E"
-        case .late:  variantDate = "\(date) L"
-        case .none:  variantDate = date
-        }
-        guard currentShow?.date != variantDate else { return }
-
-        bassPlayer.currentShowDate = variantDate
-
-        // Determine whether to restore or reset FX based on persistence settings
-        let fxRememberPerShow = UserDefaults.standard.bool(forKey: "fxRememberPerShow")
-        if fxRememberPerShow {
-            // Returning to a show with saved FX: restore immediately. If there's no
-            // snapshot yet, the reset to defaults is deferred to the fetch completion
-            // below, so a one-poll metadata glitch (wrong date) that never resolves to
-            // a real show can't cause an audible mid-song FX dropout.
-            bassPlayer.restorePerShowFX(showDate: variantDate)
-        } else if !fxPersistAcrossShows {
-            bassPlayer.resetAllFX()
-        }
-
-        isFetchingShowInfo = true
-        let fetch: (@escaping (FZShow?) -> Void) -> Void = { completion in
-            if let db = self.fzShowsDB {
-                db.fetchShow(date: date, showTime: showTime, completion: completion)
-            } else {
-                FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime, completion: completion)
-            }
-        }
-        fetch { show in
-            DispatchQueue.main.async {
-                self.currentShow = show
-                self.currentSetlistPosition = 0  // Reset position for new show
-                // Re-compute from parsedTrack so the speaker appears on first load
-                // without waiting for the next metadata poll.
-                if let position = self.findCurrentTrackPosition() {
-                    self.currentSetlistPosition = position
-                }
-                self.isFetchingShowInfo = false
-                self.syncCarPlayBridge()
-
-                // Per-show FX: now that a real show has loaded, reset to defaults if it
-                // has no saved snapshot (a genuine new show). Deferring to here means a
-                // transient metadata glitch that returns no show never resets the FX.
-                if show != nil, fxRememberPerShow,
-                   !self.bassPlayer.hasPerShowFX(showDate: variantDate) {
-                    self.bassPlayer.resetAllFX()
-                }
-
-                if let show = show {
-                    // If parsed metadata lacks location, fill in from FZShow
-                    if let parsed = self.parsedTrack, parsed.city == nil || parsed.state == nil {
-                        let updatedParsed = ParsedTrackInfo(
-                            date: parsed.date,
-                            showTime: parsed.showTime,
-                            city: parsed.city ?? show.city,
-                            state: parsed.state ?? show.state,
-                            showDuration: parsed.showDuration,
-                            source: parsed.source,
-                            generation: parsed.generation,
-                            creator: parsed.creator,
-                            artist: parsed.artist,
-                            trackNumber: parsed.trackNumber,
-                            trackName: parsed.trackName,
-                            year: parsed.year,
-                            trackDuration: parsed.trackDuration,
-                            rawTitle: parsed.rawTitle
-                        )
-                        self.parsedTrack = updatedParsed
-                    }
-
-                    self.showDataManager?.recordListen(show: show)
-                }
-
-                // Update Now Playing info with show details
-                self.updateNowPlayingInfo()
-            }
-        }
+        vm.fetchShowInfo(date: date, showTime: showTime, fxPersistAcrossShows: fxPersistAcrossShows)
     }
 }
 #endif

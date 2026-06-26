@@ -220,13 +220,14 @@ final class StreamBuffer {
 
     private func drainAndWrite() {
         // Process in chunks; keep stereo alignment (even sample count).
+        let maxChunkSamples = 8192
         while true {
             os_unfair_lock_lock(&lock)
             let available = memAvailable
             os_unfair_lock_unlock(&lock)
             guard available >= 2 else { break }
 
-            let chunkSamples = min(available & ~1, 8192)   // ≤ 8192, even
+            let chunkSamples = min(available & ~1, maxChunkSamples)   // even, ≤ maxChunkSamples
             var chunk = [Float](repeating: 0, count: chunkSamples)
 
             os_unfair_lock_lock(&lock)

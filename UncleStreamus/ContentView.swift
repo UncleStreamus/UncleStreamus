@@ -16,12 +16,10 @@ struct ContentView: View {
 
     @State private var isPlaying = false
     @State private var selectedStream: Stream?
-    @State private var currentTrack: String = "No track info"
-    @State private var parsedTrack: ParsedTrackInfo?
     @State private var bassPlayer = BASSRadioPlayer()
-    @State private var currentShow: FZShow?
+    /// Shared runtime state (track/show pipeline). See RadioViewModel.
+    @State private var vm = RadioViewModel()
     @AppStorage("showInfoExpanded") private var showInfoExpanded: Bool = false
-    @State private var isFetchingShowInfo: Bool = false
     @State private var availableWidth: CGFloat = 500
     @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = false
     @AppStorage("textScale") private var textScale: Double = 1.1
@@ -34,7 +32,6 @@ struct ContentView: View {
     @State private var bounceResetTask: DispatchWorkItem?
     @State private var setlistFrameInWindow: CGRect = .zero  // Track setlist area to exclude from bounce
     @AppStorage("delayWarningDismissed") private var delayWarningDismissed: Bool = false
-    @State private var currentSetlistPosition: Int = 0  // Track position in setlist for duplicate song names
     @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
     @State private var showFXPane: Bool = false
     @State private var trackInfoURL: IdentifiableURL?
@@ -122,13 +119,7 @@ struct ContentView: View {
 
             setupPlayer()
             configureWindowConstraints()
-            setupMenubarObservers()
             checkWhatsNew()
-
-            // Send initial state to menubar
-            if let stream = selectedStream {
-                NotificationCenter.default.post(name: .streamSelectionChanged, object: nil, userInfo: ["format": stream.format])
-            }
 
             // Auto-play if stream was playing when app was last quit (and auto-resume is enabled)
             // Read directly from UserDefaults to ensure we get the persisted value
@@ -156,6 +147,7 @@ struct ContentView: View {
             #if DEBUG
             print("💾 onDisappear - saving playing state: \(isPlaying)")
             #endif
+            AppDelegate.shared?.detach()
             stopStream()
         }
         #if os(macOS)
@@ -406,7 +398,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            if let parsed = parsedTrack, let trackName = parsed.trackName, currentTrack != "No track info" && !currentTrack.isEmpty {
+                            if let parsed = vm.parsedTrack, let trackName = parsed.trackName, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
                                 MarqueeText(text: trackName, style: .title2, weight: .semibold)
                             } else {
                                 Text(placeholderText)
@@ -415,8 +407,8 @@ struct ContentView: View {
                             }
 
                             HStack {
-                                if let parsed = parsedTrack, currentTrack != "No track info" && !currentTrack.isEmpty {
-                                    Text(artistName(from: parsed))
+                                if let parsed = vm.parsedTrack, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
+                                    Text(parsed.inferredArtist)
                                         .scaledFont(.subheadline)
                                         .foregroundColor(.secondary)
                                     if let trackNumber = parsed.trackNumber {
@@ -436,7 +428,7 @@ struct ContentView: View {
                         Spacer()
 
                         // Favorite star button (only when show is loaded)
-                        if let show = currentShow {
+                        if let show = vm.currentShow {
                             Button(action: {
                                 showDataManager?.toggleFavorite(show: show)
                             }) {
@@ -450,7 +442,7 @@ struct ContentView: View {
                     Divider()
 
                     HStack {
-                        if let parsed = parsedTrack, let date = parsed.date, let city = parsed.city, let state = parsed.state, currentTrack != "No track info" && !currentTrack.isEmpty {
+                        if let parsed = vm.parsedTrack, let date = parsed.date, let city = parsed.city, let state = parsed.state, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
                             Text("\(date) • \(city), \(state)")
                                 .scaledFont(.caption)
                                 .foregroundColor(.secondary)
@@ -460,7 +452,7 @@ struct ContentView: View {
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
-                        if let source = displaySource, currentTrack != "No track info" && !currentTrack.isEmpty {
+                        if let source = displaySource, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
                             Text(source)
                                 .scaledFont(.caption)
                                 .padding(.horizontal, 8)
@@ -490,7 +482,7 @@ struct ContentView: View {
                 .transition(.opacity)
             } else {
                 // Show Info Section: dropdown and optional setlist
-                if showInfoExpanded && currentShow != nil {
+                if showInfoExpanded && vm.currentShow != nil {
                     showInfoSection
                         .padding(.horizontal)
                         .padding(.bottom, 8)
@@ -632,7 +624,6 @@ struct ContentView: View {
                     .onChange(of: selectedStream) { _, newValue in
                         if let stream = newValue {
                             lastStreamFormat = stream.format
-                            NotificationCenter.default.post(name: .streamSelectionChanged, object: nil, userInfo: ["format": stream.format])
                             if isPlaying {
                                 playStream()
                             }
@@ -790,14 +781,14 @@ struct ContentView: View {
             // Show info header button (always visible)
             Button(action: {
                 // Only allow expanding if we have show data
-                if currentShow != nil {
+                if vm.currentShow != nil {
                     showInfoExpanded.toggle()
                     updateWindowMinHeight()
                 }
             }) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        if let show = currentShow {
+                        if let show = vm.currentShow {
                             Text(show.venue)
                                 .scaledFont(.headline, weight: .semibold)
 
@@ -812,7 +803,7 @@ struct ContentView: View {
                                     .scaledFont(.caption)
                                     .foregroundColor(.secondary)
                             }
-                        } else if isFetchingShowInfo {
+                        } else if vm.isFetchingShowInfo {
                             HStack(spacing: 6) {
                                 ProgressView()
                                     .scaleEffect(0.7)
@@ -830,7 +821,7 @@ struct ContentView: View {
                     Spacer()
 
                     // Only show chevron if we have show data
-                    if currentShow != nil {
+                    if vm.currentShow != nil {
                         Image(systemName: showInfoExpanded ? "chevron.up" : "chevron.down")
                     }
                 }
@@ -840,11 +831,11 @@ struct ContentView: View {
                 .cornerRadius(8)
             }
             .buttonStyle(.plain)
-            .disabled(currentShow == nil)
+            .disabled(vm.currentShow == nil)
             .offset(y: contentBounceOffset)
 
             // Expanded setlist section (only when show is loaded)
-            if showInfoExpanded, let show = currentShow {
+            if showInfoExpanded, let show = vm.currentShow {
                 VStack(alignment: .leading, spacing: 12) {
 
                     Text("Setlist:")
@@ -1003,7 +994,7 @@ struct ContentView: View {
 
                     HStack(spacing: 8) {
                         Button("Track Info (donlope)...") {
-                            guard let trackName = parsedTrack?.trackName else { return }
+                            guard let trackName = vm.parsedTrack?.trackName else { return }
                             Task {
                                 let result = await DonlopeIndexCache.shared.lookupURL(for: trackName)
                                 let url: URL
@@ -1012,7 +1003,7 @@ struct ContentView: View {
                                 await MainActor.run { trackInfoURL = IdentifiableURL(url: url) }
                             }
                         }
-                        .disabled(parsedTrack?.trackName == nil)
+                        .disabled(vm.parsedTrack?.trackName == nil)
                         Spacer()
                         Button("Setlist Context (FZShows)...") {
                             if let url = URL(string: show.url) {
@@ -1033,15 +1024,15 @@ struct ContentView: View {
             }
         }
         .contextMenu {
-            if let show = currentShow {
+            if let show = vm.currentShow {
                 Button(action: {
                     let reportData = BugReportData(
                         showDate: show.date,
                         venue: show.venue,
                         url: show.url,
-                        rawMetadata: parsedTrack?.rawTitle,
-                        trackName: parsedTrack?.trackName,
-                        source: parsedTrack?.source,
+                        rawMetadata: vm.parsedTrack?.rawTitle,
+                        trackName: vm.parsedTrack?.trackName,
+                        source: vm.parsedTrack?.source,
                         streamFormat: selectedStream?.format
                     )
                     reportData.openMailClient()
@@ -1050,13 +1041,6 @@ struct ContentView: View {
                 }
             }
         }
-    }
-
-    // MARK: - DVR Helpers
-
-    private func dvrFormattedBehind(_ seconds: TimeInterval) -> String {
-        let total = Int(seconds)
-        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     // MARK: - Placeholder Text
@@ -1083,8 +1067,8 @@ struct ContentView: View {
 
     /// Source type (AUD/SBD/FM) from metadata, falling back to showInfo HTML when metadata lacks it
     private var displaySource: String? {
-        if let s = parsedTrack?.source { return s }
-        guard let info = currentShow?.showInfo else { return nil }
+        if let s = vm.parsedTrack?.source { return s }
+        guard let info = vm.currentShow?.showInfo else { return nil }
         let upper = info.uppercased()
         for src in ["SBD-AUD", "AUD-SBD", "SBD-FM", "FM-SBD", "AUD-FM", "FM-AUD"] where upper.contains(src) { return src }
         for src in ["AUD", "SBD", "FM", "STAGE"] where upper.contains(src) { return src }
@@ -1095,66 +1079,24 @@ struct ContentView: View {
         // Reading favoriteVersion creates an @Observable dependency,
         // so this recomputes whenever any star is toggled anywhere
         let _ = showDataManager?.favoriteVersion
-        guard let show = currentShow else { return false }
+        guard let show = vm.currentShow else { return false }
         return showDataManager?.isFavorite(showDate: show.date) ?? false
     }
 
     // MARK: - Current Track Matching
 
-    /// Extracts the first N words from a string for comparison
-    private func firstWords(_ text: String, count: Int = 2) -> String {
-        // Remove content in parentheses/brackets first, then get words
-        let base = text.components(separatedBy: CharacterSet(charactersIn: "([")).first?
-            .trimmingCharacters(in: .whitespaces).lowercased() ?? ""
-        // Strip punctuation from each word (like commas, apostrophes, etc.)
-        let punctuation = CharacterSet.punctuationCharacters
-        let words = base.split(separator: " ").prefix(count).map { word in
-            String(word.unicodeScalars.filter { !punctuation.contains($0) })
-        }
-        return words.joined(separator: " ")
-    }
-
-    /// Finds the current track position in the setlist, handling duplicate song names
-    /// by picking the first match after the last confirmed position
+    /// Finds the current track position in the setlist. Delegates to the shared
+    /// view model (which holds the track/show state).
     private func findCurrentTrackPosition() -> Int? {
-        guard let trackName = parsedTrack?.trackName,
-              let setlist = currentShow?.setlist else { return nil }
-
-        let normalizedTrack = ParsedTrackInfo.normalizeTrackName(trackName) ?? trackName
-        let trackWords = firstWords(normalizedTrack)
-        guard !trackWords.isEmpty else { return nil }
-
-        // Find all positions where the song name matches
-        var matchingPositions: [Int] = []
-        for (index, song) in setlist.enumerated() {
-            let normalizedSong = ParsedTrackInfo.normalizeTrackName(song) ?? song
-            let songWords = firstWords(normalizedSong)
-            if songWords == trackWords || ParsedTrackInfo.tracksMatch(normalizedTrack, song) {
-                matchingPositions.append(index + 1)  // 1-based position
-            }
-        }
-
-        guard !matchingPositions.isEmpty else { return nil }
-
-        // Find the first match that comes after our last confirmed position
-        // This handles cases like multiple "Improvisations" in a setlist
-        for pos in matchingPositions {
-            if pos > currentSetlistPosition {
-                return pos
-            }
-        }
-
-        // If no match after current position, return the first match
-        // (handles edge cases like restarting mid-show)
-        return matchingPositions.first
+        vm.findCurrentTrackPosition()
     }
 
     /// Renders a setlist row with current track highlighting
     @ViewBuilder
     private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {
         // Use the confirmed position directly — re-calling findCurrentTrackPosition() here
-        // would use "> currentSetlistPosition" and always highlight the *next* duplicate, not the current one.
-        let isCurrent = currentSetlistPosition == index
+        // would use "> vm.currentSetlistPosition" and always highlight the *next* duplicate, not the current one.
+        let isCurrent = vm.currentSetlistPosition == index
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             // Speaker icon for currently playing track (or invisible placeholder)
             Image(systemName: "speaker.wave.2.fill")
@@ -1175,51 +1117,46 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Artist Name Helper
+    /// Shows the "What's New" sheet once per build update. A first-ever install is
+    /// recorded silently (no What's New sheet) and instead shows the one-time
+    /// Welcome sheet; thereafter What's New appears when the bundled build number
+    /// changes and there are non-empty notes to display. Mirrors the iOS logic.
+    private func checkWhatsNew() {
+        guard !didCheckWhatsNew else { return }
+        didCheckWhatsNew = true
 
-    /// Returns the artist name from metadata, or infers it from the date.
-    /// - 1966 through 1974: "The Mothers of Invention"
-    /// - Jan-May 1975: "Zappa / Beefheart / Mothers" (Bongo Fury tour)
-    /// - June 1975 through 1992: "Frank Zappa"
-    private func artistName(from parsed: ParsedTrackInfo) -> String {
-        // If metadata has an artist, use it
-        if let artist = parsed.artist, !artist.isEmpty {
-            return artist
+        let result = decideWhatsNew(currentBuild: ReleaseNotes.currentBuild,
+                                    lastSeenBuild: lastSeenBuild,
+                                    hasSeenWelcome: hasSeenWelcome,
+                                    loadNotes: ReleaseNotes.loadBundled)
+        if let build = result.buildToRecord { lastSeenBuild = build }
+        switch result.action {
+        case .nothing:
+            break
+        case .showWelcome:
+            showWelcome = true
+            hasSeenWelcome = true
+        case .showNotes(let notes):
+            whatsNewNotes = notes
         }
-
-        // Otherwise, infer from date
-        guard let dateStr = parsed.date else { return "Frank Zappa" }
-
-        let parts = dateStr.components(separatedBy: " ")
-        guard parts.count >= 2,
-              let year = Int(parts[0]),
-              let month = Int(parts[1]) else {
-            return "Frank Zappa"
-        }
-
-        // The Mothers of Invention era: 1966 through 1974
-        if year < 1975 {
-            return "The Mothers of Invention"
-        }
-
-        // Bongo Fury era: Jan-May 1975
-        if year == 1975 && month <= 5 {
-            return "Zappa / Beefheart / Mothers"
-        }
-
-        // Frank Zappa era: June 1975 onwards
-        return "Frank Zappa"
     }
 
-    // MARK: - Menubar Menu Observers
+    // MARK: - Player Setup
 
-    private func setupMenubarObservers() {
-        // Listen for play/pause toggle from menubar
-        NotificationCenter.default.addObserver(
-            forName: .togglePlayback,
-            object: nil,
-            queue: .main
-        ) { [self] _ in
+    func setupPlayer() {
+        // Wire the shared view model: give it the references it needs and the
+        // platform side-effect hook (now-playing refresh). macOS has no CarPlay,
+        // so onShowDidLoad stays a no-op.
+        vm.bassPlayer = bassPlayer
+        vm.showDataManager = showDataManager
+        vm.fzShowsDB = fzShowsDB
+        vm.onNowPlayingShouldUpdate = { [self] in updateNowPlayingInfo() }
+
+        // Bridge the AppKit menubar to this view's playback state/actions, replacing
+        // the old NotificationCenter menubar channel. The AppDelegate holds weak
+        // references and invokes these closures from its menu items.
+        AppDelegate.shared?.attach(vm: vm, bassPlayer: bassPlayer)
+        vm.menubarToggle = { [self] in
             guard bassPlayer.checkUserActionAllowed() else { return }
             switch (isPlaying, bassPlayer.dvrState) {
             case (false, _):
@@ -1232,211 +1169,33 @@ struct ContentView: View {
                 bassPlayer.dvrPausePlayback()
             }
         }
-
-        // Listen for stop from menubar
-        NotificationCenter.default.addObserver(
-            forName: .stopPlayback,
-            object: nil,
-            queue: .main
-        ) { [self] _ in
+        vm.menubarStop = { [self] in
             guard bassPlayer.checkUserActionAllowed() else { return }
             if isPlaying { stopStream() }
         }
-
-        // Listen for stream selection from menubar
-        NotificationCenter.default.addObserver(
-            forName: .selectStream,
-            object: nil,
-            queue: .main
-        ) { [self] notification in
-            if let format = notification.userInfo?["format"] as? String,
-               let stream = streams.first(where: { $0.format == format }) {
+        vm.menubarSelectStream = { [self] format in
+            if let stream = streams.first(where: { $0.format == format }) {
                 selectedStream = stream
             }
         }
-
-        // Listen for volume controls from menu / keyboard shortcut
-        NotificationCenter.default.addObserver(
-            forName: .volumeUp,
-            object: nil,
-            queue: .main
-        ) { [weak bassPlayer] _ in
-            bassPlayer?.volumeUp()
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: .volumeDown,
-            object: nil,
-            queue: .main
-        ) { [weak bassPlayer] _ in
-            bassPlayer?.volumeDown()
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: .setVolume,
-            object: nil,
-            queue: .main
-        ) { [weak bassPlayer] notification in
-            if let volume = notification.userInfo?["volume"] as? Float {
-                bassPlayer?.setMasterVolume(volume)
-            }
-        }
-
-        // Reconnect when app becomes active (e.g. after switch away and back)
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didBecomeActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak bassPlayer] _ in
-            // Don't reconnect while the buffer is paused — that would restart the live stream
-            // and wipe a full buffer. The play-buffer-vs-go-live choice is offered when the
-            // user presses play (resumeOrOfferBuffer()), not on returning to the app.
-            if bassPlayer?.dvrState == .paused {
-                // no-op: leave the paused buffer intact
-            } else if bassPlayer?.isUserIntendedPlay == true && bassPlayer?.isStreamActive == false {
-                bassPlayer?.triggerImmediateReconnect()
-            }
-        }
-
-        // Reconnect after system wakes from sleep
-        NotificationCenter.default.addObserver(
-            forName: NSWorkspace.didWakeNotification,
-            object: NSWorkspace.shared,
-            queue: .main
-        ) { [weak bassPlayer] _ in
-            if bassPlayer?.dvrState == .live,
-               bassPlayer?.isUserIntendedPlay == true && bassPlayer?.isStreamActive == false {
-                bassPlayer?.triggerImmediateReconnect()
-            }
-        }
-
-        // Open the Welcome / What's New sheets from the menubar "About" submenu
-        NotificationCenter.default.addObserver(
-            forName: .showWelcomeSheet,
-            object: nil,
-            queue: .main
-        ) { [self] _ in
-            showWelcome = true
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: .showWhatsNewSheet,
-            object: nil,
-            queue: .main
-        ) { [self] _ in
+        vm.menubarShowWelcome = { [self] in showWelcome = true }
+        vm.menubarShowWhatsNew = { [self] in
             if let notes = ReleaseNotes.loadBundled() {
                 whatsNewNotes = notes
             }
         }
-    }
 
-    /// Shows the "What's New" sheet once per build update. A first-ever install is
-    /// recorded silently (no What's New sheet) and instead shows the one-time
-    /// Welcome sheet; thereafter What's New appears when the bundled build number
-    /// changes and there are non-empty notes to display. Mirrors the iOS logic.
-    private func checkWhatsNew() {
-        guard !didCheckWhatsNew else { return }
-        didCheckWhatsNew = true
-
-        let current = ReleaseNotes.currentBuild
-        guard !current.isEmpty else { return }
-
-        if lastSeenBuild.isEmpty {
-            lastSeenBuild = current          // first-ever install: don't show What's New
-            if !hasSeenWelcome {             // …show the one-time Welcome guide instead
-                showWelcome = true
-                hasSeenWelcome = true
-            }
-        } else if lastSeenBuild != current {
-            // Only auto-popup for changes genuinely new in this build; a re-cut with
-            // no user-facing changes carries fallback notes (isCurrent == false).
-            if let notes = ReleaseNotes.loadBundled(), !notes.isEmpty, notes.isCurrent {
-                whatsNewNotes = notes        // triggers the sheet
-            }
-            lastSeenBuild = current          // record regardless, so it won't reappear
-        }
-    }
-
-    // MARK: - Player Setup
-
-    func setupPlayer() {
         bassPlayer.onMetadataUpdate = { metadata in
             DispatchQueue.main.async {
-                let newParsed = ParsedTrackInfo.parse(metadata)
-
-                // Block if truly nothing meaningful changed (same track name, date, AND duration).
-                // Duration can update independently when Icecast JSON arrives after Vorbis short title.
-                let trackNameSame = (self.parsedTrack?.trackName == newParsed.trackName)
-                let dateSame = (self.parsedTrack?.date == newParsed.date)
-                let durationSame = (self.parsedTrack?.trackDuration == newParsed.trackDuration)
-                guard !(trackNameSame && dateSame && durationSame) else { return }
-
-                // For FLAC: Vorbis short title arrives first (trackName only, date=nil).
-                // Merge it with the existing parsedTrack's show metadata so date/location/artist
-                // stay visible in the UI — no flash from sections disappearing mid-show.
-                let merged: ParsedTrackInfo
-                if newParsed.date == nil, let old = self.parsedTrack {
-                    // Only preserve old.trackDuration if track number hasn't changed (same track, partial update).
-                    // If track number changed, clear duration so the new duration from Icecast JSON will be used.
-                    let trackNumberChanged = newParsed.trackNumber != nil && newParsed.trackNumber != old.trackNumber
-                    let preservedDuration = trackNumberChanged ? nil : (newParsed.trackDuration ?? old.trackDuration)
-
-                    merged = ParsedTrackInfo(
-                        date: old.date, showTime: old.showTime,
-                        city: old.city, state: old.state,
-                        showDuration: old.showDuration, source: old.source,
-                        generation: old.generation, creator: old.creator,
-                        artist: old.artist, trackNumber: newParsed.trackNumber ?? old.trackNumber,
-                        trackName: newParsed.trackName, year: newParsed.year,
-                        trackDuration: preservedDuration, rawTitle: newParsed.rawTitle
-                    )
-                } else {
-                    merged = newParsed
-                }
-
-                self.currentTrack = metadata
-                self.parsedTrack = merged
-
-                if let parsed = self.parsedTrack, let date = parsed.date {
-                    #if DEBUG
-                    print("📊 Parsed meta")
-                    print("   Date: \(date)")
-                    print("   City: \(parsed.city ?? "?"), State: \(parsed.state ?? "?")")
-                    print("   Artist: \(parsed.artist ?? "?")")
-                    print("   Track: #\(parsed.trackNumber ?? "?") - \(parsed.trackName ?? "?")")
-                    print("   Source: \(parsed.source ?? "?") Gen: \(parsed.generation ?? "?")")
-                    print("   Duration: \(parsed.trackDuration ?? "?")")
-                    print("   ShowTime: \(parsed.showTime ?? "none")")
-                    #endif
-
-                    let showTime = ShowTime(from: parsed.showTime)
-                    self.fetchShowInfo(date: date, showTime: showTime)
-                }
-
-                if let position = self.findCurrentTrackPosition() {
-                    self.currentSetlistPosition = position
-                }
-
-                self.updateNowPlayingInfo()
+                self.vm.handleMetadata(metadata, fxPersistAcrossShows: self.fxPersistAcrossShows)
             }
         }
 
         // Setup media key controls
         setupRemoteCommandCenter()
 
-        // Save playing state and current show when app is about to terminate
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.willTerminateNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            let currentlyPlaying = self.isPlaying
-            UserDefaults.standard.set(currentlyPlaying, forKey: "wasPlayingOnQuit")
-            UserDefaults.standard.synchronize()
-            #if DEBUG
-            print("💾 willTerminate - saving playing state: \(currentlyPlaying)")
-            #endif
-        }
+        // willTerminate save-state lives on the app-lifetime AppDelegate (it reads
+        // `radioVM?.isPlaying`), so it fires even when the menubar window is closed.
     }
 
     // MARK: - Media Key Support
@@ -1510,11 +1269,11 @@ struct ContentView: View {
     private func updateNowPlayingInfo() {
         var nowPlayingInfo = [String: Any]()
 
-        if let parsed = parsedTrack {
+        if let parsed = vm.parsedTrack {
             nowPlayingInfo[MPMediaItemPropertyTitle] = parsed.trackName ?? "UncleStreamus"
-            nowPlayingInfo[MPMediaItemPropertyArtist] = artistName(from: parsed)
+            nowPlayingInfo[MPMediaItemPropertyArtist] = parsed.inferredArtist
 
-            if let show = currentShow {
+            if let show = vm.currentShow {
                 nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = "\(show.date) • \(show.venue)"
             }
         } else {
@@ -1536,24 +1295,26 @@ struct ContentView: View {
         updateMenubarTooltip()
     }
 
-    /// Posts notification to update menubar icon tooltip with current track info
+    /// Pushes current track info to the menubar (icon tooltip + Now Playing menu).
     private func updateMenubarTooltip() {
-        var userInfo: [String: Any] = [:]
+        var trackName: String?
+        var artist: String?
+        var showInfo: String?
 
         // Mirror track info card - show info regardless of playing state
-        if let parsed = parsedTrack, currentTrack != "No track info" && !currentTrack.isEmpty {
-            userInfo["trackName"] = parsed.trackName
-            userInfo["artist"] = artistName(from: parsed)
+        if let parsed = vm.parsedTrack, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
+            trackName = parsed.trackName
+            artist = parsed.inferredArtist
 
-            if let show = currentShow {
-                userInfo["showInfo"] = "\(show.date) • \(show.venue)"
+            if let show = vm.currentShow {
+                showInfo = "\(show.date) • \(show.venue)"
             }
         }
 
-        NotificationCenter.default.post(
-            name: .trackInfoUpdated,
-            object: nil,
-            userInfo: userInfo
+        AppDelegate.shared?.updateNowPlaying(
+            trackName: trackName,
+            artist: artist,
+            showInfo: showInfo
         )
     }
 
@@ -1565,7 +1326,7 @@ struct ContentView: View {
     /// begun (or the buffer isn't full), resume directly with no prompt.
     func resumeOrOfferBuffer() {
         if bassPlayer.dvrBufferFull && !bassPlayer.dvrFullBufferDrainStarted {
-            NotificationCenter.default.post(name: .bringWindowToFront, object: nil)
+            AppDelegate.shared?.showMainWindow()
             bassPlayer.dvrReturnOfferPending = true
         } else {
             bassPlayer.dvrResume()
@@ -1580,7 +1341,7 @@ struct ContentView: View {
 
         bassPlayer.play(format: stream.format, url: stream.url)
         isPlaying = true
-        NotificationCenter.default.post(name: .playbackStateChanged, object: nil, userInfo: ["isPlaying": true])
+        vm.isPlaying = true
         updateNowPlayingInfo()
 
         UserDefaults.standard.set(true, forKey: "wasPlayingOnQuit")
@@ -1595,7 +1356,7 @@ struct ContentView: View {
         #endif
         bassPlayer.stopWithFadeOut()
         isPlaying = false
-        NotificationCenter.default.post(name: .playbackStateChanged, object: nil, userInfo: ["isPlaying": false])
+        vm.isPlaying = false
         updateNowPlayingInfo()
 
         UserDefaults.standard.set(false, forKey: "wasPlayingOnQuit")
@@ -1611,93 +1372,7 @@ struct ContentView: View {
     }
 
     func fetchShowInfo(date: String, showTime: ShowTime = .none) {
-        // Build the variant date key (e.g. "1980 12 11 E") for accurate early/late deduplication
-        let variantDate: String
-        switch showTime {
-        case .early: variantDate = "\(date) E"
-        case .late:  variantDate = "\(date) L"
-        case .none:  variantDate = date
-        }
-        // Only fetch if we don't already have this show (and same showTime)
-        guard currentShow?.date != variantDate else { return }
-
-        bassPlayer.currentShowDate = variantDate
-
-        // Determine whether to restore or reset FX based on persistence settings
-        let fxRememberPerShow = UserDefaults.standard.bool(forKey: "fxRememberPerShow")
-        if fxRememberPerShow {
-            // Returning to a show with saved FX: restore immediately. If there's no
-            // snapshot yet, the reset to defaults is deferred to the fetch completion
-            // below, so a one-poll metadata glitch (wrong date) that never resolves to
-            // a real show can't cause an audible mid-song FX dropout.
-            bassPlayer.restorePerShowFX(showDate: variantDate)
-        } else if !fxPersistAcrossShows {
-            bassPlayer.resetAllFX()
-        }
-
-        isFetchingShowInfo = true
-        let fetch: (@escaping (FZShow?) -> Void) -> Void = { completion in
-            if let db = self.fzShowsDB {
-                db.fetchShow(date: date, showTime: showTime, completion: completion)
-            } else {
-                FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime, completion: completion)
-            }
-        }
-        fetch { show in
-            DispatchQueue.main.async {
-                self.currentShow = show
-                self.currentSetlistPosition = 0  // Reset position for new show
-                // Re-compute from parsedTrack so the speaker appears on first load
-                // without waiting for the next metadata poll.
-                if let position = self.findCurrentTrackPosition() {
-                    self.currentSetlistPosition = position
-                }
-                self.isFetchingShowInfo = false
-
-                // Per-show FX: now that a real show has loaded, reset to defaults if it
-                // has no saved snapshot (a genuine new show). Deferring to here means a
-                // transient metadata glitch that returns no show never resets the FX.
-                if show != nil, fxRememberPerShow,
-                   !self.bassPlayer.hasPerShowFX(showDate: variantDate) {
-                    self.bassPlayer.resetAllFX()
-                }
-
-                if let show = show {
-                    #if DEBUG
-                    print("✅ Fetched show info for \(show.date)")
-                    print("   Venue: \(show.venue)")
-                    print("   Setlist: \(show.setlist.count) songs")
-                    #endif
-
-                    // If parsed metadata lacks location, fill in from FZShow
-                    if let parsed = self.parsedTrack, parsed.city == nil || parsed.state == nil {
-                        let updatedParsed = ParsedTrackInfo(
-                            date: parsed.date,
-                            showTime: parsed.showTime,
-                            city: parsed.city ?? show.city,
-                            state: parsed.state ?? show.state,
-                            showDuration: parsed.showDuration,
-                            source: parsed.source,
-                            generation: parsed.generation,
-                            creator: parsed.creator,
-                            artist: parsed.artist,
-                            trackNumber: parsed.trackNumber,
-                            trackName: parsed.trackName,
-                            year: parsed.year,
-                            trackDuration: parsed.trackDuration,
-                            rawTitle: parsed.rawTitle
-                        )
-                        self.parsedTrack = updatedParsed
-                    }
-
-                    // Auto-record to history
-                    self.showDataManager?.recordListen(show: show)
-
-                    // Update menubar tooltip with show info
-                    self.updateNowPlayingInfo()
-                }
-            }
-        }
+        vm.fetchShowInfo(date: date, showTime: showTime, fxPersistAcrossShows: fxPersistAcrossShows)
     }
 }
 

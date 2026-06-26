@@ -22,32 +22,32 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
 
         interfaceController.setRootTemplate(nowPlaying, animated: false, completion: nil)
 
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleBridgeUpdate),
-            name: .carPlayDataChanged,
-            object: nil
-        )
+        // App → scene refresh hook: ContentView_iOS fires this after it mirrors
+        // state into the bridge, so we rebuild our templates (replaces the old
+        // .carPlayDataChanged observer).
+        CarPlayBridge.shared.onDataChanged = { [weak self] in
+            self?.handleBridgeUpdate()
+        }
 
         // Force a fresh publish of MPNowPlayingInfoCenter / CarPlayBridge — CarPlay
         // can connect well after the app already published its initial state (e.g.
         // auto-resume on launch), so without this the Now Playing screen can start
         // from a stale snapshot (wrong play/pause icon) until some other action
         // happens to republish.
-        NotificationCenter.default.post(name: .carPlaySceneDidConnect, object: nil)
+        CarPlayBridge.shared.onSceneConnect()
     }
 
     func templateApplicationScene(
         _ templateApplicationScene: CPTemplateApplicationScene,
         didDisconnectInterfaceController interfaceController: CPInterfaceController
     ) {
-        NotificationCenter.default.removeObserver(self, name: .carPlayDataChanged, object: nil)
+        CarPlayBridge.shared.onDataChanged = nil
         setlistTemplate = nil
         formatTemplate = nil
         self.interfaceController = nil
     }
 
-    @objc private func handleBridgeUpdate() {
+    private func handleBridgeUpdate() {
         DispatchQueue.main.async { [weak self] in
             self?.updateNowPlayingButtons()
             self?.refreshSetlistTemplate()
@@ -64,7 +64,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         let bridge = CarPlayBridge.shared
         var buttons: [CPNowPlayingButton] = [
             nowPlayingImageButton(systemName: "stop.fill") {
-                NotificationCenter.default.post(name: .carPlayStop, object: nil)
+                CarPlayBridge.shared.onStop()
             }
         ]
 
@@ -75,7 +75,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         // that still needs a custom button.
         if bridge.dvrState != .live {
             buttons.append(nowPlayingImageButton(systemName: "dot.radiowaves.left.and.right") {
-                NotificationCenter.default.post(name: .carPlayGoLive, object: nil)
+                CarPlayBridge.shared.onGoLive()
             })
         }
 
@@ -165,11 +165,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
                 accessoryType: .none
             )
             item.handler = { [weak self] _, completion in
-                NotificationCenter.default.post(
-                    name: .carPlaySelectFormat,
-                    object: nil,
-                    userInfo: ["format": option.format]
-                )
+                CarPlayBridge.shared.onSelectFormat(option.format)
                 completion()
                 self?.interfaceController?.popTemplate(animated: true, completion: nil)
             }

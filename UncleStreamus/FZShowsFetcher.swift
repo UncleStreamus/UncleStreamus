@@ -88,6 +88,16 @@ class FZShowsFetcher {
         pattern: #"<acronym title="([^"]+)">([^<]+)</acronym>"#
     )
 
+    /// Matches the next show's `<h4>` date header; used to bound one show's section.
+    /// Single source of truth — referenced from both section-scanning sites.
+    private static let nextShowDatePattern = #"<h4>\d{4} \d{2} \d{2}"#
+
+    /// Matches `<h3>` inner text (tour/title lines on 1970–71 style pages).
+    /// Hoisted to avoid recompiling on every tour-name extraction.
+    private static let h3ContentRegex = try! NSRegularExpression(
+        pattern: #"<h3[^>]*>([^<]+)</h3>"#
+    )
+
     static let userAgentString: String = {
         #if os(macOS)
         let platform = "macOS"
@@ -398,9 +408,8 @@ class FZShowsFetcher {
         }
 
         // Find end of THIS show's entire section (next h4 date OR end of file)
-        let nextDatePattern = "<h4>\\d{4} \\d{2} \\d{2}"
         let showSectionEnd: String.Index
-        if let nextH4Range = html.range(of: nextDatePattern, options: .regularExpression,
+        if let nextH4Range = html.range(of: Self.nextShowDatePattern, options: .regularExpression,
                                         range: h4End.upperBound..<html.endIndex) {
             showSectionEnd = nextH4Range.lowerBound
         } else {
@@ -712,8 +721,8 @@ class FZShowsFetcher {
         // Also look for h3 tags for 1970-1971 style pages
         // Format: <h3>The Mothers Of Invention, June - December 1970</h3>
         // We extract the date range
-        let h3Pattern = "<h3[^>]*>([^<]+)</h3>"
-        if let regex = try? NSRegularExpression(pattern: h3Pattern, options: []) {
+        let regex = Self.h3ContentRegex
+        do {
             let nsRange = NSRange(precedingHTML.startIndex..<precedingHTML.endIndex, in: precedingHTML)
 
             regex.enumerateMatches(in: precedingHTML, range: nsRange) { match, _, _ in
@@ -774,7 +783,7 @@ class FZShowsFetcher {
                 // Find section bounds to detect Early/Late subsections
                 guard let h4End = html.range(of: "</h4>", range: h4Range.upperBound..<html.endIndex) else { continue }
                 let nextShowSectionEnd: String.Index
-                if let nextH4 = html.range(of: "<h4>\\d{4} \\d{2} \\d{2}", options: .regularExpression,
+                if let nextH4 = html.range(of: Self.nextShowDatePattern, options: .regularExpression,
                                             range: h4End.upperBound..<html.endIndex) {
                     nextShowSectionEnd = nextH4.lowerBound
                 } else {
@@ -872,8 +881,8 @@ class FZShowsFetcher {
         let beforeBand = String(precedingHTML[precedingHTML.startIndex..<bandRange.lowerBound])
         var titleText: String? = nil
 
-        let h3Pattern = #"<h3[^>]*>([^<]+)</h3>"#
-        if let regex = try? NSRegularExpression(pattern: h3Pattern, options: []) {
+        let regex = Self.h3ContentRegex
+        do {
             let nsRange = NSRange(beforeBand.startIndex..<beforeBand.endIndex, in: beforeBand)
             regex.enumerateMatches(in: beforeBand, range: nsRange) { match, _, _ in
                 guard let match = match,

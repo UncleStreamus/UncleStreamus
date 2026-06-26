@@ -5,8 +5,9 @@ import Foundation
 ///
 /// `CarPlaySceneDelegate` runs in its own `UIScene` and has no access to
 /// `ContentView_iOS`'s `@State private var bassPlayer` instance, so this singleton
-/// is kept in sync by `ContentView_iOS` (see `syncCarPlayBridge()`) and read by
-/// the CarPlay scene delegate whenever it receives `.carPlayDataChanged`.
+/// is the bridge: `ContentView_iOS` mirrors state in (see `syncCarPlayBridge()`)
+/// and sets command hooks; the scene delegate reads the state, invokes the command
+/// hooks from its buttons, and sets `onDataChanged` to be told when to re-render.
 @Observable
 final class CarPlayBridge {
     static let shared = CarPlayBridge()
@@ -23,22 +24,25 @@ final class CarPlayBridge {
     var currentTrackIndex: Int?
     var selectedFormat = "MP3"
     var availableFormats: [FormatOption] = []
-}
 
-extension Notification.Name {
-    /// Posted by `ContentView_iOS` whenever `CarPlayBridge.shared` changes.
-    static let carPlayDataChanged = Notification.Name("carPlayDataChanged")
+    // MARK: - Command hooks
+    //
+    // The CarPlay scene delegate runs in its own UIScene and can't reach
+    // `ContentView_iOS`'s `@State`, so this singleton is the bridge. These typed
+    // closures replace the old NotificationCenter channel (mirrors the macOS
+    // menubar pattern in RadioViewModel).
 
-    /// Posted by `CarPlaySceneDelegate` when its interface controller connects;
-    /// observed by `ContentView_iOS` to force a fresh Now Playing / bridge publish
-    /// so CarPlay never starts from a stale pre-connection snapshot.
-    static let carPlaySceneDidConnect = Notification.Name("carPlaySceneDidConnect")
+    /// Scene → app commands, set by `ContentView_iOS.setupCarPlayHandlers()`.
+    var onStop: () -> Void = {}
+    var onGoLive: () -> Void = {}
+    var onSelectFormat: (String) -> Void = { _ in }
+    /// Scene → app: force a fresh now-playing/bridge publish after CarPlay connects
+    /// so it never starts from a stale pre-connection snapshot.
+    var onSceneConnect: () -> Void = {}
 
-    /// Posted by `CarPlaySceneDelegate` buttons; observed by `ContentView_iOS`
-    /// to drive the actual `BASSRadioPlayer` (mirrors the macOS menubar pattern).
-    static let carPlayStop = Notification.Name("carPlayStop")
-    static let carPlayGoLive = Notification.Name("carPlayGoLive")
-    /// userInfo: ["format": String] — e.g. "MP3", "OGG", "AAC", "FLAC"
-    static let carPlaySelectFormat = Notification.Name("carPlaySelectFormat")
+    /// App → scene: fired by `ContentView_iOS` after mirroring state so the scene
+    /// delegate can rebuild its templates. Set by the scene delegate while
+    /// connected, cleared on disconnect (nil = no CarPlay scene attached).
+    var onDataChanged: (() -> Void)?
 }
 #endif
