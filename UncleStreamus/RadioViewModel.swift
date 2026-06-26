@@ -112,7 +112,7 @@ final class RadioViewModel {
 
         // On .restore with no snapshot yet, the reset is deferred to the fetch
         // completion below so a one-poll metadata glitch can't drop FX mid-song.
-        let fxRememberPerShow = UserDefaults.standard.bool(forKey: "fxRememberPerShow")
+        let fxRememberPerShow = PerShowFXSync.rememberPerShowEnabled
         switch fxRestorePlan(variantDate: variant,
                              rememberPerShow: fxRememberPerShow,
                              persistAcrossShows: fxPersistAcrossShows) {

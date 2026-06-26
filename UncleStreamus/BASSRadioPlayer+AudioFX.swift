@@ -62,6 +62,14 @@ enum PerShowFXSync {
         (UserDefaults.standard.object(forKey: "iCloudSyncEnabled") as? Bool) ?? true
     }
 
+    /// Whether the user's "Remember FX per show" preference is on. Read via
+    /// `object(forKey:) as? Bool ?? true` (not `bool(forKey:)`) so a fresh
+    /// install, where `@AppStorage` hasn't written its `true` default yet, is
+    /// treated as enabled — matching `iCloudSyncEnabled` above.
+    static var rememberPerShowEnabled: Bool {
+        (UserDefaults.standard.object(forKey: "fxRememberPerShow") as? Bool) ?? true
+    }
+
     static func start() {
         guard observer == nil else { return }
         let store = NSUbiquitousKeyValueStore.default
@@ -884,7 +892,7 @@ extension BASSRadioPlayer {
     func saveFXToDefaults() {
         // Per-show snapshots are the only persisted FX state. (Global "restore on
         // app restart" was removed — per-show memory covers the restart case.)
-        if UserDefaults.standard.bool(forKey: "fxRememberPerShow"), let showDate = currentShowDate {
+        if PerShowFXSync.rememberPerShowEnabled, let showDate = currentShowDate {
             savePerShowFX(showDate: showDate)
         }
     }
