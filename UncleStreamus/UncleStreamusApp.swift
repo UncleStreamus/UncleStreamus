@@ -449,61 +449,91 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let isPlaying = radioVM?.isPlaying ?? false
 
-        // Now Playing info (if available)
-        if currentTrackName != nil || currentShowInfo != nil {
-            if let track = currentTrackName, !track.isEmpty {
-                let trackItem = NSMenuItem(title: track, action: nil, keyEquivalent: "")
-                trackItem.isEnabled = false
-                menu.addItem(trackItem)
-            }
-            if let artist = currentArtist, !artist.isEmpty {
-                let artistItem = NSMenuItem(title: artist, action: nil, keyEquivalent: "")
-                artistItem.isEnabled = false
-                artistItem.attributedTitle = NSAttributedString(
-                    string: artist,
-                    attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: NSFont.systemFont(ofSize: 13)]
-                )
-                menu.addItem(artistItem)
-            }
-            if let show = currentShowInfo, !show.isEmpty {
-                let showItem = NSMenuItem(title: show, action: nil, keyEquivalent: "")
-                showItem.isEnabled = false
-                showItem.attributedTitle = NSAttributedString(
-                    string: show,
-                    attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: NSFont.systemFont(ofSize: 13)]
-                )
-                menu.addItem(showItem)
-            }
-            menu.addItem(NSMenuItem.separator())
-        }
+        addNowPlayingItems(to: menu)
+        addPlaybackControls(to: menu, isPlaying: isPlaying)
 
-        // Play/Pause button
-        let playPauseTitle = isPlaying ? "Pause" : "Play"
-        let playPauseItem = NSMenuItem(title: playPauseTitle, action: #selector(togglePlayPause), keyEquivalent: "")
+        menu.addItem(makeStreamMenuItem())
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(makeAudioMenuItem())
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(makeTextSizeMenuItem())
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(makeAboutMenuItem())
+        menu.addItem(NSMenuItem.separator())
+
+        // Settings
+        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem.keyEquivalentModifierMask = .command
+        menu.addItem(settingsItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        // Quit
+        let quitItem = NSMenuItem(title: "Quit UncleStreamus", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quitItem.keyEquivalentModifierMask = .command
+        menu.addItem(quitItem)
+    }
+
+    // MARK: - Status Menu Builders
+
+    /// Non-interactive now-playing rows (track / artist / show) plus a trailing
+    /// separator. Adds nothing when there is no current track or show info.
+    private func addNowPlayingItems(to menu: NSMenu) {
+        guard currentTrackName != nil || currentShowInfo != nil else { return }
+
+        if let track = currentTrackName, !track.isEmpty {
+            let trackItem = NSMenuItem(title: track, action: nil, keyEquivalent: "")
+            trackItem.isEnabled = false
+            menu.addItem(trackItem)
+        }
+        if let artist = currentArtist, !artist.isEmpty {
+            let artistItem = NSMenuItem(title: artist, action: nil, keyEquivalent: "")
+            artistItem.isEnabled = false
+            artistItem.attributedTitle = NSAttributedString(
+                string: artist,
+                attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: NSFont.systemFont(ofSize: 13)]
+            )
+            menu.addItem(artistItem)
+        }
+        if let show = currentShowInfo, !show.isEmpty {
+            let showItem = NSMenuItem(title: show, action: nil, keyEquivalent: "")
+            showItem.isEnabled = false
+            showItem.attributedTitle = NSAttributedString(
+                string: show,
+                attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: NSFont.systemFont(ofSize: 13)]
+            )
+            menu.addItem(showItem)
+        }
+        menu.addItem(NSMenuItem.separator())
+    }
+
+    /// Play/Pause and Stop items (Stop enabled only while playing).
+    private func addPlaybackControls(to menu: NSMenu, isPlaying: Bool) {
+        let playPauseItem = NSMenuItem(title: isPlaying ? "Pause" : "Play",
+                                       action: #selector(togglePlayPause), keyEquivalent: "")
         menu.addItem(playPauseItem)
 
-        // Stop button
         let stopItem = NSMenuItem(title: "Stop", action: #selector(stopPlayback), keyEquivalent: "")
         stopItem.isEnabled = isPlaying
         menu.addItem(stopItem)
+    }
 
-        // Stream picker submenu
+    /// "Stream" submenu — one item per format, checkmark on the selected one.
+    private func makeStreamMenuItem() -> NSMenuItem {
         let streamItem = NSMenuItem(title: "Stream", action: nil, keyEquivalent: "")
         let streamSubmenu = NSMenu()
-
         for format in streamFormats {
             let formatItem = NSMenuItem(title: format, action: #selector(selectStreamFormat(_:)), keyEquivalent: "")
             formatItem.representedObject = format
             formatItem.state = (format == selectedStreamFormat) ? .on : .off
             streamSubmenu.addItem(formatItem)
         }
-
         streamItem.submenu = streamSubmenu
-        menu.addItem(streamItem)
+        return streamItem
+    }
 
-        menu.addItem(NSMenuItem.separator())
-
-        // Audio submenu
+    /// "Audio" submenu — volume slider plus Volume Up / Down items.
+    private func makeAudioMenuItem() -> NSMenuItem {
         let audioItem = NSMenuItem(title: "Audio", action: nil, keyEquivalent: "")
         let audioSubmenu = NSMenu()
 
@@ -526,11 +556,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         audioSubmenu.addItem(volDownItem)
 
         audioItem.submenu = audioSubmenu
-        menu.addItem(audioItem)
+        return audioItem
+    }
 
-        menu.addItem(NSMenuItem.separator())
-
-        // Text Size submenu
+    /// "Text Size" submenu — Smaller / Default / Large / Largest.
+    private func makeTextSizeMenuItem() -> NSMenuItem {
         let textSizeItem = NSMenuItem(title: "Text Size", action: nil, keyEquivalent: "")
         let textSizeSubmenu = NSMenu()
 
@@ -549,31 +579,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         textSizeSubmenu.addItem(largestItem)
 
         textSizeItem.submenu = textSizeSubmenu
-        menu.addItem(textSizeItem)
+        return textSizeItem
+    }
 
-        menu.addItem(NSMenuItem.separator())
-
-        // About submenu — Welcome guide + What's New sheets
+    /// "About" submenu — Welcome guide + What's New sheets.
+    private func makeAboutMenuItem() -> NSMenuItem {
         let aboutItem = NSMenuItem(title: "About", action: nil, keyEquivalent: "")
         let aboutSubmenu = NSMenu()
         aboutSubmenu.addItem(NSMenuItem(title: "Welcome to UncleStreamus", action: #selector(showWelcomeSheet), keyEquivalent: ""))
         aboutSubmenu.addItem(NSMenuItem(title: "What's New", action: #selector(showWhatsNewSheet), keyEquivalent: ""))
         aboutItem.submenu = aboutSubmenu
-        menu.addItem(aboutItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        // Settings
-        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
-        settingsItem.keyEquivalentModifierMask = .command
-        menu.addItem(settingsItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        // Quit
-        let quitItem = NSMenuItem(title: "Quit UncleStreamus", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        quitItem.keyEquivalentModifierMask = .command
-        menu.addItem(quitItem)
+        return aboutItem
     }
 
     // MARK: - NSMenuDelegate
