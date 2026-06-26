@@ -70,6 +70,10 @@ struct ContentView_iOS: View {
     @State private var contentBounceOffset: CGFloat = 0
     @State private var interruptionHandlerSetUp = false
     @State private var carPlayHandlersSetUp = false
+    // Opaque tokens for the closure-based AVAudioSession observers (interruption +
+    // two route-change handlers). Held so onDisappear can remove them rather than
+    // leaking them for the process lifetime.
+    @State private var systemObservers: [NSObjectProtocol] = []
 
     var body: some View {
         HStack(spacing: 0) {
@@ -406,6 +410,13 @@ struct ContentView_iOS: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .refreshShowDatabase)) { _ in
             fzShowsDB?.downloadAllPages()
+        }
+        .onDisappear {
+            // Remove the AVAudioSession observers so they don't outlive the view. Reset
+            // the guard so they re-register cleanly if the view reappears.
+            systemObservers.forEach(NotificationCenter.default.removeObserver)
+            systemObservers.removeAll()
+            interruptionHandlerSetUp = false
         }
         .onChange(of: scenePhase) { _, newPhase in
             // Track foreground state first so startSilenceKeepalive()'s foreground guard sees the
@@ -1157,7 +1168,7 @@ struct ContentView_iOS: View {
     // MARK: - Audio Session Interruption Handler
 
     private func setupInterruptionHandler() {
-        NotificationCenter.default.addObserver(
+        systemObservers.append(NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification,
             object: AVAudioSession.sharedInstance(),
             queue: .main
@@ -1197,7 +1208,7 @@ struct ContentView_iOS: View {
                     bassPlayer.triggerImmediateReconnect()
                 }
             }
-        }
+        })
 
         // Pause to DVR when headphones are removed (AirPod taken out of ear, Bluetooth
         // disconnect, wired headphones unplugged). Without this, audio routes to the
@@ -1206,7 +1217,7 @@ struct ContentView_iOS: View {
         // weak class reference instead. dvrEnabled is read from UserDefaults at fire time
         // so it reflects the current setting, not the value at observer-registration time.
         // updateNowPlayingInfo() is triggered automatically via .onChange(of: bassPlayer.dvrState).
-        NotificationCenter.default.addObserver(
+        systemObservers.append(NotificationCenter.default.addObserver(
             forName: AVAudioSession.routeChangeNotification,
             object: AVAudioSession.sharedInstance(),
             queue: .main
@@ -1236,13 +1247,13 @@ struct ContentView_iOS: View {
             case .paused:
                 break   // already paused
             }
-        }
+        })
 
         // Re-activate the audio session when a Bluetooth device (AirPods) reconnects.
         // After BASS_ChannelPause during DVR pause, CoreAudio's output unit goes idle.
         // Re-calling setActive(true) here re-routes the session to the new device so
         // BASS_ChannelPlay in dvrResume() can start rendering audio immediately.
-        NotificationCenter.default.addObserver(
+        systemObservers.append(NotificationCenter.default.addObserver(
             forName: AVAudioSession.routeChangeNotification,
             object: AVAudioSession.sharedInstance(),
             queue: .main
@@ -1268,7 +1279,7 @@ struct ContentView_iOS: View {
             try? session.setCategory(.playback, mode: .default, options: [.allowBluetoothA2DP, .allowAirPlay])
             try? session.setActive(true)
             bassPlayer.restartOutputAfterRouteChange()
-        }
+        })
     }
 
     // MARK: - Audio Session Setup

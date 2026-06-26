@@ -349,6 +349,64 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil else { return }
         setupMenubarIcon()
         setupStatusMenu()
+        setupSystemObservers()
+    }
+
+    /// App-lifetime system observers: reconnect on app-activate / system-wake, and save
+    /// playing state on quit. Registered once here — not in `ContentView.onAppear` — so
+    /// they survive while the menubar window is closed (a background-playing radio's
+    /// normal state) and don't accumulate across window reopens. Playback state is read
+    /// at fire time through the weak `bassPlayer` / `radioVM` set by `setupPlayer()`.
+    /// Never removed: a single app-lifetime registration is not a leak.
+    private func setupSystemObservers() {
+        // Reconnect when the app becomes active (e.g. after switching away and back).
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let player = self?.bassPlayer else { return }
+            // Don't reconnect while the buffer is paused — that would restart the live
+            // stream and wipe a full buffer. The play-buffer-vs-go-live choice is offered
+            // when the user presses play (resumeOrOfferBuffer()), not on returning.
+            if player.dvrState == .paused {
+                // no-op: leave the paused buffer intact
+            } else if player.isUserIntendedPlay && !player.isStreamActive {
+                player.triggerImmediateReconnect()
+            }
+        }
+
+        // Reconnect after the system wakes from sleep (network sockets drop during
+        // sleep, leaving a dead stream). NSWorkspace notifications are delivered on
+        // `NSWorkspace.shared.notificationCenter`, NOT the default center — observing
+        // on `.default` (as this did when it lived in ContentView) silently never
+        // fired. Guards keep it inert unless a live stream actually died while the
+        // user intended playback, so it won't disturb a paused buffer.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let player = self?.bassPlayer else { return }
+            if player.dvrState == .live,
+               player.isUserIntendedPlay, !player.isStreamActive {
+                player.triggerImmediateReconnect()
+            }
+        }
+
+        // Save playing state when the app is about to terminate.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            let currentlyPlaying = self?.radioVM?.isPlaying ?? false
+            UserDefaults.standard.set(currentlyPlaying, forKey: "wasPlayingOnQuit")
+            UserDefaults.standard.synchronize()
+            #if DEBUG
+            print("💾 willTerminate - saving playing state: \(currentlyPlaying)")
+            #endif
+        }
     }
 
     private func setupMenubarIcon() {

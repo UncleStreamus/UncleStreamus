@@ -119,7 +119,6 @@ struct ContentView: View {
 
             setupPlayer()
             configureWindowConstraints()
-            setupMenubarObservers()
             checkWhatsNew()
 
             // Auto-play if stream was playing when app was last quit (and auto-resume is enabled)
@@ -1118,42 +1117,6 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Menubar Menu Observers
-
-    private func setupMenubarObservers() {
-        // Menubar commands (play/pause, stop, stream pick, volume, sheets) are now
-        // routed directly through `vm`/`bassPlayer` — see `setupPlayer()`. Only the
-        // system-sourced reconnect notifications remain here.
-
-        // Reconnect when app becomes active (e.g. after switch away and back)
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didBecomeActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak bassPlayer] _ in
-            // Don't reconnect while the buffer is paused — that would restart the live stream
-            // and wipe a full buffer. The play-buffer-vs-go-live choice is offered when the
-            // user presses play (resumeOrOfferBuffer()), not on returning to the app.
-            if bassPlayer?.dvrState == .paused {
-                // no-op: leave the paused buffer intact
-            } else if bassPlayer?.isUserIntendedPlay == true && bassPlayer?.isStreamActive == false {
-                bassPlayer?.triggerImmediateReconnect()
-            }
-        }
-
-        // Reconnect after system wakes from sleep
-        NotificationCenter.default.addObserver(
-            forName: NSWorkspace.didWakeNotification,
-            object: NSWorkspace.shared,
-            queue: .main
-        ) { [weak bassPlayer] _ in
-            if bassPlayer?.dvrState == .live,
-               bassPlayer?.isUserIntendedPlay == true && bassPlayer?.isStreamActive == false {
-                bassPlayer?.triggerImmediateReconnect()
-            }
-        }
-    }
-
     /// Shows the "What's New" sheet once per build update. A first-ever install is
     /// recorded silently (no What's New sheet) and instead shows the one-time
     /// Welcome sheet; thereafter What's New appears when the bundled build number
@@ -1231,19 +1194,8 @@ struct ContentView: View {
         // Setup media key controls
         setupRemoteCommandCenter()
 
-        // Save playing state and current show when app is about to terminate
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.willTerminateNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            let currentlyPlaying = self.isPlaying
-            UserDefaults.standard.set(currentlyPlaying, forKey: "wasPlayingOnQuit")
-            UserDefaults.standard.synchronize()
-            #if DEBUG
-            print("💾 willTerminate - saving playing state: \(currentlyPlaying)")
-            #endif
-        }
+        // willTerminate save-state lives on the app-lifetime AppDelegate (it reads
+        // `radioVM?.isPlaying`), so it fires even when the menubar window is closed.
     }
 
     // MARK: - Media Key Support
