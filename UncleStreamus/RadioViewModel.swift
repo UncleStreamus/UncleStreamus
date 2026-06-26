@@ -126,7 +126,9 @@ final class RadioViewModel {
             if let db = fzShowsDB {
                 db.fetchShow(date: date, showTime: showTime, completion: completion)
             } else {
-                FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime, completion: completion)
+                // No local DB: the view layer only needs the show, so collapse the
+                // Result back to an optional (network vs not-found is logged downstream).
+                FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime) { completion(try? $0.get()) }
             }
         }
         fetch { [weak self] show in

@@ -221,7 +221,27 @@ class FZShowsFetcher {
 
     // MARK: - Public API
 
-    static func fetchShowInfo(date: String, showTime: ShowTime = .none, completion: @escaping (FZShow?) -> Void) {
+    /// Why a live fetch failed. Lets callers tell a genuine "the show isn't on the
+    /// page" miss apart from a network/transport failure, instead of collapsing both
+    /// into `nil` (which mislabels outages as "not found" and discards retry intent).
+    enum FetchError: Error, CustomStringConvertible {
+        case invalidURL          // couldn't parse the date / form a page URL
+        case network(Error)      // URLSession transport failure
+        case noData              // response body was empty or not UTF-8 decodable
+        case showNotFound        // page loaded OK but the requested date wasn't present
+
+        var description: String {
+            switch self {
+            case .invalidURL:     return "invalid URL"
+            case .network(let e): return "network error: \(e.localizedDescription)"
+            case .noData:         return "no/undecodable data"
+            case .showNotFound:   return "show not found"
+            }
+        }
+    }
+
+    static func fetchShowInfo(date: String, showTime: ShowTime = .none,
+                              completion: @escaping (Result<FZShow, FetchError>) -> Void) {
         // Strip optional E/L suffix (e.g. "1982 07 09 E" → "1982 07 09")
         // showDate keys now include the suffix; callers may pass either form
         let baseParts = date.components(separatedBy: " ")
@@ -233,7 +253,7 @@ class FZShowsFetcher {
               let year = Int(parts[0]),
               let month = Int(parts[1]),
               let _ = Int(parts[2]) else {
-            completion(nil)
+            completion(.failure(.showNotFound))
             return
         }
 
@@ -252,23 +272,27 @@ class FZShowsFetcher {
         let filename = exception?.altFilename ?? getTourPageFilename(year: year, month: month)
 
         guard let primaryFilename = filename else {
-            completion(nil)
+            completion(.failure(.showNotFound))
             return
         }
 
         let primaryURLString = "https://www.zappateers.com/fzshows/\(primaryFilename)"
         fetchFromURL(urlString: primaryURLString, filename: primaryFilename, searchDate: searchDate, originalDate: baseDate,
-                     showTime: showTime, sectionKeywords: sectionKeywords) { show in
-            if let show = show {
-                completion(show)
-            } else {
-                // Fallback to rehearsals.html
+                     showTime: showTime, sectionKeywords: sectionKeywords) { result in
+            switch result {
+            case .success:
+                completion(result)
+            case .failure(.showNotFound):
+                // Fall back to rehearsals.html only when the page loaded but lacked
+                // the date — a transport failure is propagated, not masked or retried.
                 #if DEBUG
                 print("🔄 Primary page had no match, trying rehearsals.html")
                 #endif
                 let rehearsalsURLString = "https://www.zappateers.com/fzshows/rehearsals.html"
                 self.fetchFromURL(urlString: rehearsalsURLString, filename: "rehearsals.html", searchDate: searchDate, originalDate: baseDate,
                                   showTime: showTime, sectionKeywords: sectionKeywords, completion: completion)
+            case .failure:
+                completion(result)
             }
         }
     }
@@ -277,9 +301,9 @@ class FZShowsFetcher {
 
     private static func fetchFromURL(urlString: String, filename: String, searchDate: String, originalDate: String,
                                      showTime: ShowTime, sectionKeywords: [String]?,
-                                     completion: @escaping (FZShow?) -> Void) {
+                                     completion: @escaping (Result<FZShow, FetchError>) -> Void) {
         guard let url = URL(string: urlString) else {
-            completion(nil)
+            completion(.failure(.invalidURL))
             return
         }
 
@@ -290,19 +314,29 @@ class FZShowsFetcher {
         var request = URLRequest(url: url)
         request.setValue(userAgentString, forHTTPHeaderField: "User-Agent")
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            if let error = error {
+                #if DEBUG
+                print("❌ Network error fetching HTML: \(error.localizedDescription)")
+                #endif
+                completion(.failure(.network(error)))
+                return
+            }
             guard let data = data,
                   let html = String(data: data, encoding: .utf8) else {
                 #if DEBUG
-                print("❌ Failed to fetch or decode HTML")
+                print("❌ Failed to decode HTML")
                 #endif
-                completion(nil)
+                completion(.failure(.noData))
                 return
             }
 
-            let show = parseShowFromHTML(html: html, filename: filename, searchDate: searchDate, originalDate: originalDate,
-                                         showTime: showTime, sectionKeywords: sectionKeywords, url: urlString)
-            completion(show)
+            if let show = parseShowFromHTML(html: html, filename: filename, searchDate: searchDate, originalDate: originalDate,
+                                            showTime: showTime, sectionKeywords: sectionKeywords, url: urlString) {
+                completion(.success(show))
+            } else {
+                completion(.failure(.showNotFound))
+            }
         }.resume()
     }
 

@@ -243,9 +243,9 @@ class ShowDataManager {
             showTime = .none
         }
 
-        FZShowsFetcher.fetchShowInfo(date: showDate, showTime: showTime) { [weak self] newShow in
+        FZShowsFetcher.fetchShowInfo(date: showDate, showTime: showTime) { [weak self] result in
             DispatchQueue.main.async {
-                guard let self = self, let newShow = newShow else {
+                guard let self = self, let newShow = try? result.get() else {
                     completion(false)
                     return
                 }

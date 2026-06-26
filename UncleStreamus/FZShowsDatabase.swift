@@ -121,16 +121,23 @@ class FZShowsDatabase {
         #if DEBUG
         print("🌐 DB cache miss for \(date) — falling back to live fetch")
         #endif
-        FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime) { [weak self] show in
+        FZShowsFetcher.fetchShowInfo(date: date, showTime: showTime) { [weak self] result in
             DispatchQueue.main.async {
-                if let show = show {
+                switch result {
+                case .success(let show):
                     self?.upsert(show: show, pageFilename: "live")
                     self?.log("Live fetch: \(date) — cached for next time")
-                } else {
+                    completion(show)
+                case .failure(.showNotFound):
                     self?.log("Live fetch: \(date) — not found on zappateers.com")
+                    completion(nil)
+                case .failure(let error):
+                    // Don't cache a "miss" we never actually confirmed — a transport
+                    // failure leaves the cache empty so the next attempt retries.
+                    self?.log("Live fetch: \(date) — \(error); will retry next time")
+                    completion(nil)
                 }
             }
-            completion(show)
         }
     }
 
@@ -258,11 +265,16 @@ class FZShowsDatabase {
         var request = URLRequest(url: url)
         request.setValue(FZShowsFetcher.userAgentString, forHTTPHeaderField: "User-Agent")
 
-        URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
-            guard let self = self,
-                  let data = data,
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
+            guard let self = self else { completion(); return }
+            if let error = error {
+                DispatchQueue.main.async { self.log("  ✗ Network error for \(filename): \(error.localizedDescription)") }
+                completion()
+                return
+            }
+            guard let data = data,
                   let html = String(data: data, encoding: .utf8) else {
-                DispatchQueue.main.async { self?.log("  ✗ Failed to download \(filename)") }
+                DispatchQueue.main.async { self.log("  ✗ Failed to decode \(filename)") }
                 completion()
                 return
             }
