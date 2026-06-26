@@ -779,248 +779,11 @@ struct ContentView: View {
     private var showInfoSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Show info header button (always visible)
-            Button(action: {
-                // Only allow expanding if we have show data
-                if vm.currentShow != nil {
-                    showInfoExpanded.toggle()
-                    updateWindowMinHeight()
-                }
-            }) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        if let show = vm.currentShow {
-                            Text(show.venue)
-                                .scaledFont(.headline, weight: .semibold)
-
-                            if let note = show.note {
-                                Text((try? AttributedString(markdown: note)) ?? AttributedString(note))
-                                    .scaledFont(.caption)
-                                    .foregroundColor(Color.red.opacity(0.8))
-                            }
-
-                            if !show.showInfo.isEmpty {
-                                Text(show.showInfo)
-                                    .scaledFont(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } else if vm.isFetchingShowInfo {
-                            HStack(spacing: 6) {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                                Text("Loading show info...")
-                                    .scaledFont(.headline)
-                                    .foregroundColor(.gray)
-                            }
-                        } else {
-                            Text(showInfoPlaceholderText)
-                                .scaledFont(.headline)
-                                .foregroundColor(.gray)
-                        }
-                    }
-
-                    Spacer()
-
-                    // Only show chevron if we have show data
-                    if vm.currentShow != nil {
-                        Image(systemName: showInfoExpanded ? "chevron.up" : "chevron.down")
-                    }
-                }
-                .contentShape(Rectangle())
-                .padding()
-                .background(Color.blue.opacity(0.1))
-                .cornerRadius(8)
-            }
-            .buttonStyle(.plain)
-            .disabled(vm.currentShow == nil)
-            .offset(y: contentBounceOffset)
+            showInfoHeaderButton
 
             // Expanded setlist section (only when show is loaded)
             if showInfoExpanded, let show = vm.currentShow {
-                VStack(alignment: .leading, spacing: 12) {
-
-                    Text("Setlist:")
-                        .scaledFont(.headline)
-
-                    ScrollView {
-                        Group {
-                            if availableWidth > 385 {
-                                HStack(alignment: .top, spacing: 20) {
-                                    let midpoint = (show.setlist.count + 1) / 2
-
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        ForEach(Array(show.setlist.prefix(midpoint).enumerated()), id: \.offset) { index, song in
-                                            setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
-                                        }
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                                    if show.setlist.count > midpoint {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            ForEach(Array(show.setlist.dropFirst(midpoint).enumerated()), id: \.offset) { index, song in
-                                                setlistRow(index: midpoint + index + 1, song: song, acronyms: show.acronyms)
-                                            }
-                                        }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
-                                }
-                            } else {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    ForEach(Array(show.setlist.enumerated()), id: \.offset) { index, song in
-                                        setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-                        .padding(.horizontal, 4)
-                        .background(
-                            GeometryReader { geo in
-                                Color.clear.onAppear {
-                                    availableWidth = geo.size.width
-                                }
-                                .onChange(of: geo.size.width) { _, newWidth in
-                                    availableWidth = newWidth
-                                }
-                            }
-                        )
-                    }
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear
-                                .onAppear {
-                                    setlistFrameInWindow = geo.frame(in: .named("mainContent"))
-                                }
-                                .onChange(of: geo.frame(in: .named("mainContent"))) { _, newFrame in
-                                    setlistFrameInWindow = newFrame
-                                }
-                        }
-                    )
-
-                    // Band Info / Official Releases tab row
-                    let hasBandInfo = show.bandInfo != nil
-                    let hasAcronyms = !show.acronyms.isEmpty
-                    if hasBandInfo || hasAcronyms {
-                        HStack(spacing: 12) {
-                            if let bandInfo = show.bandInfo {
-                                let _ = bandInfo  // suppress unused warning
-                                Button(action: {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        expandedFooterSection = expandedFooterSection == .bandInfo ? nil : .bandInfo
-                                    }
-                                }) {
-                                    HStack(spacing: 2) {
-                                        Text("[")
-                                            .scaledFont(.caption, weight: .medium)
-                                            .foregroundColor(.secondary)
-                                        Text("Band Info")
-                                            .scaledFont(.caption, weight: .medium)
-                                            .foregroundColor(.primary)
-                                        Text("]")
-                                            .scaledFont(.caption, weight: .medium)
-                                            .foregroundColor(.secondary)
-                                        Image(systemName: expandedFooterSection == .bandInfo ? "chevron.down" : "chevron.right")
-                                            .scaledFont(.caption2)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            if hasAcronyms {
-                                Button(action: {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        expandedFooterSection = expandedFooterSection == .officialReleases ? nil : .officialReleases
-                                    }
-                                }) {
-                                    HStack(spacing: 2) {
-                                        Text("[")
-                                            .scaledFont(.caption, weight: .medium)
-                                            .foregroundColor(.secondary)
-                                        Text("Official Releases")
-                                            .scaledFont(.caption, weight: .medium)
-                                            .foregroundColor(Color.orange.opacity(0.8))
-                                        Text("]")
-                                            .scaledFont(.caption, weight: .medium)
-                                            .foregroundColor(.secondary)
-                                        Image(systemName: expandedFooterSection == .officialReleases ? "chevron.down" : "chevron.right")
-                                            .scaledFont(.caption2)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            Spacer()
-                        }
-                        .padding(.top, 16)
-
-                        // Expanded content (only one at a time)
-                        if expandedFooterSection == .bandInfo, let bandInfo = show.bandInfo {
-                            let parts = bandInfo.split(separator: "\n", maxSplits: 1).map(String.init)
-                            VStack(alignment: .leading, spacing: 4) {
-                                if parts.count >= 1 {
-                                    Text(parts[0])
-                                        .scaledFont(.caption, weight: .medium)
-                                        .foregroundColor(.secondary)
-                                        .italic()
-                                }
-                                if parts.count >= 2 {
-                                    Text(parts[1])
-                                        .scaledFont(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            .padding(.leading, 8)
-                        } else if expandedFooterSection == .officialReleases {
-                            let uniqueAcronyms = show.acronyms.reduce(into: [(short: String, full: String)]()) { result, acronym in
-                                if !result.contains(where: { $0.short == acronym.short }) {
-                                    result.append(acronym)
-                                }
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                ForEach(uniqueAcronyms, id: \.short) { acronym in
-                                    (Text(acronym.short)
-                                        .foregroundColor(.blue)
-                                        .bold()
-                                     + Text(" = \(acronym.full)")
-                                        .foregroundColor(.secondary))
-                                        .scaledFont(.caption2)
-                                        .italic()
-                                }
-                            }
-                            .padding(.leading, 8)
-                        }
-                    }
-
-                    HStack(spacing: 8) {
-                        Button("Track Info (donlope)...") {
-                            guard let trackName = vm.parsedTrack?.trackName else { return }
-                            Task {
-                                let result = await DonlopeIndexCache.shared.lookupURL(for: trackName)
-                                let url: URL
-                                if case .found(let found) = result { url = found }
-                                else { url = URL(string: "https://www.donlope.net/fz/songs/index.html")! }
-                                await MainActor.run { trackInfoURL = IdentifiableURL(url: url) }
-                            }
-                        }
-                        .disabled(vm.parsedTrack?.trackName == nil)
-                        Spacer()
-                        Button("Setlist Context (FZShows)...") {
-                            if let url = URL(string: show.url) {
-                                // Strip E/L variant suffix — scroll-to search matches raw HTML dates
-                                let baseDate = show.date.components(separatedBy: " ").prefix(3).joined(separator: " ")
-                                setlistInfoItem = SetlistInfoItem(url: url, showDate: baseDate)
-                            }
-                        }
-                    }
-                    .scaledFont(.caption)
-                    .padding(.top, 8)
-                }
-                .frame(maxHeight: .infinity)
-                .padding()
-                .background(Color.gray.opacity(0.05))
-                .cornerRadius(8)
-                .offset(y: contentBounceOffset)
+                expandedShowDetail(show)
             }
         }
         .contextMenu {
@@ -1041,6 +804,272 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Show Info Subviews
+
+    /// Tappable header showing venue / note / show-info (or a loading / placeholder
+    /// state) with an expand chevron. Toggling it expands the setlist section.
+    private var showInfoHeaderButton: some View {
+        Button(action: {
+            // Only allow expanding if we have show data
+            if vm.currentShow != nil {
+                showInfoExpanded.toggle()
+                updateWindowMinHeight()
+            }
+        }) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    if let show = vm.currentShow {
+                        Text(show.venue)
+                            .scaledFont(.headline, weight: .semibold)
+
+                        if let note = show.note {
+                            Text((try? AttributedString(markdown: note)) ?? AttributedString(note))
+                                .scaledFont(.caption)
+                                .foregroundColor(Color.red.opacity(0.8))
+                        }
+
+                        if !show.showInfo.isEmpty {
+                            Text(show.showInfo)
+                                .scaledFont(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } else if vm.isFetchingShowInfo {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Loading show info...")
+                                .scaledFont(.headline)
+                                .foregroundColor(.gray)
+                        }
+                    } else {
+                        Text(showInfoPlaceholderText)
+                            .scaledFont(.headline)
+                            .foregroundColor(.gray)
+                    }
+                }
+
+                Spacer()
+
+                // Only show chevron if we have show data
+                if vm.currentShow != nil {
+                    Image(systemName: showInfoExpanded ? "chevron.up" : "chevron.down")
+                }
+            }
+            .contentShape(Rectangle())
+            .padding()
+            .background(Color.blue.opacity(0.1))
+            .cornerRadius(8)
+        }
+        .buttonStyle(.plain)
+        .disabled(vm.currentShow == nil)
+        .offset(y: contentBounceOffset)
+    }
+
+    /// Expanded detail panel for a loaded show: the setlist, the band-info /
+    /// official-releases footer, and the donlope / FZShows lookup buttons.
+    private func expandedShowDetail(_ show: FZShow) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Setlist:")
+                .scaledFont(.headline)
+
+            setlistScroll(show)
+            footerSection(show)
+            detailButtons(show)
+        }
+        .frame(maxHeight: .infinity)
+        .padding()
+        .background(Color.gray.opacity(0.05))
+        .cornerRadius(8)
+        .offset(y: contentBounceOffset)
+    }
+
+    /// Scrollable setlist — two columns when wide enough (>385pt), single column
+    /// otherwise. The geometry readers track the available width (column layout)
+    /// and the setlist's frame in the window (for the now-playing scroll target).
+    private func setlistScroll(_ show: FZShow) -> some View {
+        ScrollView {
+            Group {
+                if availableWidth > 385 {
+                    HStack(alignment: .top, spacing: 20) {
+                        let midpoint = (show.setlist.count + 1) / 2
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(Array(show.setlist.prefix(midpoint).enumerated()), id: \.offset) { index, song in
+                                setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        if show.setlist.count > midpoint {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(Array(show.setlist.dropFirst(midpoint).enumerated()), id: \.offset) { index, song in
+                                    setlistRow(index: midpoint + index + 1, song: song, acronyms: show.acronyms)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(show.setlist.enumerated()), id: \.offset) { index, song in
+                            setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(.horizontal, 4)
+            .background(
+                GeometryReader { geo in
+                    Color.clear.onAppear {
+                        availableWidth = geo.size.width
+                    }
+                    .onChange(of: geo.size.width) { _, newWidth in
+                        availableWidth = newWidth
+                    }
+                }
+            )
+        }
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear {
+                        setlistFrameInWindow = geo.frame(in: .named("mainContent"))
+                    }
+                    .onChange(of: geo.frame(in: .named("mainContent"))) { _, newFrame in
+                        setlistFrameInWindow = newFrame
+                    }
+            }
+        )
+    }
+
+    /// Band Info / Official Releases collapsible footer row. Renders nothing when
+    /// the show has neither; only one section is expanded at a time.
+    @ViewBuilder
+    private func footerSection(_ show: FZShow) -> some View {
+        let hasBandInfo = show.bandInfo != nil
+        let hasAcronyms = !show.acronyms.isEmpty
+        if hasBandInfo || hasAcronyms {
+            HStack(spacing: 12) {
+                if let bandInfo = show.bandInfo {
+                    let _ = bandInfo  // suppress unused warning
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            expandedFooterSection = expandedFooterSection == .bandInfo ? nil : .bandInfo
+                        }
+                    }) {
+                        HStack(spacing: 2) {
+                            Text("[")
+                                .scaledFont(.caption, weight: .medium)
+                                .foregroundColor(.secondary)
+                            Text("Band Info")
+                                .scaledFont(.caption, weight: .medium)
+                                .foregroundColor(.primary)
+                            Text("]")
+                                .scaledFont(.caption, weight: .medium)
+                                .foregroundColor(.secondary)
+                            Image(systemName: expandedFooterSection == .bandInfo ? "chevron.down" : "chevron.right")
+                                .scaledFont(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                if hasAcronyms {
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            expandedFooterSection = expandedFooterSection == .officialReleases ? nil : .officialReleases
+                        }
+                    }) {
+                        HStack(spacing: 2) {
+                            Text("[")
+                                .scaledFont(.caption, weight: .medium)
+                                .foregroundColor(.secondary)
+                            Text("Official Releases")
+                                .scaledFont(.caption, weight: .medium)
+                                .foregroundColor(Color.orange.opacity(0.8))
+                            Text("]")
+                                .scaledFont(.caption, weight: .medium)
+                                .foregroundColor(.secondary)
+                            Image(systemName: expandedFooterSection == .officialReleases ? "chevron.down" : "chevron.right")
+                                .scaledFont(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+            }
+            .padding(.top, 16)
+
+            // Expanded content (only one at a time)
+            if expandedFooterSection == .bandInfo, let bandInfo = show.bandInfo {
+                let parts = bandInfo.split(separator: "\n", maxSplits: 1).map(String.init)
+                VStack(alignment: .leading, spacing: 4) {
+                    if parts.count >= 1 {
+                        Text(parts[0])
+                            .scaledFont(.caption, weight: .medium)
+                            .foregroundColor(.secondary)
+                            .italic()
+                    }
+                    if parts.count >= 2 {
+                        Text(parts[1])
+                            .scaledFont(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.leading, 8)
+            } else if expandedFooterSection == .officialReleases {
+                let uniqueAcronyms = show.acronyms.reduce(into: [(short: String, full: String)]()) { result, acronym in
+                    if !result.contains(where: { $0.short == acronym.short }) {
+                        result.append(acronym)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(uniqueAcronyms, id: \.short) { acronym in
+                        (Text(acronym.short)
+                            .foregroundColor(.blue)
+                            .bold()
+                         + Text(" = \(acronym.full)")
+                            .foregroundColor(.secondary))
+                            .scaledFont(.caption2)
+                            .italic()
+                    }
+                }
+                .padding(.leading, 8)
+            }
+        }
+    }
+
+    /// "Track Info (donlope)" and "Setlist Context (FZShows)" lookup buttons.
+    private func detailButtons(_ show: FZShow) -> some View {
+        HStack(spacing: 8) {
+            Button("Track Info (donlope)...") {
+                guard let trackName = vm.parsedTrack?.trackName else { return }
+                Task {
+                    let result = await DonlopeIndexCache.shared.lookupURL(for: trackName)
+                    let url: URL
+                    if case .found(let found) = result { url = found }
+                    else { url = URL(string: "https://www.donlope.net/fz/songs/index.html")! }
+                    await MainActor.run { trackInfoURL = IdentifiableURL(url: url) }
+                }
+            }
+            .disabled(vm.parsedTrack?.trackName == nil)
+            Spacer()
+            Button("Setlist Context (FZShows)...") {
+                if let url = URL(string: show.url) {
+                    // Strip E/L variant suffix — scroll-to search matches raw HTML dates
+                    let baseDate = show.date.components(separatedBy: " ").prefix(3).joined(separator: " ")
+                    setlistInfoItem = SetlistInfoItem(url: url, showDate: baseDate)
+                }
+            }
+        }
+        .scaledFont(.caption)
+        .padding(.top, 8)
     }
 
     // MARK: - Placeholder Text
