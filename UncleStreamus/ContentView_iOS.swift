@@ -69,7 +69,7 @@ struct ContentView_iOS: View {
     @State private var sidebarNavigationActive: Bool = false
     @State private var contentBounceOffset: CGFloat = 0
     @State private var interruptionHandlerSetUp = false
-    @State private var carPlayObserversSetUp = false
+    @State private var carPlayHandlersSetUp = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -388,10 +388,10 @@ struct ContentView_iOS: View {
                 setupInterruptionHandler()
                 interruptionHandlerSetUp = true
             }
-            if !carPlayObserversSetUp {
+            if !carPlayHandlersSetUp {
                 CarPlayBridge.shared.availableFormats = streams.map { .init(format: $0.format, label: $0.name) }
-                setupCarPlayObservers()
-                carPlayObserversSetUp = true
+                setupCarPlayHandlers()
+                carPlayHandlersSetUp = true
             }
             syncCarPlayBridge()
 
@@ -1555,10 +1555,10 @@ struct ContentView_iOS: View {
 
     // MARK: - CarPlay
 
-    /// Mirrors current state into `CarPlayBridge.shared` and notifies the CarPlay
-    /// scene delegate to refresh its templates. CarPlay runs in a separate scene and
-    /// can't read this view's `@State`, so this is the one-way data path to it —
-    /// the reverse path (CarPlay buttons → playback actions) is `setupCarPlayObservers()`.
+    /// Mirrors current state into `CarPlayBridge.shared` and asks the CarPlay scene
+    /// delegate to refresh its templates. CarPlay runs in a separate scene and can't
+    /// read this view's `@State`, so this is the one-way data path to it — the
+    /// reverse path (CarPlay buttons → playback actions) is `setupCarPlayHandlers()`.
     private func syncCarPlayBridge() {
         let bridge = CarPlayBridge.shared
         bridge.isPlaying = isPlaying
@@ -1566,33 +1566,32 @@ struct ContentView_iOS: View {
         bridge.setlist = vm.currentShow?.setlist ?? []
         bridge.currentTrackIndex = vm.currentShow != nil ? vm.currentSetlistPosition : nil
         bridge.selectedFormat = selectedStream?.format ?? lastStreamFormat
-        NotificationCenter.default.post(name: .carPlayDataChanged, object: nil)
+        bridge.onDataChanged?()
     }
 
-    /// Observes commands posted by `CarPlaySceneDelegate`'s buttons and routes them
-    /// to the actual `bassPlayer` instance — mirrors how the macOS menubar drives
-    /// `ContentView` via `togglePlayback`/`stopPlayback`/`selectStream`.
-    private func setupCarPlayObservers() {
-        let nc = NotificationCenter.default
+    /// Wires `CarPlaySceneDelegate`'s buttons to this view's playback actions via
+    /// typed closures on `CarPlayBridge.shared` — mirrors how the macOS menubar
+    /// drives `ContentView` through `RadioViewModel`'s command hooks.
+    private func setupCarPlayHandlers() {
+        let bridge = CarPlayBridge.shared
 
-        nc.addObserver(forName: .carPlayStop, object: nil, queue: .main) { [self] _ in
+        bridge.onStop = { [self] in
             stopStream()
         }
-        nc.addObserver(forName: .carPlayGoLive, object: nil, queue: .main) { [self] _ in
+        bridge.onGoLive = { [self] in
             bassPlayer.goLive()
             updateNowPlayingInfo()
             syncCarPlayBridge()
         }
-        nc.addObserver(forName: .carPlaySelectFormat, object: nil, queue: .main) { [self] notification in
-            if let format = notification.userInfo?["format"] as? String,
-               let stream = streams.first(where: { $0.format == format }) {
+        bridge.onSelectFormat = { [self] format in
+            if let stream = streams.first(where: { $0.format == format }) {
                 selectedStream = stream
             }
         }
         // CarPlay can connect after this app already published its initial Now
         // Playing state (e.g. auto-resume on launch) — force a fresh republish so
         // its transport controls never start out of sync with actual playback.
-        nc.addObserver(forName: .carPlaySceneDidConnect, object: nil, queue: .main) { [self] _ in
+        bridge.onSceneConnect = { [self] in
             updateNowPlayingInfo()
             syncCarPlayBridge()
         }
