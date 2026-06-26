@@ -393,18 +393,8 @@ class FZShowsFetcher {
             return nil
         }
 
-        var venue = "Unknown Venue"
-        var showInfo = "No show info"
-        var note: String? = nil
-        let soundcheck: String? = nil
-        var setlist: [String] = ["No setlist available"]
-        var acronyms: [(short: String, full: String)] = []
-        var detectedShowType: ShowTime = .none
-
-        // Find the start of this <h4> tag
+        // Find the start of this <h4> tag, then </h4> after it
         let fullH4Start = h4Match.lowerBound
-
-        // Find </h4> AFTER the <h4> we found
         guard let h4End = html.range(of: "</h4>", range: fullH4Start..<html.endIndex) else {
             #if DEBUG
             print("❌ Could not find </h4> tag after <h4>")
@@ -417,13 +407,9 @@ class FZShowsFetcher {
         print("🏟️ FULL h4: '\(fullH4)'")
         #endif
 
-        // Extract venue after dash
-        if let dashIndex = fullH4.firstIndex(of: "-") {
-            let afterDash = fullH4[fullH4.index(after: dashIndex)..<fullH4.endIndex]
-            venue = String(afterDash)
-                .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-                .decodeHTMLEntities()
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+        var venue = "Unknown Venue"
+        if let parsedVenue = extractVenue(fromH4: fullH4) {
+            venue = parsedVenue
             #if DEBUG
             print("🏟️ Venue: '\(venue)'")
             #endif
@@ -437,183 +423,21 @@ class FZShowsFetcher {
         } else {
             showSectionEnd = html.endIndex
         }
-
         let showSection = String(html[h4End.upperBound..<showSectionEnd])
         #if DEBUG
         print("📄 Show section length: \(showSection.count) chars")
         #endif
 
-        // Determine which subsection to use based on showTime or sectionKeywords
-        let targetSection: String
-        let targetSectionStart: String.Index
+        // Select the subsection matching the requested show time, then parse its
+        // show-info / note / setlist independently.
+        let (targetSection, detectedShowType) = selectTargetSection(
+            html: html, sectionStart: h4End.upperBound, showSection: showSection,
+            showSectionEnd: showSectionEnd, showTime: showTime, sectionKeywords: sectionKeywords)
 
-        if let keywords = sectionKeywords {
-            // Use exception keywords to find the right section
-            var foundRange: Range<String.Index>? = nil
-            for keyword in keywords {
-                if let range = showSection.range(of: keyword, options: .caseInsensitive) {
-                    foundRange = range
-                    break
-                }
-            }
-            if let range = foundRange {
-                targetSectionStart = html.index(h4End.upperBound, offsetBy: showSection.distance(from: showSection.startIndex, to: range.lowerBound))
-                targetSection = String(html[targetSectionStart..<showSectionEnd])
-            } else {
-                targetSectionStart = h4End.upperBound
-                targetSection = showSection
-            }
-        } else if showTime != .none {
-            // Find Early/Late section
-            let targetKeyword = showTime == .early ? "Early" : "Late"
-            if let h5Range = showSection.range(of: "<h5>\(targetKeyword)", options: .caseInsensitive) {
-                let absStart = html.index(h4End.upperBound, offsetBy: showSection.distance(from: showSection.startIndex, to: h5Range.lowerBound))
-                targetSectionStart = absStart
-                // Truncate at the next sibling <h5> so notes/setlist from the other show aren't included
-                let afterThisH5 = h5Range.upperBound
-                let subsectionAbsEnd: String.Index
-                if let nextH5Range = showSection.range(of: "<h5>", options: .caseInsensitive, range: afterThisH5..<showSection.endIndex) {
-                    subsectionAbsEnd = html.index(h4End.upperBound, offsetBy: showSection.distance(from: showSection.startIndex, to: nextH5Range.lowerBound))
-                } else {
-                    subsectionAbsEnd = showSectionEnd
-                }
-                targetSection = String(html[absStart..<subsectionAbsEnd])
-                detectedShowType = showTime
-                #if DEBUG
-                print("🎭 Found \(targetKeyword) show section")
-                #endif
-            } else {
-                // No Early/Late found, maybe single show - use whole section
-                targetSectionStart = h4End.upperBound
-                targetSection = showSection
-                #if DEBUG
-                print("🎭 No \(targetKeyword) section found, using full show section")
-                #endif
-            }
-        } else {
-            // No showTime specified - check if there are Early/Late sections or Show/Soundcheck
-            if let showRange = showSection.range(of: "<h5>Show", options: .caseInsensitive) {
-                // Prefer the "Show" section over "Soundcheck"
-                targetSectionStart = html.index(h4End.upperBound, offsetBy: showSection.distance(from: showSection.startIndex, to: showRange.lowerBound))
-                targetSection = String(html[targetSectionStart..<showSectionEnd])
-                #if DEBUG
-                print("🎭 Found Show section (preferring over Soundcheck)")
-                #endif
-            } else if showSection.range(of: "<h5>Early", options: .caseInsensitive) != nil {
-                detectedShowType = .early
-                #if DEBUG
-                print("🎭 Detected Early show (defaulting to first)")
-                #endif
-                targetSectionStart = h4End.upperBound
-                targetSection = showSection
-            } else {
-                targetSectionStart = h4End.upperBound
-                targetSection = showSection
-            }
-        }
-
-        // Now parse from targetSection
-        // Find ALL h6 tags (show info) in this section - shows can have multiple sources
-        // Sources can be in separate <h6> tags OR within a single <h6> with <br> separators:
-        // <h6>110 min, Aud, A/A-</h6>  OR  <h6>135 min, Aud, B-<br>90 min, Aud, B+</h6>
-        var allShowInfos: [String] = []
-        // Updated pattern to capture content including <br> tags inside h6
-        let h6Pattern = "<h6>([\\s\\S]*?)</h6>"
-        if let h6Regex = try? NSRegularExpression(pattern: h6Pattern, options: []) {
-            // Only search up to the setlist or note to avoid picking up h6 from other shows
-            let searchEnd = targetSection.range(of: #"<p class\s*=\s*"setlist">"#, options: .regularExpression)?.lowerBound
-                ?? targetSection.range(of: #"<p class\s*=\s*"note">"#, options: .regularExpression)?.lowerBound
-                ?? targetSection.endIndex
-            let searchSection = String(targetSection[..<searchEnd])
-            let nsRange = NSRange(searchSection.startIndex..<searchSection.endIndex, in: searchSection)
-
-            h6Regex.enumerateMatches(in: searchSection, range: nsRange) { match, _, _ in
-                if let match = match, let range = Range(match.range(at: 1), in: searchSection) {
-                    let h6Content = String(searchSection[range])
-                        .replacingOccurrences(of: #"<[Bb][Rr]\s*/?>"#, with: " • ", options: .regularExpression)
-                        .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-                        .decodeHTMLEntities()
-                        .replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !h6Content.isEmpty {
-                        allShowInfos.append(h6Content)
-                    }
-                }
-            }
-        }
-
-        if !allShowInfos.isEmpty {
-            // Join multiple sources with bullet separator
-            showInfo = allShowInfos.joined(separator: " • ")
-            #if DEBUG
-            print("📊 Show info (\(allShowInfos.count) source(s)): '\(showInfo)'")
-            #endif
-        }
-
-        // Find notes in this section (before the setlist)
-        if let noteStart = targetSection.range(of: #"<p class\s*=\s*"note">"#, options: .regularExpression),
-           let noteEnd = targetSection.range(of: "</p>", range: noteStart.upperBound..<targetSection.endIndex) {
-            let fullNote = String(targetSection[noteStart.lowerBound..<noteEnd.upperBound])
-            note = fullNote.replacingOccurrences(of: #"<p class\s*=\s*"note">"#, with: "", options: .regularExpression)
-                .replacingOccurrences(of: "</p>", with: "")
-                .replacingOccurrences(of: #"<a href="([^"]+)">([^<]+)</a>"#, with: "[$2]($1)", options: .regularExpression)
-                .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-                .decodeHTMLEntities()
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            #if DEBUG
-            print("📝 Note: '\(note ?? "")'")
-            #endif
-        }
-
-        // Find setlist in this section
-        // Need to find the setlist that belongs to the target show (Early or Late)
-        // If showTime is specified, find the setlist AFTER the corresponding h5
-        if let setlistStart = targetSection.range(of: #"<p class\s*=\s*"setlist">"#, options: .regularExpression) {
-            let searchFrom = setlistStart.upperBound
-
-            // Find the end of the setlist content: either </p> or the next <h5>/<h4> section
-            // heading, whichever comes first. Some shows have unclosed <p class="setlist"> tags
-            // (e.g. 1973-11-23 Early show) where the next <h5> starts a sibling section.
-            var setlistEndIndex: String.Index?
-            if let pEnd = targetSection.range(of: "</p>", range: searchFrom..<targetSection.endIndex) {
-                setlistEndIndex = pEnd.lowerBound
-            }
-            for heading in ["<h5>", "<h4>"] {
-                if let hRange = targetSection.range(of: heading, range: searchFrom..<targetSection.endIndex) {
-                    if setlistEndIndex == nil || hRange.lowerBound < setlistEndIndex! {
-                        setlistEndIndex = hRange.lowerBound
-                    }
-                }
-            }
-
-            if let setlistEndIndex = setlistEndIndex {
-                let rawSetlistText = String(targetSection[setlistStart.upperBound..<setlistEndIndex])
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-
-                // Extract acronym mappings from raw HTML before stripping tags
-                let nsRange = NSRange(rawSetlistText.startIndex..<rawSetlistText.endIndex, in: rawSetlistText)
-                let matches = FZShowsFetcher.acronymRegex.matches(in: rawSetlistText, range: nsRange)
-
-                for match in matches {
-                    if let fullRange = Range(match.range(at: 1), in: rawSetlistText),
-                       let shortRange = Range(match.range(at: 2), in: rawSetlistText) {
-                        let full = String(rawSetlistText[fullRange])
-                        let short = String(rawSetlistText[shortRange])
-                        acronyms.append((short: short, full: full))
-                    }
-                }
-
-                // Now strip HTML, decode entities, and parse songs
-                let setlistText = rawSetlistText
-                    .replacingOccurrences(of: #"<acronym title="([^"]+)">([^<]+)</acronym>"#, with: "$2", options: .regularExpression)
-                    .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-                    .decodeHTMLEntities()
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-
-                // Split on commas, but not commas inside parentheses or brackets
-                setlist = parseSetlist(setlistText)
-            }
-        }
+        let showInfo = parseShowInfo(fromSection: targetSection) ?? "No show info"
+        let note = parseNote(fromSection: targetSection)
+        let (setlist, acronyms) = parseSetlistAndAcronyms(fromSection: targetSection)
+            ?? (["No setlist available"], [])
 
         // Build final show info with show type
         let finalShowType = showTime != .none ? showTime : detectedShowType
@@ -653,7 +477,7 @@ class FZShowsFetcher {
         return FZShow(
             date: dateKey,
             venue: venue,
-            soundcheck: soundcheck,
+            soundcheck: nil,
             note: note,
             showInfo: finalShowInfo,
             setlist: setlist,
@@ -666,6 +490,190 @@ class FZShowsFetcher {
             tour: tour,
             bandInfo: bandInfo
         )
+    }
+
+    // MARK: - parseShowFromHTML Helpers
+
+    /// Parses the venue name from a show's full `<h4>` heading (the text after the
+    /// dash). Returns nil when the heading has no dash.
+    private static func extractVenue(fromH4 fullH4: String) -> String? {
+        guard let dashIndex = fullH4.firstIndex(of: "-") else { return nil }
+        let afterDash = fullH4[fullH4.index(after: dashIndex)..<fullH4.endIndex]
+        return String(afterDash)
+            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .decodeHTMLEntities()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Selects the subsection of a show's HTML matching the requested show time.
+    /// Uses exception `sectionKeywords` when provided, otherwise the Early/Late
+    /// `<h5>` headings (falling back to the whole section, optionally preferring a
+    /// "Show" section over a "Soundcheck"). Returns the target subsection text plus
+    /// any show type auto-detected when none was requested.
+    private static func selectTargetSection(html: String, sectionStart: String.Index,
+                                            showSection: String, showSectionEnd: String.Index,
+                                            showTime: ShowTime, sectionKeywords: [String]?)
+        -> (section: String, detectedShowType: ShowTime) {
+
+        // Translate a range within `showSection` to the equivalent index in `html`.
+        func absIndex(of subRange: Range<String.Index>) -> String.Index {
+            html.index(sectionStart,
+                       offsetBy: showSection.distance(from: showSection.startIndex, to: subRange.lowerBound))
+        }
+
+        if let keywords = sectionKeywords {
+            // Use exception keywords to find the right section
+            let foundRange = keywords.lazy.compactMap {
+                showSection.range(of: $0, options: .caseInsensitive)
+            }.first
+            if let range = foundRange {
+                return (String(html[absIndex(of: range)..<showSectionEnd]), .none)
+            }
+            return (showSection, .none)
+        }
+
+        if showTime != .none {
+            // Find Early/Late section
+            let targetKeyword = showTime == .early ? "Early" : "Late"
+            guard let h5Range = showSection.range(of: "<h5>\(targetKeyword)", options: .caseInsensitive) else {
+                #if DEBUG
+                print("🎭 No \(targetKeyword) section found, using full show section")
+                #endif
+                return (showSection, .none)
+            }
+            // Truncate at the next sibling <h5> so notes/setlist from the other show aren't included
+            let subsectionEnd: String.Index
+            if let nextH5Range = showSection.range(of: "<h5>", options: .caseInsensitive,
+                                                   range: h5Range.upperBound..<showSection.endIndex) {
+                subsectionEnd = absIndex(of: nextH5Range)
+            } else {
+                subsectionEnd = showSectionEnd
+            }
+            #if DEBUG
+            print("🎭 Found \(targetKeyword) show section")
+            #endif
+            return (String(html[absIndex(of: h5Range)..<subsectionEnd]), showTime)
+        }
+
+        // No showTime specified - prefer a "Show" section over "Soundcheck", else
+        // default to the first (Early) of any Early/Late split.
+        if let showRange = showSection.range(of: "<h5>Show", options: .caseInsensitive) {
+            #if DEBUG
+            print("🎭 Found Show section (preferring over Soundcheck)")
+            #endif
+            return (String(html[absIndex(of: showRange)..<showSectionEnd]), .none)
+        } else if showSection.range(of: "<h5>Early", options: .caseInsensitive) != nil {
+            #if DEBUG
+            print("🎭 Detected Early show (defaulting to first)")
+            #endif
+            return (showSection, .early)
+        }
+        return (showSection, .none)
+    }
+
+    /// Parses all `<h6>` show-info blocks from a target section, joining multiple
+    /// sources with " • ". Sources can be separate `<h6>` tags or `<br>`-separated
+    /// within one. Returns nil when the section has no show-info tags.
+    private static func parseShowInfo(fromSection targetSection: String) -> String? {
+        let h6Pattern = "<h6>([\\s\\S]*?)</h6>"
+        guard let h6Regex = try? NSRegularExpression(pattern: h6Pattern, options: []) else { return nil }
+
+        // Only search up to the setlist or note to avoid picking up h6 from other shows
+        let searchEnd = targetSection.range(of: #"<p class\s*=\s*"setlist">"#, options: .regularExpression)?.lowerBound
+            ?? targetSection.range(of: #"<p class\s*=\s*"note">"#, options: .regularExpression)?.lowerBound
+            ?? targetSection.endIndex
+        let searchSection = String(targetSection[..<searchEnd])
+        let nsRange = NSRange(searchSection.startIndex..<searchSection.endIndex, in: searchSection)
+
+        var allShowInfos: [String] = []
+        h6Regex.enumerateMatches(in: searchSection, range: nsRange) { match, _, _ in
+            if let match = match, let range = Range(match.range(at: 1), in: searchSection) {
+                let h6Content = String(searchSection[range])
+                    .replacingOccurrences(of: #"<[Bb][Rr]\s*/?>"#, with: " • ", options: .regularExpression)
+                    .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                    .decodeHTMLEntities()
+                    .replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !h6Content.isEmpty {
+                    allShowInfos.append(h6Content)
+                }
+            }
+        }
+
+        guard !allShowInfos.isEmpty else { return nil }
+        let showInfo = allShowInfos.joined(separator: " • ")
+        #if DEBUG
+        print("📊 Show info (\(allShowInfos.count) source(s)): '\(showInfo)'")
+        #endif
+        return showInfo
+    }
+
+    /// Parses the note paragraph (`<p class="note">`) from a target section, if
+    /// present, converting anchor tags to markdown links and stripping the rest.
+    private static func parseNote(fromSection targetSection: String) -> String? {
+        guard let noteStart = targetSection.range(of: #"<p class\s*=\s*"note">"#, options: .regularExpression),
+              let noteEnd = targetSection.range(of: "</p>", range: noteStart.upperBound..<targetSection.endIndex)
+        else { return nil }
+
+        let note = String(targetSection[noteStart.lowerBound..<noteEnd.upperBound])
+            .replacingOccurrences(of: #"<p class\s*=\s*"note">"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: "</p>", with: "")
+            .replacingOccurrences(of: #"<a href="([^"]+)">([^<]+)</a>"#, with: "[$2]($1)", options: .regularExpression)
+            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .decodeHTMLEntities()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        #if DEBUG
+        print("📝 Note: '\(note)'")
+        #endif
+        return note
+    }
+
+    /// Parses the setlist (`<p class="setlist">`) and any acronym mappings from a
+    /// target section. The setlist ends at `</p>` or the next `<h5>`/`<h4>` heading,
+    /// whichever comes first (some shows have unclosed setlist tags). Returns nil
+    /// when the section has no parseable setlist.
+    private static func parseSetlistAndAcronyms(fromSection targetSection: String)
+        -> (setlist: [String], acronyms: [(short: String, full: String)])? {
+
+        guard let setlistStart = targetSection.range(of: #"<p class\s*=\s*"setlist">"#, options: .regularExpression)
+        else { return nil }
+        let searchFrom = setlistStart.upperBound
+
+        var setlistEndIndex: String.Index?
+        if let pEnd = targetSection.range(of: "</p>", range: searchFrom..<targetSection.endIndex) {
+            setlistEndIndex = pEnd.lowerBound
+        }
+        for heading in ["<h5>", "<h4>"] {
+            if let hRange = targetSection.range(of: heading, range: searchFrom..<targetSection.endIndex) {
+                if setlistEndIndex == nil || hRange.lowerBound < setlistEndIndex! {
+                    setlistEndIndex = hRange.lowerBound
+                }
+            }
+        }
+        guard let setlistEndIndex else { return nil }
+
+        let rawSetlistText = String(targetSection[setlistStart.upperBound..<setlistEndIndex])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Extract acronym mappings from raw HTML before stripping tags
+        var acronyms: [(short: String, full: String)] = []
+        let nsRange = NSRange(rawSetlistText.startIndex..<rawSetlistText.endIndex, in: rawSetlistText)
+        for match in FZShowsFetcher.acronymRegex.matches(in: rawSetlistText, range: nsRange) {
+            if let fullRange = Range(match.range(at: 1), in: rawSetlistText),
+               let shortRange = Range(match.range(at: 2), in: rawSetlistText) {
+                acronyms.append((short: String(rawSetlistText[shortRange]), full: String(rawSetlistText[fullRange])))
+            }
+        }
+
+        // Now strip HTML, decode entities, and parse songs
+        let setlistText = rawSetlistText
+            .replacingOccurrences(of: #"<acronym title="([^"]+)">([^<]+)</acronym>"#, with: "$2", options: .regularExpression)
+            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .decodeHTMLEntities()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Split on commas, but not commas inside parentheses or brackets
+        return (parseSetlist(setlistText), acronyms)
     }
 
     /// Extracts the tour name from the HTML structure before the show date
@@ -682,94 +690,18 @@ class FZShowsFetcher {
         // Get the HTML before this show
         let precedingHTML = String(html[html.startIndex..<beforeIndex])
 
-        var lastH2TourName: String? = nil
-        var lastH2Year: String? = nil  // For year-only entries like "1970"
-        var lastH2DateRange: String? = nil
-        var lastH3DateRange: String? = nil
-
-        // First, try to find h2 tags with span.redbig (most common structure)
-        let h2Pattern = "<h2[^>]*>([\\s\\S]*?)</h2>"
-        if let regex = try? NSRegularExpression(pattern: h2Pattern, options: []) {
-            let nsRange = NSRange(precedingHTML.startIndex..<precedingHTML.endIndex, in: precedingHTML)
-
-            regex.enumerateMatches(in: precedingHTML, range: nsRange) { match, _, _ in
-                guard let match = match,
-                      let range = Range(match.range(at: 1), in: precedingHTML) else { return }
-
-                let h2Content = String(precedingHTML[range])
-
-                // Extract tour name from <span class="redbig">...</span>
-                let spanPattern = "<span class=\"redbig\">([^<]+)</span>"
-                if let spanRegex = try? NSRegularExpression(pattern: spanPattern),
-                   let spanMatch = spanRegex.firstMatch(in: h2Content, range: NSRange(h2Content.startIndex..<h2Content.endIndex, in: h2Content)),
-                   let spanRange = Range(spanMatch.range(at: 1), in: h2Content) {
-                    let extracted = String(h2Content[spanRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-                    // Check if it's a year-only entry like "1970", "1971"
-                    if !extracted.isEmpty {
-                        if extracted.rangeOfCharacter(from: .letters) != nil && extracted.count > 4 {
-                            // It's a real tour name (contains letters and more than 4 chars)
-                            lastH2TourName = extracted
-                            lastH2Year = nil  // Clear year since we have a real tour name
-                        } else if extracted.count == 4, Int(extracted) != nil {
-                            // It's a year like "1970"
-                            lastH2Year = extracted
-                            lastH2TourName = nil  // Clear tour name since it's just a year
-                        }
-                    }
-                }
-
-                // Extract date range (text before <br> or <span>, after any <a> tag)
-                let cleanedContent = h2Content
-                    .replacingOccurrences(of: "<a[^>]*></a>", with: "", options: .regularExpression)
-                    .replacingOccurrences(of: "<a[^>]*>", with: "", options: .regularExpression)
-                    .replacingOccurrences(of: "</a>", with: "")
-
-                if let brRange = cleanedContent.range(of: "<br") {
-                    let dateCandidate = String(cleanedContent[..<brRange.lowerBound])
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !dateCandidate.isEmpty {
-                        lastH2DateRange = dateCandidate
-                    }
-                } else if let spanRange = cleanedContent.range(of: "<span") {
-                    let dateCandidate = String(cleanedContent[..<spanRange.lowerBound])
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !dateCandidate.isEmpty {
-                        lastH2DateRange = dateCandidate
-                    }
-                }
-            }
-        }
-
-        // Also look for h3 tags for 1970-1971 style pages
-        // Format: <h3>The Mothers Of Invention, June - December 1970</h3>
-        // We extract the date range
-        let regex = Self.h3ContentRegex
-        do {
-            let nsRange = NSRange(precedingHTML.startIndex..<precedingHTML.endIndex, in: precedingHTML)
-
-            regex.enumerateMatches(in: precedingHTML, range: nsRange) { match, _, _ in
-                guard let match = match,
-                      let range = Range(match.range(at: 1), in: precedingHTML) else { return }
-
-                let h3Content = String(precedingHTML[range]).trimmingCharacters(in: .whitespacesAndNewlines)
-
-                // Parse "Band Name, Date Range" format to extract date range
-                if let commaRange = h3Content.range(of: ", ", options: .backwards) {
-                    let dateRange = String(h3Content[commaRange.upperBound...])
-                    lastH3DateRange = dateRange
-                }
-            }
-        }
+        let h2 = scanLatestH2TourInfo(in: precedingHTML)
+        let h3DateRange = scanLatestH3DateRange(in: precedingHTML)
 
         // Combine tour name and date range
         // Priority:
         // 1. h2 tour name with h2 date range (e.g., "USA and Canada tour (September - December 1977)")
         // 2. h2 tour name with h3 date range
         // 3. h2 year with h3 date range (for 1970-1971 pages: "1970 (June - December 1970)")
-        if let tour = lastH2TourName {
-            if let date = lastH2DateRange, !date.isEmpty {
+        if let tour = h2.tourName {
+            if let date = h2.dateRange, !date.isEmpty {
                 return "\(tour) (\(date))"
-            } else if let date = lastH3DateRange, !date.isEmpty {
+            } else if let date = h3DateRange, !date.isEmpty {
                 return "\(tour) (\(date))"
             } else {
                 return tour
@@ -777,11 +709,95 @@ class FZShowsFetcher {
         }
 
         // Fall back to year + h3 date range for pages like 1970-1971
-        if let year = lastH2Year, let dateRange = lastH3DateRange {
+        if let year = h2.year, let dateRange = h3DateRange {
             return "\(year) (\(dateRange))"
         }
 
         return nil
+    }
+
+    /// Scans every `<h2>` block before a show and returns the most recent tour name
+    /// (or bare year) and its date range, using the "last wins" accumulation the
+    /// inline scan relied on. `tourName` and `year` are mutually exclusive.
+    private static func scanLatestH2TourInfo(in precedingHTML: String)
+        -> (tourName: String?, year: String?, dateRange: String?) {
+        var tourName: String? = nil
+        var year: String? = nil  // For year-only entries like "1970"
+        var dateRange: String? = nil
+
+        let h2Pattern = "<h2[^>]*>([\\s\\S]*?)</h2>"
+        guard let regex = try? NSRegularExpression(pattern: h2Pattern, options: []) else {
+            return (nil, nil, nil)
+        }
+        let nsRange = NSRange(precedingHTML.startIndex..<precedingHTML.endIndex, in: precedingHTML)
+
+        regex.enumerateMatches(in: precedingHTML, range: nsRange) { match, _, _ in
+            guard let match = match,
+                  let range = Range(match.range(at: 1), in: precedingHTML) else { return }
+
+            let h2Content = String(precedingHTML[range])
+
+            // Extract tour name from <span class="redbig">...</span>
+            let spanPattern = "<span class=\"redbig\">([^<]+)</span>"
+            if let spanRegex = try? NSRegularExpression(pattern: spanPattern),
+               let spanMatch = spanRegex.firstMatch(in: h2Content, range: NSRange(h2Content.startIndex..<h2Content.endIndex, in: h2Content)),
+               let spanRange = Range(spanMatch.range(at: 1), in: h2Content) {
+                let extracted = String(h2Content[spanRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+                // Check if it's a year-only entry like "1970", "1971"
+                if !extracted.isEmpty {
+                    if extracted.rangeOfCharacter(from: .letters) != nil && extracted.count > 4 {
+                        // It's a real tour name (contains letters and more than 4 chars)
+                        tourName = extracted
+                        year = nil  // Clear year since we have a real tour name
+                    } else if extracted.count == 4, Int(extracted) != nil {
+                        // It's a year like "1970"
+                        year = extracted
+                        tourName = nil  // Clear tour name since it's just a year
+                    }
+                }
+            }
+
+            // Extract date range (text before <br> or <span>, after any <a> tag)
+            let cleanedContent = h2Content
+                .replacingOccurrences(of: "<a[^>]*></a>", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "<a[^>]*>", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "</a>", with: "")
+
+            if let brRange = cleanedContent.range(of: "<br") {
+                let dateCandidate = String(cleanedContent[..<brRange.lowerBound])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !dateCandidate.isEmpty {
+                    dateRange = dateCandidate
+                }
+            } else if let spanRange = cleanedContent.range(of: "<span") {
+                let dateCandidate = String(cleanedContent[..<spanRange.lowerBound])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !dateCandidate.isEmpty {
+                    dateRange = dateCandidate
+                }
+            }
+        }
+        return (tourName, year, dateRange)
+    }
+
+    /// Scans every `<h3>` "Band Name, Date Range" block (1970-1971 style pages)
+    /// before a show and returns the date range from the last one.
+    private static func scanLatestH3DateRange(in precedingHTML: String) -> String? {
+        var dateRange: String? = nil
+        let nsRange = NSRange(precedingHTML.startIndex..<precedingHTML.endIndex, in: precedingHTML)
+
+        Self.h3ContentRegex.enumerateMatches(in: precedingHTML, range: nsRange) { match, _, _ in
+            guard let match = match,
+                  let range = Range(match.range(at: 1), in: precedingHTML) else { return }
+
+            let h3Content = String(precedingHTML[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Parse "Band Name, Date Range" format to extract date range
+            if let commaRange = h3Content.range(of: ", ", options: .backwards) {
+                dateRange = String(h3Content[commaRange.upperBound...])
+            }
+        }
+        return dateRange
     }
 
     // MARK: - Bulk Import
