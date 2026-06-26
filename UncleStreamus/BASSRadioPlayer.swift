@@ -503,7 +503,12 @@ enum BASSConfig {
     }
 
     deinit {
-        stop()
+        // Use the synchronous teardown only. `stop()` schedules `DispatchQueue.main.async`
+        // closures that capture `self`; from `deinit` the refcount is already 0, so those
+        // closures would dereference a freed object when the main queue drains
+        // (EXC_BAD_ACCESS). The async hops exist solely to push @Observable UI-state updates
+        // onto the main thread, which is meaningless for an object that's going away.
+        stopSync()
         if bassInitialized { BASS_Free() }
     }
 
@@ -532,10 +537,25 @@ enum BASSConfig {
 
     /// Stop playback and reset state.
     func stop() {
+        stopSync()
+        // Push the @Observable UI-state resets onto the main thread for runtime callers
+        // (which may invoke `stop()` off-main). Never call this path from `deinit` — see
+        // `stopSync()` and the `deinit` comment.
+        DispatchQueue.main.async {
+            self.isReconnecting = false
+            self.currentQuality = ""
+            self.isPlaying = false
+            self.playbackState = .stopped
+        }
+    }
+
+    /// Synchronous teardown shared by `stop()` and `deinit`. Tears down timers, the stream,
+    /// and resets non-UI bookkeeping without scheduling any async work that captures `self`,
+    /// so it is safe to call while the object is being deallocated.
+    private func stopSync() {
         isUserIntendedPlay = false
         cancelReconnectTimer()
         reconnectAttempt = 0
-        DispatchQueue.main.async { self.isReconnecting = false }
         #if os(iOS)
         endBackgroundReconnectTask()
         stopSilenceKeepalive()
@@ -545,11 +565,6 @@ enum BASSConfig {
         lastIcecastTitle = nil
         lastPublishedTitle = nil
         lastFlacTitle = nil
-        DispatchQueue.main.async {
-            self.currentQuality = ""
-            self.isPlaying = false
-            self.playbackState = .stopped
-        }
     }
 
     /// Stop playback with a fade-out effect (user-initiated stop only).

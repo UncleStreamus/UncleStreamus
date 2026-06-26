@@ -14,11 +14,6 @@ import AppKit
 
 @main
 struct UncleStreamusApp: App {
-    @AppStorage("textScale") private var textScale: Double = 1.1
-
-// Text scale levels: Smaller, Default, Large, Largest
-    private let textScaleLevels: [Double] = [1.0, 1.1, 1.2, 1.3]
-
     #if os(macOS)
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #endif
@@ -170,16 +165,6 @@ struct UncleStreamusApp: App {
         isSidebarVisible ? 900 : 900 - sidebarWidth - dividerWidth
     }
 
-    private var minWindowHeight: CGFloat {
-        if showInfoExpanded {
-            let baseHeight: CGFloat = 520
-            let scaleBonus = (textScale - 1.0) * 500
-            return baseHeight + scaleBonus
-        } else {
-            return 380
-        }
-    }
-
     @SceneBuilder
     private var macOSScene: some Scene {
         WindowGroup(id: "main") {
@@ -201,30 +186,12 @@ struct UncleStreamusApp: App {
                 .keyboardShortcut("-", modifiers: [.command, .shift])
             }
 
-            CommandGroup(after: .toolbar) {
-                Divider()
-
-                Button("Smaller") {
-                    decreaseTextScale()
-                }
-                .keyboardShortcut("-", modifiers: .command)
-                .disabled(textScale <= textScaleLevels.first!)
-
-                Button("Default") {
-                    textScale = 1.1
-                }
-                .keyboardShortcut("0", modifiers: .command)
-
-                Button("Large") {
-                    increaseTextScale()
-                }
-                .keyboardShortcut("=", modifiers: .command)
-                .disabled(textScale >= textScaleLevels.last!)
-
-                Button("Largest") {
-                    textScale = 1.3
-                }
-            }
+            // Owns its own @AppStorage("textScale") so a text-size change invalidates only
+            // these commands — not the App body / WindowGroup content. Re-evaluating the
+            // WindowGroup content would re-run `ContentView()`'s `@State = BASSRadioPlayer()`
+            // initializer, constructing (and immediately deallocating) a throwaway player on
+            // every scale change.
+            TextSizeCommands()
         }
 
         Settings {
@@ -235,7 +202,49 @@ struct UncleStreamusApp: App {
     }
     #endif
 
-    // MARK: - Text Scale Helpers
+}
+
+#if os(macOS)
+/// macOS text-size menu commands (Smaller / Default / Large / Largest).
+///
+/// This lives in its own `Commands` type — rather than inline in `UncleStreamusApp.body` —
+/// so that owning `@AppStorage("textScale")` here means a text-size change invalidates only
+/// these commands. If the App struct read `textScale`, every change would re-evaluate the
+/// App body and re-run the `WindowGroup { ContentView() }` content closure, which
+/// reconstructs (and immediately deallocates) a throwaway `BASSRadioPlayer` via
+/// `ContentView`'s `@State private var bassPlayer = BASSRadioPlayer()`.
+struct TextSizeCommands: Commands {
+    @AppStorage("textScale") private var textScale: Double = 1.1
+
+    // Text scale levels: Smaller, Default, Large, Largest
+    private let textScaleLevels: [Double] = [1.0, 1.1, 1.2, 1.3]
+
+    var body: some Commands {
+        CommandGroup(after: .toolbar) {
+            Divider()
+
+            Button("Smaller") {
+                decreaseTextScale()
+            }
+            .keyboardShortcut("-", modifiers: .command)
+            .disabled(textScale <= textScaleLevels.first!)
+
+            Button("Default") {
+                textScale = 1.1
+            }
+            .keyboardShortcut("0", modifiers: .command)
+
+            Button("Large") {
+                increaseTextScale()
+            }
+            .keyboardShortcut("=", modifiers: .command)
+            .disabled(textScale >= textScaleLevels.last!)
+
+            Button("Largest") {
+                textScale = 1.3
+            }
+        }
+    }
 
     private func increaseTextScale() {
         if let currentIndex = textScaleLevels.firstIndex(of: textScale),
@@ -254,8 +263,8 @@ struct UncleStreamusApp: App {
             textScale = textScaleLevels.last { $0 < textScale } ?? textScaleLevels.first!
         }
     }
-
 }
+#endif
 
 // MARK: - macOS App Delegate for Menubar
 
