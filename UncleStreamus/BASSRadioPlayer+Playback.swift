@@ -684,12 +684,12 @@ extension BASSRadioPlayer {
             BASS_SetConfig(DWORD(BASS_CONFIG_NET_BUFFER), BASSConfig.netBufferMsFLAC)
             BASS_SetConfig(DWORD(BASS_CONFIG_NET_PREBUF), 50)
         }
-        // Graduated connect timeout:
+        // Graduated connect timeout (see BASSRadioPlayerLogic.reconnectConnectTimeoutMs):
         //   attempt 0 — 10s: first staleness-triggered try; network may just be flaky
         //   attempt 1 — 5s:  NWPathMonitor restarts (path just reported satisfied) + first retry
         //   attempt 2+ — 3s: fast-fail subsequent retries to cycle through budget quickly
         // Always restore to the 10s default after BASS_StreamCreateURL returns.
-        let reconnectTimeout: DWORD = reconnectAttempt == 0 ? 10000 : reconnectAttempt == 1 ? 5000 : 3000
+        let reconnectTimeout = BASSRadioPlayerLogic.reconnectConnectTimeoutMs(attempt: reconnectAttempt)
         BASS_SetConfig(DWORD(BASS_CONFIG_NET_TIMEOUT), reconnectTimeout)
 
         let streamFlags = DWORD(BASS_STREAM_STATUS) | DWORD(BASS_SAMPLE_FLOAT) | DWORD(BASS_STREAM_DECODE)
@@ -1003,7 +1003,7 @@ extension BASSRadioPlayer {
         beginBackgroundReconnectTaskIfNeeded()
         startSilenceKeepalive()
         #endif
-        guard reconnectAttempt < reconnectMaxAttempts else {
+        guard !BASSRadioPlayerLogic.shouldGiveUpReconnect(attempt: reconnectAttempt, maxAttempts: reconnectMaxAttempts) else {
             #if DEBUG
             print("❌ Reconnect giving up after \(reconnectMaxAttempts) attempts (~1 minute)")
             #endif

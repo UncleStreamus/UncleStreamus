@@ -93,6 +93,9 @@
 		BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */; };
 		AA0000000000000000000002 /* ContentViewShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* ContentViewShared.swift */; };
 		AA0000000000000000000022 /* RadioViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000021 /* RadioViewModel.swift */; };
+		AA0000000000000000000031 /* BASSRadioPlayerLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000030 /* BASSRadioPlayerLogic.swift */; };
+		AA0000000000000000000032 /* BASSRadioPlayerLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000030 /* BASSRadioPlayerLogic.swift */; };
+		AA0000000000000000000034 /* BASSRadioPlayerLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000033 /* BASSRadioPlayerLogicTests.swift */; };
 		BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */; };
 		BEAA00012F34000100AA0001 /* Acronym.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00002F34000100AA0001 /* Acronym.swift */; };
 		BEAA00032F34000100AA0003 /* SavedShow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00022F34000100AA0003 /* SavedShow.swift */; };
@@ -199,6 +202,8 @@
 		BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfo.swift; sourceTree = "<group>"; };
 		AA0000000000000000000001 /* ContentViewShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewShared.swift; sourceTree = "<group>"; };
 		AA0000000000000000000021 /* RadioViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadioViewModel.swift; sourceTree = "<group>"; };
+		AA0000000000000000000030 /* BASSRadioPlayerLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASSRadioPlayerLogic.swift; sourceTree = "<group>"; };
+		AA0000000000000000000033 /* BASSRadioPlayerLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASSRadioPlayerLogicTests.swift; sourceTree = "<group>"; };
 		BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stream.swift; sourceTree = "<group>"; };
 		BEA501FE2FD98D8A00C2A02F /* UncleStreamusTests.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = UncleStreamusTests.entitlements; sourceTree = "<group>"; };
 		BEA501FF2FD9904000C2A02F /* UncleStreamus-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "UncleStreamus-Debug.entitlements"; path = "UncleStreamus/UncleStreamus-Debug.entitlements"; sourceTree = "<group>"; };
@@ -269,6 +274,7 @@
 				AAAA00032FAA000300AA0003 /* ShowTimeFetcherTests.swift */,
 				AAAA00042FAA000400AA0004 /* SavedShowTests.swift */,
 				AAAA00052FAA000500AA0005 /* StreamBufferTests.swift */,
+				AA0000000000000000000033 /* BASSRadioPlayerLogicTests.swift */,
 				AAAA00072FAA000700AA0007 /* FZShowsImportTests.swift */,
 			);
 			path = UncleStreamusTests;
@@ -332,6 +338,7 @@
 				BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */,
 				AA0000000000000000000001 /* ContentViewShared.swift */,
 				AA0000000000000000000021 /* RadioViewModel.swift */,
+				AA0000000000000000000030 /* BASSRadioPlayerLogic.swift */,
 				BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */,
 				BE1A34272F30C6D800647B01 /* Preview Content */,
 				BEB8D8F12FC4F7B100286967 /* PrivacyInfo.xcprivacy */,
@@ -569,6 +576,7 @@
 				AAAA00132FAA001300AA0013 /* ShowTimeFetcherTests.swift in Sources */,
 				AAAA00142FAA001400AA0014 /* SavedShowTests.swift in Sources */,
 				AAAA00152FAA001500AA0015 /* StreamBufferTests.swift in Sources */,
+				AA0000000000000000000034 /* BASSRadioPlayerLogicTests.swift in Sources */,
 				AAAA00172FAA001700AA0017 /* FZShowsImportTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -604,6 +612,7 @@
 				D0C0B12BF2DF6D0B6E3A9FB6 /* ExportFormatter.swift in Sources */,
 				FB9EB0FC339F4A605EC4E4EA /* SongFormatter.swift in Sources */,
 				BE024DE32F4A67D800B2C079 /* BASSRadioPlayer.swift in Sources */,
+				AA0000000000000000000031 /* BASSRadioPlayerLogic.swift in Sources */,
 				BBBB00012FBB000100BB0001 /* BASSRadioPlayer+Playback.swift in Sources */,
 				BBBB00032FBB000300BB0003 /* BASSRadioPlayer+AudioFX.swift in Sources */,
 				BBBB00072FBB000700BB0007 /* BASSRadioPlayer+Metadata.swift in Sources */,
@@ -648,6 +657,7 @@
 				BE2FCA7A2F3CBBCA0038E706 /* SongFormatter.swift in Sources */,
 				BE2FCA7B2F3CBBCA0038E706 /* SavedShow.swift in Sources */,
 				BE024DE42F4A67F600B2C079 /* BASSRadioPlayer.swift in Sources */,
+				AA0000000000000000000032 /* BASSRadioPlayerLogic.swift in Sources */,
 				BBBB00022FBB000200BB0002 /* BASSRadioPlayer+Playback.swift in Sources */,
 				BBBB00042FBB000400BB0004 /* BASSRadioPlayer+AudioFX.swift in Sources */,
 				BBBB00082FBB000800BB0008 /* BASSRadioPlayer+Metadata.swift in Sources */,

@@ -95,12 +95,7 @@ extension BASSRadioPlayer {
 
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.flacRebufferingAfterRecovery else { return }
-            switch Int32(status) {
-            case 1:  self.playbackState = .playing
-            case 3:  self.playbackState = .stalled
-            case 0:  self.playbackState = .stopped
-            default: self.playbackState = .connecting
-            }
+            self.playbackState = BASSRadioPlayerLogic.playbackState(forActiveStatus: status)
         }
 
         // FLAC rebuffering after recovery: stream is active and downloading but the channel
@@ -111,7 +106,7 @@ extension BASSRadioPlayer {
             let dlBufSize = BASS_StreamGetFilePosition(streamHandle, DWORD(BASS_FILEPOS_END))
             let dlPct = dlBufSize > 0 ? Double(dlBufFill) / Double(dlBufSize) * 100 : 100
 
-            let threshold: Double = 40  // ~10s at 900 kbps in a 25s ring buffer (matches initial connect ~10s wait)
+            let threshold = BASSRadioPlayerLogic.flacRebufferThresholdPct  // ~10s at 900 kbps in a 25s ring buffer (matches initial connect ~10s wait)
             #if DEBUG
             print("⏳ FLAC rebuffer: \(String(format:"%.0f",dlPct))% / \(Int(threshold))%")
             #endif
@@ -119,7 +114,7 @@ extension BASSRadioPlayer {
                 self?.preBufferProgress = min(dlPct / threshold, 1.0)
             }
 
-            if dlPct >= threshold {
+            if BASSRadioPlayerLogic.flacRebufferComplete(downloadPct: dlPct) {
                 flacRebufferingAfterRecovery = false
                 // Unpause the recovery stream so the pre-mixer starts decoding audio.
                 BASS_Mixer_ChannelFlags(streamHandle, 0, DWORD(BASS_MIXER_CHAN_PAUSE))
@@ -176,8 +171,11 @@ extension BASSRadioPlayer {
             // recovery stream prevents BASS_MIXER_END from firing), enabling a seamless
             // vol-swap when the old stream finally runs out.
             let isConnected = BASS_StreamGetFilePosition(streamHandle, DWORD(BASS_FILEPOS_CONNECTED)) != 0
-            if dlPct >= 0, dlPct < 10, !isConnected,
-               !isAttemptingRecovery, recoveryStreamHandle == 0, !flacRebufferingAfterRecovery {
+            if BASSRadioPlayerLogic.shouldStartFlacProactiveRecovery(downloadPct: dlPct,
+                                                                     isConnected: isConnected,
+                                                                     isAttemptingRecovery: isAttemptingRecovery,
+                                                                     hasRecoveryStream: recoveryStreamHandle != 0,
+                                                                     isRebuffering: flacRebufferingAfterRecovery) {
                 isAttemptingRecovery = true
                 recoveryStartTime = ProcessInfo.processInfo.systemUptime
                 bassPollingQueue.async { [weak self] in self?.startFlacRecovery() }
@@ -185,9 +183,9 @@ extension BASSRadioPlayer {
         }
 
         if activeFormat == "AAC",
-           status == BASS_ACTIVE_PLAYING,
-           bufferedBytes == 0,
-           bytes > 100000 {
+           BASSRadioPlayerLogic.isAACUnderrun(statusIsPlaying: status == BASS_ACTIVE_PLAYING,
+                                              bufferedBytes: UInt64(bufferedBytes),
+                                              positionBytes: UInt64(bytes)) {
             guard !isReconnecting else { return }
             if dvrState == .live {
                 #if DEBUG
@@ -263,13 +261,18 @@ extension BASSRadioPlayer {
             // almost instantly on network loss, so position freezes within a fraction of
             // a second. Two missed polls (4s) is safe against any realistic decode jitter.
             let now = ProcessInfo.processInfo.systemUptime
-            if bytes > lastKnownStreamBytes {
+            switch BASSRadioPlayerLogic.positionStaleness(positionBytes: bytes,
+                                                          lastKnownBytes: lastKnownStreamBytes,
+                                                          lastAdvanceTime: lastPositionAdvanceTime,
+                                                          now: now,
+                                                          stallThreshold: 4.0,
+                                                          isReconnecting: isReconnecting) {
+            case .advanced:
                 lastKnownStreamBytes = bytes
                 lastPositionAdvanceTime = now
-            } else if lastKnownStreamBytes > 0,
-                      lastPositionAdvanceTime > 0,
-                      now - lastPositionAdvanceTime > 4.0,
-                      !isReconnecting {
+            case .holding:
+                break
+            case .stale:
                 // Decode position frozen while BASS still reports PLAYING and the download buffer
                 // has data — the canonical AAC + AudioToolbox "can't decode this packet" loop
                 // (device log: "Packet with multiple raw data blocks - unsupported" /

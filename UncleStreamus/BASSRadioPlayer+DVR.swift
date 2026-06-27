@@ -41,7 +41,10 @@ extension BASSRadioPlayer {
         let newMax  = dvrMins > 0 ? dvrMins : 15
         guard newMax != buffer.maxSegments else { return }
 
-        if dvrState == .live {
+        switch BASSRadioPlayerLogic.dvrBufferResize(isLive: dvrState == .live,
+                                                    newMaxSeconds: Double(newMax) * 60.0,
+                                                    recordedSeconds: behindLiveSeconds) {
+        case .recreate:
             buffer.stop()
             buffer.cleanup()
             streamBuffer = StreamBuffer(maxMinutes: newMax)
@@ -49,13 +52,13 @@ extension BASSRadioPlayer {
             #if DEBUG
             print("📼 DVR buffer resized to \(newMax) min (live)")
             #endif
-        } else if Double(newMax) * 60.0 >= behindLiveSeconds {
-            // Safe to apply: new window still covers everything already recorded.
+        case .applyImmediately:
+            // New window still covers everything already recorded.
             buffer.updateMaxSegments(newMax)
             #if DEBUG
             print("📼 DVR buffer adjusted to \(newMax) min (recorded=\(Int(behindLiveSeconds))s, safe)")
             #endif
-        } else {
+        case .deferToGoLive:
             // New value would truncate content the user could still play back — defer to next go-live.
             #if DEBUG
             print("📼 DVR buffer decrease deferred (recorded \(Int(behindLiveSeconds / 60))min > new \(newMax)min)")
