@@ -96,8 +96,24 @@ final class RadioViewModel {
             currentSetlistPosition = position
         }
 
+        armAACShowChangeResetIfAtLastTrack(fxPersistAcrossShows: fxPersistAcrossShows)
+
         onNowPlayingShouldUpdate()
         onShowDidLoad()
+    }
+
+    /// AAC only: when the metadata reaches the last setlist track, arm an early FX
+    /// reset on the next stream restart (AAC restarts every track change), so the
+    /// old show's FX don't bleed over the next show's audio during the metadata lag.
+    /// Only arms when FX would reset/restore on show change anyway — when the user
+    /// has "keep FX across shows" on (and per-show off), we leave FX untouched.
+    private func armAACShowChangeResetIfAtLastTrack(fxPersistAcrossShows: Bool) {
+        guard bassPlayer.activeFormat == "AAC",
+              let setlist = currentShow?.setlist, !setlist.isEmpty,
+              let pos = findCurrentTrackPosition(), pos == setlist.count else { return }
+        let willResetOrRestore = PerShowFXSync.rememberPerShowEnabled || !fxPersistAcrossShows
+        guard willResetOrRestore else { return }
+        bassPlayer.pendingAACShowChangeReset = true
     }
 
     // MARK: - Show fetch
@@ -135,6 +151,9 @@ final class RadioViewModel {
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.currentShow = show
+                // A real new show loaded → disarm any stale AAC early-reset arm so it
+                // can't double-fire if metadata caught up before the next restart.
+                self.bassPlayer.pendingAACShowChangeReset = false
                 self.currentSetlistPosition = 0  // reset for new show
                 if let position = self.findCurrentTrackPosition() {
                     self.currentSetlistPosition = position

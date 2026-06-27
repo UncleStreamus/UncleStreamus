@@ -960,6 +960,10 @@ extension BASSRadioPlayer {
     }
 
     func saveFXToDefaults() {
+        // Skip persistence for programmatic non-persisting resets (AAC early FX reset
+        // during the metadata-lag window — currentShowDate is still the OLD show, so
+        // saving here would clobber its snapshot with defaults).
+        if suppressPerShowSave { return }
         // Per-show snapshots are the only persisted FX state. (Global "restore on
         // app restart" was removed — per-show memory covers the restart case.)
         if PerShowFXSync.rememberPerShowEnabled, let showDate = currentShowDate {

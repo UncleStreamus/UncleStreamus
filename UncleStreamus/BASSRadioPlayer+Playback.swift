@@ -673,6 +673,24 @@ extension BASSRadioPlayer {
         #if DEBUG
         print("🔄 Restarting \(activeFormat) stream...")
         #endif
+
+        // AAC restarts the stream on every track change, so a restart while armed means
+        // the audio is crossing into a new show. Reset FX to defaults early to beat the
+        // metadata lag (the correct per-show FX is recalled later by fetchShowInfo once
+        // metadata catches up). Non-persisting: currentShowDate is still the OLD show.
+        if activeFormat == "AAC", pendingAACShowChangeReset {
+            pendingAACShowChangeReset = false
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.suppressPerShowSave = true
+                self.resetAllFX()
+                self.suppressPerShowSave = false
+                #if DEBUG
+                print("🎚️ AAC show-change heuristic: reset FX to defaults early")
+                #endif
+            }
+        }
+
         // freeStream() resets dvrState → .live and cleans up DVR playback/recording.
         freeStream()
 

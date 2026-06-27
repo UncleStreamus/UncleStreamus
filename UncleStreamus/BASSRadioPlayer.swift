@@ -74,6 +74,16 @@ enum BASSConfig {
     /// Used by saveFXToDefaults() to write per-show FX snapshots.
     var currentShowDate: String? = nil
 
+    /// AAC only: armed when the metadata reaches the last setlist track, meaning the
+    /// next track change (AAC restarts the stream every track) crosses into a new show.
+    /// On the next `restartStream()` we reset FX to defaults early, beating the
+    /// metadata lag that otherwise lets the old show's FX bleed over the new audio.
+    var pendingAACShowChangeReset = false
+
+    /// Transient guard so a programmatic non-persisting FX reset doesn't write to the
+    /// old show's per-show snapshot during the AAC metadata-lag window.
+    var suppressPerShowSave = false
+
     // MARK: - BASS Handles
 
     var streamHandle: DWORD = 0
