@@ -448,6 +448,10 @@ struct StereoWidthSlider: View {
 
 struct StereoPanSlider: View {
     @Binding var value: Float   // 0 = full left, 0.5 = center, 1 = full right
+    /// Live auto-center correction in pan units (−1…1, capped ±0.15). Drawn as a
+    /// gliding "ghost" ring at the effective position; the thumb stays at `value`.
+    var autoCenterOffset: Float = 0
+    var autoCenterActive: Bool  = false
 
     private let snapPoint:   Float  = 0.5
     private let snapRadius:  Float  = 0.025
@@ -491,6 +495,20 @@ struct StereoPanSlider: View {
                         Path(CGRect(x: centerX - 0.75, y: cy - 10, width: 1.5, height: 20)),
                         with: .color(Color.accentColor.opacity(0.65))
                     )
+
+                    // Auto-center ghost marker: a hollow accent ring at the effective
+                    // (manual + auto) position. offset is in pan units (−1…1); a 1.0
+                    // pan-unit delta = 0.5 slider units, hence offset/2. Hidden at rest.
+                    let effective = max(0, min(1, value + autoCenterOffset / 2))
+                    if autoCenterActive && abs(effective - value) > 0.004 {
+                        let ghostX    = trackLeft + CGFloat(effective) * trackW
+                        let ghostSize: CGFloat = 14
+                        let ghostRect = CGRect(x: ghostX - ghostSize / 2, y: cy - ghostSize / 2,
+                                               width: ghostSize, height: ghostSize)
+                        ctx.stroke(Path(ellipseIn: ghostRect),
+                                   with: .color(Color.accentColor.opacity(0.8)),
+                                   lineWidth: 2)
+                    }
 
                     let thumbRect = CGRect(x: thumbX - thumbSize / 2, y: cy - thumbSize / 2,
                                           width: thumbSize, height: thumbSize)
@@ -537,7 +555,7 @@ struct StereoPanSlider: View {
                 HStack(spacing: 3) {
                     Image(systemName: "diamond.fill")
                         .font(.system(size: 7))
-                    Text("Center")
+                    Text("Centre")
                         .font(.caption2)
                 }
                 .foregroundColor(.accentColor)
@@ -650,11 +668,30 @@ struct AudioFXView: View {
                             .opacity(player.stereoWidthEnabled ? 1.0 : 0.4)
                             .onChange(of: player.stereoWidth) { player.updateStereo() }
 
-                        Text("Stereo Pan")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .padding(.top, 3)
-                        StereoPanSlider(value: $player.stereoPan)
+                        ZStack {
+                            Text("Stereo Pan")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            HStack(spacing: 6) {
+                                FXInfoIcon(
+                                    text: "Gently rebalances the stereo image using low-frequency energy. Layers on top of the manual pan."
+                                )
+                                Text("Auto-centre")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Toggle("", isOn: $player.stereoAutoCenterEnabled)
+                                    .labelsHidden()
+                                    .toggleStyle(.switch)
+                                    .onChange(of: player.stereoAutoCenterEnabled) { player.updateAutoCenter() }
+                            }
+                        }
+                        .padding(.top, 3)
+                        StereoPanSlider(
+                            value: $player.stereoPan,
+                            autoCenterOffset: player.displayedAutoCenterOffset,
+                            autoCenterActive: player.stereoAutoCenterEnabled && player.stereoWidthEnabled && !player.masterBypassEnabled
+                        )
                             .opacity(player.stereoWidthEnabled ? 1.0 : 0.4)
                             .onChange(of: player.stereoPan) { player.updateStereo() }
                     }

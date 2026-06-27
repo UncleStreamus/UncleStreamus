@@ -19,12 +19,14 @@ struct FXSnapshot: Codable {
     var stereoWidthEnabled: Bool
     var masterBypassEnabled: Bool
     var subBassEnabled: Bool = false
+    var stereoAutoCenterEnabled: Bool = false
 }
 
 extension FXSnapshot {
     private enum CodingKeys: String, CodingKey {
         case eqLowGain, eqMidGain, eqHighGain, eqEnabled, compressorOn, compressorAmount
         case stereoWidth, stereoPan, stereoWidthEnabled, masterBypassEnabled, subBassEnabled
+        case stereoAutoCenterEnabled
     }
 
     // Custom decode so snapshots written before Sub Bass existed still load
@@ -43,6 +45,7 @@ extension FXSnapshot {
         stereoWidthEnabled  = try c.decode(Bool.self,  forKey: .stereoWidthEnabled)
         masterBypassEnabled = try c.decode(Bool.self,  forKey: .masterBypassEnabled)
         subBassEnabled      = try c.decodeIfPresent(Bool.self, forKey: .subBassEnabled) ?? false
+        stereoAutoCenterEnabled = try c.decodeIfPresent(Bool.self, forKey: .stereoAutoCenterEnabled) ?? false
     }
 }
 
@@ -185,6 +188,13 @@ extension BASSRadioPlayer {
         compressorBlendGoal = compressorBlend
         applyCompressorBlend(compressorBlend)
 
+        // Reset auto-center measurement state for the fresh stream so it eases in from center.
+        acLowLState = 0; acLowRState = 0
+        acSumLowL = 0; acSumLowR = 0; acSampleCount = 0
+        acBalance = 0; autoCenterPanOffset = 0
+        // Re-arm the ghost-marker display timer if auto-center is on (survives reconnects,
+        // which rebuild the stream via this path). No-op if it's already running.
+        if stereoAutoCenterEnabled { startAutoCenterDisplayTimer() }
         stereoDSP = BASS_ChannelSetDSP(
             handle,
             { _, _, buffer, length, user in
@@ -194,8 +204,15 @@ extension BASSRadioPlayer {
                 // The existing per-buffer smoothing fades coeff→1.0 and pan→0.0 over ~3–4 buffers.
                 // Once both reach neutral, the `guard applyWidth || applyPan` below skips work.
                 let active = player.stereoWidthEnabled && !player.masterBypassEnabled
+                // Auto-center measurement runs before the early-return guard so it can
+                // bootstrap from a neutral pan (offset 0 ⇒ guard would otherwise skip).
+                if active && player.stereoAutoCenterEnabled {
+                    player.updateAutoCenterMeasurement(buffer: buffer, length: length)
+                }
                 let targetCoeff: Float = active ? player.stereoWidthCoeff : 1.0
-                let targetPan:   Float = active ? (player.stereoPan - 0.5) * 2.0 : 0.0
+                let userPan:  Float = active ? (player.stereoPan - 0.5) * 2.0 : 0.0
+                let autoOff:  Float = (active && player.stereoAutoCenterEnabled) ? player.autoCenterPanOffset : 0.0
+                let targetPan: Float = max(-1.0, min(1.0, userPan + autoOff))
 
                 let prevCoeff = player.smoothedStereoCoeff
                 let prevPan   = player.smoothedPanOffset
@@ -854,6 +871,55 @@ extension BASSRadioPlayer {
         saveFXToDefaults()
     }
 
+    /// Called when the Auto-center toggle changes. Resets the measurement state so the
+    /// correction always eases in from center (offset 0) rather than snapping to a stale
+    /// value, then persists. The stereo DSP reads `autoCenterPanOffset` live.
+    func updateAutoCenter() {
+        acLowLState = 0; acLowRState = 0
+        acSumLowL = 0; acSumLowR = 0; acSampleCount = 0
+        acBalance = 0; autoCenterPanOffset = 0
+        if stereoAutoCenterEnabled {
+            startAutoCenterDisplayTimer()
+        } else {
+            stopAutoCenterDisplayTimer()
+        }
+        flushEffects()
+        saveFXToDefaults()
+    }
+
+    /// Starts the main-thread timer that drives the Stereo Pan slider's ghost marker.
+    /// Reads the audio-thread `autoCenterPanOffset` and eases the UI-facing
+    /// `displayedAutoCenterOffset` toward it ~30×/s, so the marker glides smoothly even
+    /// though the underlying measurement only updates per ~1.5 s window. Mirrors the
+    /// `dvrBehindTimer` pattern (main-thread Timer publishing an @Observable value).
+    func startAutoCenterDisplayTimer() {
+        // Timers schedule on the current runloop; callers may be off-main (applyEffects
+        // during stream setup), so always create on the main runloop.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.autoCenterDisplayTimer == nil else { return }
+            self.autoCenterDisplayTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] t in
+                guard let self = self else { t.invalidate(); return }
+                guard self.stereoAutoCenterEnabled else {
+                    t.invalidate()
+                    self.autoCenterDisplayTimer = nil
+                    self.displayedAutoCenterOffset = 0
+                    return
+                }
+                let target = self.autoCenterPanOffset
+                self.displayedAutoCenterOffset += 0.2 * (target - self.displayedAutoCenterOffset)
+            }
+        }
+    }
+
+    func stopAutoCenterDisplayTimer() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.autoCenterDisplayTimer?.invalidate()
+            self.autoCenterDisplayTimer = nil
+            self.displayedAutoCenterOffset = 0
+        }
+    }
+
     func updateSubBass() {
         subBassBlendGoal = (subBassEnabled && !masterBypassEnabled) ? 1.0 : 0.0
         if mixerHandle == 0 && streamHandle == 0 {
@@ -878,6 +944,10 @@ extension BASSRadioPlayer {
         stereoWidthEnabled  = true
         stereoWidth         = 0.75
         stereoPan           = 0.5
+        stereoAutoCenterEnabled = false
+        acLowLState = 0; acLowRState = 0
+        acSumLowL = 0; acSumLowR = 0; acSampleCount = 0
+        acBalance = 0; autoCenterPanOffset = 0
         subBassEnabled      = false
         measuredRMSdB       = -20.0
         rmsAccumulator      = 0
@@ -903,7 +973,7 @@ extension BASSRadioPlayer {
             eqEnabled: eqEnabled, compressorOn: compressorOn, compressorAmount: compressorAmount,
             stereoWidth: stereoWidth, stereoPan: stereoPan,
             stereoWidthEnabled: stereoWidthEnabled, masterBypassEnabled: masterBypassEnabled,
-            subBassEnabled: subBassEnabled
+            subBassEnabled: subBassEnabled, stereoAutoCenterEnabled: stereoAutoCenterEnabled
         )
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         let key = "fxPerShow.\(showDate)"
@@ -952,9 +1022,11 @@ extension BASSRadioPlayer {
         stereoWidthEnabled = snapshot.stereoWidthEnabled
         masterBypassEnabled = snapshot.masterBypassEnabled
         subBassEnabled     = snapshot.subBassEnabled
+        stereoAutoCenterEnabled = snapshot.stereoAutoCenterEnabled
         updateEQ()
         updateCompressor()
         updateSubBass()
+        updateAutoCenter()
         return true
     }
 
@@ -997,5 +1069,54 @@ extension BASSRadioPlayer {
         let output = sideChannelMidLPFAlpha * input + (1.0 - sideChannelMidLPFAlpha) * sideChannelMidLPFState
         sideChannelMidLPFState = output
         return output
+    }
+
+    // MARK: - Stereo Auto-Center Measurement
+
+    /// Open-loop balance measurement for the Stereo Auto-Center feature. Runs two
+    /// one-pole ~300 Hz low-pass filters over L and R, accumulating sum-of-squares
+    /// over a ~1.5 s window. On a full window it computes the normalized bass-weighted
+    /// balance `(rmsL − rmsR)/(rmsL + rmsR)`, slow-EMA smooths it, and maps it to the
+    /// clamped `autoCenterPanOffset` the stereo DSP adds to the pan target.
+    ///
+    /// Called from the stereo DSP callback (single-threaded render context) before
+    /// pan is applied, so the measurement is open-loop and the proportional+cap law
+    /// can't oscillate. Sign: balance > 0 (left louder) → positive offset (toward
+    /// right) recenters a left-heavy image.
+    func updateAutoCenterMeasurement(buffer: UnsafeMutableRawPointer, length: DWORD) {
+        let samples = buffer.assumingMemoryBound(to: Float.self)
+        let count   = Int(length) / MemoryLayout<Float>.size
+        let frames  = count / 2
+
+        var lpL = acLowLState, lpR = acLowRState
+        var sumL = acSumLowL, sumR = acSumLowR
+        let a = acLowLPFAlpha
+        for f in 0..<frames {
+            let L = samples[f &* 2]
+            let R = samples[f &* 2 &+ 1]
+            lpL += a * (L - lpL)
+            lpR += a * (R - lpR)
+            sumL += lpL * lpL
+            sumR += lpR * lpR
+        }
+        acLowLState = lpL; acLowRState = lpR
+        acSumLowL = sumL; acSumLowR = sumR
+        acSampleCount += frames
+
+        guard acSampleCount >= acWindowSamples else { return }
+
+        let rmsL = sqrtf(sumL / Float(acSampleCount))
+        let rmsR = sqrtf(sumR / Float(acSampleCount))
+        let denom = rmsL + rmsR
+        let balance: Float = denom > 1e-6 ? (rmsL - rmsR) / denom : 0
+        // Slow EMA so the correction settles over several seconds, never pumps.
+        acBalance += acBalanceAlpha * (balance - acBalance)
+        let offset = acBalance * autoCenterGain
+        autoCenterPanOffset = max(-autoCenterMaxOffset, min(autoCenterMaxOffset, offset))
+
+        acSumLowL = 0; acSumLowR = 0; acSampleCount = 0
+        #if DEBUG
+        print("🎚️  auto-center: balance=\(String(format: "%.3f", acBalance)) offset=\(String(format: "%.3f", autoCenterPanOffset))")
+        #endif
     }
 }

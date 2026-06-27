@@ -165,6 +165,9 @@ extension BASSRadioPlayer {
     func freeStream() {
         fxRampTimer?.invalidate()
         fxRampTimer = nil
+        // Stop the auto-center ghost-marker timer; applyEffects() re-arms it if the
+        // stream is rebuilt with auto-center still on (reconnect/restart).
+        stopAutoCenterDisplayTimer()
         cancelFade()
         stopMetadataPolling()
         oggStopConfirmed = false

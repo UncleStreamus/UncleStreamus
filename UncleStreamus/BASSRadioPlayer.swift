@@ -301,6 +301,31 @@ enum BASSConfig {
     var smoothedStereoCoeff: Float = 1.0   // Tracks stereoWidthCoeff
     var smoothedPanOffset:   Float = 0.0   // Tracks (stereoPan - 0.5) * 2.0
 
+    // MARK: - Stereo Auto-Center (low-frequency-weighted balance)
+    // Gently rebalances a lopsided stereo image (common in bootleg/AUD sources)
+    // by measuring bass-weighted L/R energy and nudging the pan target. Additive:
+    // layers a small, slow correction on top of the manual Stereo Pan slider.
+    // Open-loop proportional controller (measures the DSP input, before pan is
+    // applied this buffer) so the proportional+cap law is inherently stable.
+    var stereoAutoCenterEnabled: Bool = false
+    var acLowLState: Float = 0     // ~300 Hz one-pole LPF state, L
+    var acLowRState: Float = 0     // ~300 Hz one-pole LPF state, R
+    var acSumLowL: Float = 0       // window accumulator: sum-of-squares of low-passed L
+    var acSumLowR: Float = 0       // window accumulator: sum-of-squares of low-passed R
+    var acSampleCount: Int = 0     // frames accumulated in the current window
+    var acBalance: Float = 0       // slow-smoothed balance (−1 = right-heavy … +1 = left-heavy)
+    var autoCenterPanOffset: Float = 0  // clamped pan offset the stereo DSP adds
+    let acWindowSamples: Int = 66150    // ~1.5 s @ 44.1 kHz (mirrors rmsWindowSamples)
+    let acLowLPFAlpha: Float = 0.0413   // ~300 Hz: 2π·300/(2π·300+44100)
+    let acBalanceAlpha: Float = 0.25    // per-window EMA → several-second response
+    let autoCenterGain: Float = 0.6     // balance → offset proportional gain
+    let autoCenterMaxOffset: Float = 0.15  // the "light" cap (±0.15 of pan range)
+    // UI-facing mirror of autoCenterPanOffset, written only on the main thread by
+    // autoCenterDisplayTimer (eased toward the audio-thread value). The Stereo Pan
+    // slider's ghost marker observes this; SwiftUI never reads the audio-thread value.
+    var displayedAutoCenterOffset: Float = 0
+    var autoCenterDisplayTimer: Timer? = nil
+
     // MARK: - Frequency-Dependent Stereo Processing (400 Hz and 3.5 kHz crossovers)
     var centerSpreadLPFState:  Float = 0.0  // Low-pass filter state for mono center channel
     var sideChannelLPFState:   Float = 0.0  // Low-pass filter state for side channel (low/mid crossover ~400 Hz)
@@ -442,7 +467,7 @@ enum BASSConfig {
 
         let eqIsUsed = eqEnabled && (eqLowGain != 0 || eqMidGain != 0 || eqHighGain != 0)
         let compressorIsUsed = compressorOn
-        let stereoIsUsed = stereoWidthEnabled && (stereoWidth != 0.75 || stereoPan != 0.5)
+        let stereoIsUsed = stereoWidthEnabled && (stereoWidth != 0.75 || stereoPan != 0.5 || stereoAutoCenterEnabled)
 
         return eqIsUsed || compressorIsUsed || stereoIsUsed || subBassEnabled
     }
