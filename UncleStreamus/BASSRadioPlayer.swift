@@ -491,7 +491,7 @@ enum BASSConfig {
     let subBassLPAAlpha: Float    = 0.0099    // ~70 Hz
     let subBassLPBAlpha: Float    = 0.041     // ~300 Hz
     let subBassFundGain: Float    = 0.8       // octave-down fundamental level
-    let subBassHarmGain: Float    = 0.5       // harmonic-layer level
+    let subBassHarmGain: Float    = 0.35      // harmonic-layer level
     let subBassOutputGain: Float  = 0.6       // overall subtle mix gain
 
     var stereoWidthCoeff: Float {
