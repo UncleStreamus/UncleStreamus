@@ -190,8 +190,15 @@ extension BASSRadioPlayer {
 
         // Reset auto-center measurement state for the fresh stream so it eases in from center.
         acLowLState = 0; acLowRState = 0
-        acSumLowL = 0; acSumLowR = 0; acSampleCount = 0
+        acMidLState = 0; acMidRState = 0
+        acSumLowL = 0; acSumLowR = 0
+        acSumMidL = 0; acSumMidR = 0
+        acSampleCount = 0
         acBalance = 0; autoCenterPanOffset = 0
+        acPhaseLowLState = 0; acPhaseLowRState = 0
+        acSumPhaseLR = 0; acSumPhaseLL = 0; acSumPhaseRR = 0
+        acLowCorrelation = 0; bassMonoDepth = 0
+        smoothedBassMonoDepth = 0; sideChannelSubLPFState = 0
         // Re-arm the ghost-marker display timer if auto-center is on (survives reconnects,
         // which rebuild the stream via this path). No-op if it's already running.
         if stereoAutoCenterEnabled { startAutoCenterDisplayTimer() }
@@ -227,10 +234,19 @@ extension BASSRadioPlayer {
                 player.smoothedStereoCoeff = newCoeff
                 player.smoothedPanOffset   = newPan
 
-                // Skip if both smoothed endpoints are at neutral
+                // Adaptive bass-mono depth (folded into auto-centre): ease toward the
+                // measured target so the sub-low Side collapse is click-free.
+                let prevDepth = player.smoothedBassMonoDepth
+                let targetDepth: Float = (active && player.stereoAutoCenterEnabled) ? player.bassMonoDepth : 0.0
+                var newDepth = prevDepth + alpha * (targetDepth - prevDepth)
+                if abs(newDepth - targetDepth) < 0.0001 { newDepth = targetDepth }
+                player.smoothedBassMonoDepth = newDepth
+
+                // Skip if all smoothed endpoints are at neutral
                 let applyWidth = abs(prevCoeff - 1.0) > 0.001 || abs(newCoeff - 1.0) > 0.001
                 let applyPan   = abs(prevPan) > 0.001 || abs(newPan) > 0.001
-                guard applyWidth || applyPan else { return }
+                let applyBassMono = prevDepth > 0.001 || newDepth > 0.001
+                guard applyWidth || applyPan || applyBassMono else { return }
 
                 let samples = buffer.assumingMemoryBound(to: Float.self)
                 let count   = Int(length) / MemoryLayout<Float>.size
@@ -263,10 +279,11 @@ extension BASSRadioPlayer {
                 for frame in 0..<frames {
                     let t     = Float(frame) * invFrames
                     let coeff = prevCoeff + t * (newCoeff - prevCoeff)
+                    let depth = prevDepth + t * (newDepth - prevDepth)
 
                     var L = samples[frame &* 2], R = samples[frame &* 2 &+ 1]
 
-                    if applyWidth {
+                    if applyWidth || applyBassMono {
                         let M = (L + R) * 0.5
                         let S = (L - R) * 0.5
 
@@ -281,11 +298,17 @@ extension BASSRadioPlayer {
                         let S_aboveLow = S - S_low
                         let S_mid  = player.lowPassFilterSideMid(S_aboveLow)
                         let S_high = S_aboveLow - S_mid
+                        // Adaptive bass-mono: remove the depth-fraction of the sub-low (<120 Hz)
+                        // Side so out-of-phase bass collapses toward mono. depth 0 → S_low_eff
+                        // = S_low (transparent); the three Side bands still sum to S.
+                        let S_subLow = player.lowPassFilterSideSub(S)
+                        let S_low_eff = S_low - S_subLow * depth
                         let lowFreqCoeff: Float = coeff <= 1.0 ? coeff * coeff               : 1.0 + (coeff - 1.0) * 0.5
                         let midFreqCoeff: Float = coeff <= 1.0 ? (coeff + coeff * coeff) * 0.5 : 1.0 + (coeff - 1.0) * 0.5
-                        L = M + S_low * lowFreqCoeff + S_mid * midFreqCoeff + S_high * coeff
-                        R = M - S_low * lowFreqCoeff - S_mid * midFreqCoeff - S_high * coeff
+                        L = M + S_low_eff * lowFreqCoeff + S_mid * midFreqCoeff + S_high * coeff
+                        R = M - S_low_eff * lowFreqCoeff - S_mid * midFreqCoeff - S_high * coeff
 
+                      if applyWidth {
                         // Frequency-Dependent Center Spreading (coeff > 1: spread high-freq mono)
                         // L gets in-phase M_highFreq; R gets APF-shifted M_highFreq so that
                         // R also *gains* high-frequency content (different phase) rather than
@@ -322,6 +345,7 @@ extension BASSRadioPlayer {
                         player.synthAPF2Input = stage1;  player.synthAPF2Output = stage2
                         L += stage2 * synthGain
                         R -= stage2 * synthGain
+                      }
                     }
                     if applyPan {
                         let sinA = sinA_s + t * (sinA_e - sinA_s)
@@ -876,8 +900,15 @@ extension BASSRadioPlayer {
     /// value, then persists. The stereo DSP reads `autoCenterPanOffset` live.
     func updateAutoCenter() {
         acLowLState = 0; acLowRState = 0
-        acSumLowL = 0; acSumLowR = 0; acSampleCount = 0
+        acMidLState = 0; acMidRState = 0
+        acSumLowL = 0; acSumLowR = 0
+        acSumMidL = 0; acSumMidR = 0
+        acSampleCount = 0
         acBalance = 0; autoCenterPanOffset = 0
+        acPhaseLowLState = 0; acPhaseLowRState = 0
+        acSumPhaseLR = 0; acSumPhaseLL = 0; acSumPhaseRR = 0
+        acLowCorrelation = 0; bassMonoDepth = 0
+        smoothedBassMonoDepth = 0; sideChannelSubLPFState = 0
         if stereoAutoCenterEnabled {
             startAutoCenterDisplayTimer()
         } else {
@@ -946,8 +977,15 @@ extension BASSRadioPlayer {
         stereoPan           = 0.5
         stereoAutoCenterEnabled = false
         acLowLState = 0; acLowRState = 0
-        acSumLowL = 0; acSumLowR = 0; acSampleCount = 0
+        acMidLState = 0; acMidRState = 0
+        acSumLowL = 0; acSumLowR = 0
+        acSumMidL = 0; acSumMidR = 0
+        acSampleCount = 0
         acBalance = 0; autoCenterPanOffset = 0
+        acPhaseLowLState = 0; acPhaseLowRState = 0
+        acSumPhaseLR = 0; acSumPhaseLL = 0; acSumPhaseRR = 0
+        acLowCorrelation = 0; bassMonoDepth = 0
+        smoothedBassMonoDepth = 0; sideChannelSubLPFState = 0
         subBassEnabled      = false
         measuredRMSdB       = -20.0
         rmsAccumulator      = 0
@@ -1075,13 +1113,25 @@ extension BASSRadioPlayer {
         return output
     }
 
+    /// ~120 Hz low-pass on the Side (L−R) channel, isolating the sub-low stereo
+    /// difference that the adaptive bass-mono correction collapses toward mono.
+    /// Separate state from the ~400 Hz `lowPassFilterSide` so the width path is untouched.
+    func lowPassFilterSideSub(_ input: Float) -> Float {
+        let output = sideChannelSubLPFAlpha * input + (1.0 - sideChannelSubLPFAlpha) * sideChannelSubLPFState
+        sideChannelSubLPFState = output
+        return output
+    }
+
     // MARK: - Stereo Auto-Center Measurement
 
-    /// Open-loop balance measurement for the Stereo Auto-Center feature. Runs two
-    /// one-pole ~300 Hz low-pass filters over L and R, accumulating sum-of-squares
-    /// over a ~1.5 s window. On a full window it computes the normalized bass-weighted
-    /// balance `(rmsL − rmsR)/(rmsL + rmsR)`, slow-EMA smooths it, and maps it to the
-    /// clamped `autoCenterPanOffset` the stereo DSP adds to the pan target.
+    /// Open-loop balance measurement for the Stereo Auto-Center feature. Per channel
+    /// it runs a ~300 Hz low-pass (low band) and a ~3 kHz low-pass; the mid band is
+    /// their difference (300 Hz–3 kHz band-pass). It accumulates sum-of-squares for
+    /// each band over a ~1.5 s window. Each band's own normalized balance
+    /// `(rmsL − rmsR)/(rmsL + rmsR)` is then combined mid-emphasised and presence-gated
+    /// (so direction follows where the ear localises, not raw bass energy), slow-EMA
+    /// smoothed, and mapped to the clamped `autoCenterPanOffset` the stereo DSP adds to
+    /// the pan target. Highs (>3 kHz) are excluded.
     ///
     /// Called from the stereo DSP callback (single-threaded render context) before
     /// pan is applied, so the measurement is open-loop and the proportional+cap law
@@ -1093,34 +1143,84 @@ extension BASSRadioPlayer {
         let frames  = count / 2
 
         var lpL = acLowLState, lpR = acLowRState
-        var sumL = acSumLowL, sumR = acSumLowR
-        let a = acLowLPFAlpha
+        var midLpL = acMidLState, midLpR = acMidRState
+        var sumLowL = acSumLowL, sumLowR = acSumLowR
+        var sumMidL = acSumMidL, sumMidR = acSumMidR
+        // ~120 Hz band for the L/R phase correlation (bass-mono driver).
+        var phLpL = acPhaseLowLState, phLpR = acPhaseLowRState
+        var sumLR = acSumPhaseLR, sumLL = acSumPhaseLL, sumRR = acSumPhaseRR
+        let aLow = acLowLPFAlpha
+        let aMid = acMidLPFAlpha
+        let aPh  = acPhaseLPFAlpha
         for f in 0..<frames {
             let L = samples[f &* 2]
             let R = samples[f &* 2 &+ 1]
-            lpL += a * (L - lpL)
-            lpR += a * (R - lpR)
-            sumL += lpL * lpL
-            sumR += lpR * lpR
+            lpL += aLow * (L - lpL)
+            lpR += aLow * (R - lpR)
+            midLpL += aMid * (L - midLpL)
+            midLpR += aMid * (R - midLpR)
+            // Mid band (300 Hz–3 kHz) = ~3 kHz LPF minus ~300 Hz LPF.
+            let mL = midLpL - lpL
+            let mR = midLpR - lpR
+            sumLowL += lpL * lpL
+            sumLowR += lpR * lpR
+            sumMidL += mL * mL
+            sumMidR += mR * mR
+            // ~120 Hz band correlation accumulators.
+            phLpL += aPh * (L - phLpL)
+            phLpR += aPh * (R - phLpR)
+            sumLR += phLpL * phLpR
+            sumLL += phLpL * phLpL
+            sumRR += phLpR * phLpR
         }
         acLowLState = lpL; acLowRState = lpR
-        acSumLowL = sumL; acSumLowR = sumR
+        acMidLState = midLpL; acMidRState = midLpR
+        acSumLowL = sumLowL; acSumLowR = sumLowR
+        acSumMidL = sumMidL; acSumMidR = sumMidR
+        acPhaseLowLState = phLpL; acPhaseLowRState = phLpR
+        acSumPhaseLR = sumLR; acSumPhaseLL = sumLL; acSumPhaseRR = sumRR
         acSampleCount += frames
 
         guard acSampleCount >= acWindowSamples else { return }
 
-        let rmsL = sqrtf(sumL / Float(acSampleCount))
-        let rmsR = sqrtf(sumR / Float(acSampleCount))
-        let denom = rmsL + rmsR
-        let balance: Float = denom > 1e-6 ? (rmsL - rmsR) / denom : 0
+        // --- Low-band phase correlation → bass-mono depth + pan-confidence gate ---
+        // r = Σ(L·R)/√(ΣL²·ΣR²): +1 in-phase (mono), 0 decorrelated, −1 anti-phase.
+        let phaseDenom = sqrtf(sumLL * sumRR) + 1e-9
+        let rRaw = max(-1.0, min(1.0, sumLR / phaseDenom))
+        acLowCorrelation += acBalanceAlpha * (rRaw - acLowCorrelation)
+        let r = acLowCorrelation
+        // Decorrelated/anti-phase → collapse the sub-low Side toward mono (capped).
+        let depthNorm = max(0.0, min(1.0, (acCorrHi - r) / (acCorrHi - acCorrLo)))
+        bassMonoDepth = depthNorm * bassMonoMaxDepth
+        // Pan confidence: full for r ≥ 0, easing to a floor as r → −1 (ambiguous balance).
+        let panConfidence: Float = r >= 0 ? 1.0 : max(acPanConfFloor, 1.0 + r)
+
+        // Per-band normalized balance, mid-emphasised: each band votes on direction by
+        // its own L/R skew (not its absolute energy, which the bass would dominate), and
+        // is gated by its presence so a near-silent band can't inject noise. Mids are
+        // weighted higher because that's where the ear localises.
+        let n = Float(acSampleCount)
+        let rmsLowL = sqrtf(sumLowL / n), rmsLowR = sqrtf(sumLowR / n)
+        let rmsMidL = sqrtf(sumMidL / n), rmsMidR = sqrtf(sumMidR / n)
+        let lowSum = rmsLowL + rmsLowR
+        let midSum = rmsMidL + rmsMidR
+        let lowBal: Float = lowSum > 1e-6 ? (rmsLowL - rmsLowR) / lowSum : 0
+        let midBal: Float = midSum > 1e-6 ? (rmsMidL - rmsMidR) / midSum : 0
+        let lowW = acLowWeight * (lowSum / (lowSum + acBandPresenceFloor))
+        let midW = acMidWeight * (midSum / (midSum + acBandPresenceFloor))
+        let wSum = lowW + midW
+        let balance: Float = wSum > 1e-6 ? (lowW * lowBal + midW * midBal) / wSum : 0
         // Slow EMA so the correction settles over several seconds, never pumps.
         acBalance += acBalanceAlpha * (balance - acBalance)
-        let offset = acBalance * autoCenterGain
+        let offset = acBalance * autoCenterGain * panConfidence
         autoCenterPanOffset = max(-autoCenterMaxOffset, min(autoCenterMaxOffset, offset))
 
-        acSumLowL = 0; acSumLowR = 0; acSampleCount = 0
+        acSumLowL = 0; acSumLowR = 0
+        acSumMidL = 0; acSumMidR = 0
+        acSumPhaseLR = 0; acSumPhaseLL = 0; acSumPhaseRR = 0
+        acSampleCount = 0
         #if DEBUG
-        print("🎚️  auto-center: balance=\(String(format: "%.3f", acBalance)) offset=\(String(format: "%.3f", autoCenterPanOffset))")
+        print("🎚️  auto-center: balance=\(String(format: "%.3f", acBalance)) lowBal=\(String(format: "%.3f", lowBal)) midBal=\(String(format: "%.3f", midBal)) offset=\(String(format: "%.3f", autoCenterPanOffset)) r=\(String(format: "%.3f", r)) bassMono=\(String(format: "%.3f", bassMonoDepth))")
         #endif
     }
 }
