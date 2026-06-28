@@ -876,6 +876,7 @@ struct ContentView_iOS: View {
                     .frame(height: 0)
 
                     // Scrollable setlist - NO bounce, just normal scrolling
+                    ScrollViewReader { proxy in
                     ScrollView {
                         if availableWidth > 500 {
                             // Two-column layout for landscape
@@ -885,6 +886,7 @@ struct ContentView_iOS: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     ForEach(Array(show.setlist.prefix(midpoint).enumerated()), id: \.offset) { index, song in
                                         setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
+                                            .id(index + 1)
                                     }
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -893,6 +895,7 @@ struct ContentView_iOS: View {
                                     VStack(alignment: .leading, spacing: 4) {
                                         ForEach(Array(show.setlist.dropFirst(midpoint).enumerated()), id: \.offset) { index, song in
                                             setlistRow(index: midpoint + index + 1, song: song, acronyms: show.acronyms)
+                                                .id(midpoint + index + 1)
                                         }
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -903,10 +906,18 @@ struct ContentView_iOS: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 ForEach(Array(show.setlist.enumerated()), id: \.offset) { index, song in
                                     setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
+                                        .id(index + 1)
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                    }
+                    // Auto-scroll the now-playing track into view (centered): jump on
+                    // open, animate as the track advances. No-op for the no-match state.
+                    .onAppear { scrollToNowPlaying(proxy, animated: false) }
+                    .onChange(of: vm.currentSetlistPosition) { _, _ in
+                        scrollToNowPlaying(proxy, animated: true)
+                    }
                     }
 
                     // Footer section - with bounce effect
@@ -1062,6 +1073,25 @@ struct ContentView_iOS: View {
     }
 
     // MARK: - Setlist Row
+
+    /// Scrolls the setlist just enough to make the now-playing row
+    /// (`vm.currentSetlistPosition`, 1-based) visible — `anchor: nil` does the
+    /// minimum scroll and no-ops if it's already on screen. `animated: false` is the
+    /// quiet jump on open; track changes animate. Deferred to the next runloop so the
+    /// row `.id()`s are registered before we scroll — without this, scrolling fails
+    /// when the setlist is already open at first play (the position lands in the same
+    /// layout pass that first mounts the rows). No-op when there's no match.
+    private func scrollToNowPlaying(_ proxy: ScrollViewProxy, animated: Bool) {
+        DispatchQueue.main.async {
+            let pos = vm.currentSetlistPosition
+            guard pos > 0 else { return }
+            if animated {
+                withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(pos, anchor: nil) }
+            } else {
+                proxy.scrollTo(pos, anchor: nil)
+            }
+        }
+    }
 
     @ViewBuilder
     private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {

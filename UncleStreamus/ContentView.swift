@@ -888,7 +888,27 @@ struct ContentView: View {
     /// Scrollable setlist — two columns when wide enough (>385pt), single column
     /// otherwise. The geometry readers track the available width (column layout)
     /// and the setlist's frame in the window (for the now-playing scroll target).
+    /// Scrolls the setlist just enough to make the now-playing row
+    /// (`vm.currentSetlistPosition`, 1-based) visible — `anchor: nil` does the
+    /// minimum scroll and no-ops if it's already on screen. `animated: false` is the
+    /// quiet jump on open; track changes animate. Deferred to the next runloop so the
+    /// row `.id()`s are registered before we scroll — without this, scrolling fails
+    /// when the setlist is already open at first play (the position lands in the same
+    /// layout pass that first mounts the rows). No-op when there's no match.
+    private func scrollToNowPlaying(_ proxy: ScrollViewProxy, animated: Bool) {
+        DispatchQueue.main.async {
+            let pos = vm.currentSetlistPosition
+            guard pos > 0 else { return }
+            if animated {
+                withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(pos, anchor: nil) }
+            } else {
+                proxy.scrollTo(pos, anchor: nil)
+            }
+        }
+    }
+
     private func setlistScroll(_ show: FZShow) -> some View {
+        ScrollViewReader { proxy in
         ScrollView {
             Group {
                 if availableWidth > 385 {
@@ -898,6 +918,7 @@ struct ContentView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             ForEach(Array(show.setlist.prefix(midpoint).enumerated()), id: \.offset) { index, song in
                                 setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
+                                    .id(index + 1)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -906,6 +927,7 @@ struct ContentView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 ForEach(Array(show.setlist.dropFirst(midpoint).enumerated()), id: \.offset) { index, song in
                                     setlistRow(index: midpoint + index + 1, song: song, acronyms: show.acronyms)
+                                        .id(midpoint + index + 1)
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -915,6 +937,7 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(Array(show.setlist.enumerated()), id: \.offset) { index, song in
                             setlistRow(index: index + 1, song: song, acronyms: show.acronyms)
+                                .id(index + 1)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -931,6 +954,13 @@ struct ContentView: View {
                     }
                 }
             )
+            // Auto-scroll the now-playing track into view (centered): jump on open,
+            // animate as the track advances. Guarded against the no-match (0) state.
+            .onAppear { scrollToNowPlaying(proxy, animated: false) }
+            .onChange(of: vm.currentSetlistPosition) { _, _ in
+                scrollToNowPlaying(proxy, animated: true)
+            }
+        }
         }
         .background(
             GeometryReader { geo in
