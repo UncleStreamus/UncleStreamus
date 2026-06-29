@@ -37,7 +37,7 @@ struct WelcomeView: View {
             blurb: "Four formats are available. They're ordered below from worst to best sounding — pick the one that suits your connection:",
             items: [
                 Item(title: "MP3 · 128 kbit/s",
-                     detail: "Low data usage, but somtimes noticibly poor audio quality. Real-time track info."),
+                     detail: "Low data usage, but sometimes noticeably poor audio quality. Real-time track info."),
                 Item(title: "OGG · 90 kbit/s",
                      detail: "Very low data usage, but decent sound quality. Real-time track info."),
                 Item(title: "AAC · 256 kbit/s",
