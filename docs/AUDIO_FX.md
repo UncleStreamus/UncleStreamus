@@ -102,7 +102,7 @@ Evens out the dynamics — pulls down the loud peaks so you can raise the overal
 level, taming the huge swings common in live recordings (quiet intros, sudden loud
 solos). A single **Gentle ↔ Heavy** slider sets how aggressive it is.
 
-- **Gentle** — light leveling; only the peaks get touched. Good for "just smooth it
+- **Gentle** — slightly squeezes the input. Good for "just smooth it
   out a bit."
 - **Heavy** — firm leveling that brings quiet passages up and keeps everything at a
   consistent, forward level. Good for noisy environments or car listening.
