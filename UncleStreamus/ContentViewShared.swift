@@ -89,6 +89,26 @@ func fxRestorePlan(variantDate: String, rememberPerShow: Bool, persistAcrossShow
     return .keep
 }
 
+/// What to do with FX when a new show begins, folding in the AAC carry-over case.
+/// When `carriedOver` (the user dialed in FX during the AAC metadata-lag window),
+/// keep those edits for the incoming show — `.carryOver(save:)` persists them as the
+/// new show's snapshot when per-show memory is on. Otherwise this matches
+/// `fxRestorePlan` exactly.
+enum FXShowChangeAction: Equatable {
+    case carryOver(save: Bool)        // keep current FX; save → persist as new show's snapshot
+    case restore(showDate: String)
+    case reset
+    case keep
+}
+
+func fxShowChangeAction(carriedOver: Bool, rememberPerShow: Bool,
+                        persistAcrossShows: Bool, variantDate: String) -> FXShowChangeAction {
+    if carriedOver { return .carryOver(save: rememberPerShow) }
+    if rememberPerShow { return .restore(showDate: variantDate) }
+    if !persistAcrossShows { return .reset }
+    return .keep
+}
+
 // MARK: - What's New / Welcome Gating
 
 /// The UI action that should follow a "What's New" check.

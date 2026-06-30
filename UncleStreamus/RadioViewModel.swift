@@ -107,8 +107,15 @@ final class RadioViewModel {
     /// old show's FX don't bleed over the next show's audio during the metadata lag.
     /// Only arms when FX would reset/restore on show change anyway — when the user
     /// has "keep FX across shows" on (and per-show off), we leave FX untouched.
+    ///
+    /// Live only: during buffer playback the metadata is replayed from the journal
+    /// (`publishDVRMetadata`), so reaching a "last track" there reflects historical
+    /// audio, not a live show boundary. The early reset only fires in `restartStream()`
+    /// (skipped in DVR mode), so an arm made off replayed metadata would just sit set
+    /// until the next genuine live restart — gate it out here so it can't.
     private func armAACShowChangeResetIfAtLastTrack(fxPersistAcrossShows: Bool) {
         guard bassPlayer.activeFormat == "AAC",
+              bassPlayer.dvrState == .live,
               let setlist = currentShow?.setlist, !setlist.isEmpty,
               let pos = findCurrentTrackPosition(), pos == setlist.count else { return }
         let willResetOrRestore = PerShowFXSync.rememberPerShowEnabled || !fxPersistAcrossShows
@@ -126,12 +133,26 @@ final class RadioViewModel {
 
         bassPlayer.currentShowDate = variant
 
+        // Metadata has now caught up to the new show, so the AAC carry-over window
+        // (if any) is over. Capture whether the user dialed in FX during it and clear
+        // the window synchronously — from here, saving resumes normally against the
+        // new show.
+        let carriedOver = bassPlayer.aacCarryoverActive && bassPlayer.aacCarryoverFXAdjusted
+        bassPlayer.aacCarryoverActive = false
+        bassPlayer.aacCarryoverFXAdjusted = false
+
         // On .restore with no snapshot yet, the reset is deferred to the fetch
         // completion below so a one-poll metadata glitch can't drop FX mid-song.
         let fxRememberPerShow = PerShowFXSync.rememberPerShowEnabled
-        switch fxRestorePlan(variantDate: variant,
-                             rememberPerShow: fxRememberPerShow,
-                             persistAcrossShows: fxPersistAcrossShows) {
+        switch fxShowChangeAction(carriedOver: carriedOver,
+                                  rememberPerShow: fxRememberPerShow,
+                                  persistAcrossShows: fxPersistAcrossShows,
+                                  variantDate: variant) {
+        case .carryOver(let save):
+            // Keep the user's window edits for the incoming show; persist as its
+            // snapshot (currentShowDate is already `variant`). `save == false` is the
+            // reset-mode case with no per-show storage — just keep, don't persist.
+            if save { bassPlayer.savePerShowFX(showDate: variant) }
         case .restore(let showDate): bassPlayer.restorePerShowFX(showDate: showDate)
         case .reset: bassPlayer.resetAllFX()
         case .keep: break
@@ -162,8 +183,10 @@ final class RadioViewModel {
                 self.onShowDidLoad()
 
                 // Per-show FX: reset to defaults now that a real show has loaded
-                // and it has no saved snapshot (a genuine new show).
-                if show != nil, fxRememberPerShow,
+                // and it has no saved snapshot (a genuine new show). Skipped on a
+                // carry-over, where the user's window edits are kept (and already
+                // saved as this show's snapshot).
+                if show != nil, fxRememberPerShow, !carriedOver,
                    !self.bassPlayer.hasPerShowFX(showDate: variant) {
                     self.bassPlayer.resetAllFX()
                 }

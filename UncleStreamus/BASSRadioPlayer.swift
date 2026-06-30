@@ -84,6 +84,13 @@ enum BASSConfig {
     /// old show's per-show snapshot during the AAC metadata-lag window.
     var suppressPerShowSave = false
 
+    /// AAC carry-over window: true between the early FX reset firing and the incoming
+    /// show's fetch resolving. While active, FX edits belong to the INCOMING show.
+    var aacCarryoverActive = false
+    /// Whether the user adjusted FX during the carry-over window (gates carry-over —
+    /// if they touched nothing, the incoming show is handled normally).
+    var aacCarryoverFXAdjusted = false
+
     // MARK: - BASS Handles
 
     var streamHandle: DWORD = 0
@@ -419,21 +426,21 @@ enum BASSConfig {
     var subBassBlendGoal: Float = 0.0
     // DSP state (single-threaded inside the BASS render callback)
     var subBassSVFLow:  Float = 0.0    // Chamberlin state-variable filter low state
-    var subBassSVFBand: Float = 0.0    // ...band-pass state (≈90 Hz band)
+    var subBassSVFBand: Float = 0.0    // ...band-pass state (≈72 Hz band)
     var subBassEnv:     Float = 0.0    // envelope follower on the band-pass output
     var subBassPolarity: Float = 1.0   // ±1 square, flips each rising zero-crossing
     var subBassPrevPositive: Bool = true
     var subBassLPAState: Float = 0.0   // ~70 Hz low-pass → octave-down fundamental
-    var subBassLPBState: Float = 0.0   // ~300 Hz low-pass → fundamental + low harmonics
+    var subBassLPBState: Float = 0.0   // ~200 Hz low-pass → fundamental + low harmonics
     // Fixed coefficients (44.1 kHz). f = 2·sin(π·fc/fs); LP α = 2π·fc/(2π·fc+fs).
-    let subBassSVFf: Float        = 0.012822  // band-pass centre ≈90 Hz
-    let subBassSVFq: Float        = 1.0       // 1/Q (Q ≈ 1.0)
+    let subBassSVFf: Float        = 0.010258  // band-pass centre ≈72 Hz
+    let subBassSVFq: Float        = 0.714     // 1/Q (Q ≈ 1.4) — narrow, focuses kick/bass
     let subBassEnvAttack: Float   = 0.0045    // ~5 ms
     let subBassEnvRelease: Float  = 0.00019   // ~120 ms
     let subBassLPAAlpha: Float    = 0.0099    // ~70 Hz
-    let subBassLPBAlpha: Float    = 0.041     // ~300 Hz
+    let subBassLPBAlpha: Float    = 0.0281    // ~200 Hz
     let subBassFundGain: Float    = 0.8       // octave-down fundamental level
-    let subBassHarmGain: Float    = 0.35      // harmonic-layer level
+    let subBassHarmGain: Float    = 0.25      // harmonic-layer level
     let subBassOutputGain: Float  = 0.6       // overall subtle mix gain
 
     var stereoWidthCoeff: Float {
@@ -578,6 +585,9 @@ enum BASSConfig {
         lastIcecastTitle = nil
         lastPublishedTitle = nil
         lastFlacTitle = nil
+        // Close any open AAC carry-over window so it can't leak into a later show.
+        aacCarryoverActive = false
+        aacCarryoverFXAdjusted = false
     }
 
     /// Stop playback with a fade-out effect (user-initiated stop only).

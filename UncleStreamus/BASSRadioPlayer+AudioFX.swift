@@ -418,7 +418,7 @@ extension BASSRadioPlayer {
 
                     // Two low-passes; their difference is the audible harmonic band.
                     lpA += aA * (square - lpA)   // ~70 Hz  → octave-down fundamental (felt)
-                    lpB += aB * (square - lpB)   // ~300 Hz → fundamental + low harmonics
+                    lpB += aB * (square - lpB)   // ~200 Hz → fundamental + low harmonics
                     let harm = lpB - lpA         // harmonics (perceived on small speakers)
 
                     let sub = (lpA * gF + harm * gH) * mix
@@ -897,6 +897,13 @@ extension BASSRadioPlayer {
         // during the metadata-lag window — currentShowDate is still the OLD show, so
         // saving here would clobber its snapshot with defaults).
         if suppressPerShowSave { return }
+        // AAC carry-over window: the user is dialing in FX for the INCOMING show while
+        // metadata still reads the OLD show. Don't save to the old show — just note the
+        // adjustment so the new FX carries over when fetchShowInfo resolves the new show.
+        if aacCarryoverActive {
+            aacCarryoverFXAdjusted = true
+            return
+        }
         // Per-show snapshots are the only persisted FX state. (Global "restore on
         // app restart" was removed — per-show memory covers the restart case.)
         if PerShowFXSync.rememberPerShowEnabled, let showDate = currentShowDate {

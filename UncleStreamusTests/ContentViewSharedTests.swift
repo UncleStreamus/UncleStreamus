@@ -51,6 +51,38 @@ final class ContentViewSharedTests: XCTestCase {
         }
     }
 
+    // MARK: - fxShowChangeAction (AAC carry-over)
+
+    func testFXShowChangeAction_carryOverSavesWhenRemembering() {
+        let action = fxShowChangeAction(carriedOver: true, rememberPerShow: true,
+                                        persistAcrossShows: false, variantDate: "X")
+        XCTAssertEqual(action, .carryOver(save: true))
+    }
+
+    func testFXShowChangeAction_carryOverNoSaveInResetMode() {
+        let action = fxShowChangeAction(carriedOver: true, rememberPerShow: false,
+                                        persistAcrossShows: false, variantDate: "X")
+        XCTAssertEqual(action, .carryOver(save: false))
+    }
+
+    func testFXShowChangeAction_fallsThroughToRestoreWhenNotCarriedOver() {
+        let action = fxShowChangeAction(carriedOver: false, rememberPerShow: true,
+                                        persistAcrossShows: false, variantDate: "X")
+        XCTAssertEqual(action, .restore(showDate: "X"))
+    }
+
+    func testFXShowChangeAction_fallsThroughToResetWhenNotCarriedOver() {
+        let action = fxShowChangeAction(carriedOver: false, rememberPerShow: false,
+                                        persistAcrossShows: false, variantDate: "X")
+        XCTAssertEqual(action, .reset)
+    }
+
+    func testFXShowChangeAction_fallsThroughToKeepWhenNotCarriedOver() {
+        let action = fxShowChangeAction(carriedOver: false, rememberPerShow: false,
+                                        persistAcrossShows: true, variantDate: "X")
+        XCTAssertEqual(action, .keep)
+    }
+
     // MARK: - decideWhatsNew
 
     private func notes(current: Bool, empty: Bool = false) -> ReleaseNotes {

@@ -23,6 +23,9 @@ extension BASSRadioPlayer {
         cancelReconnectTimer()
         reconnectAttempt = 0
         DispatchQueue.main.async { self.isReconnecting = false }
+        // A format change ends any open AAC carry-over window.
+        aacCarryoverActive = false
+        aacCarryoverFXAdjusted = false
         #if DEBUG
         print("\n🔊 ── SWITCHING TO \(format) ──────────────────────────")
         print("   URL: \(entry.url)")
@@ -682,6 +685,11 @@ extension BASSRadioPlayer {
                 self.suppressPerShowSave = true
                 self.resetAllFX()
                 self.suppressPerShowSave = false
+                // Open the carry-over window: from here until the incoming show's fetch
+                // resolves, any FX the user dials in belongs to the INCOMING show, not
+                // the outgoing one whose date `currentShowDate` still holds.
+                self.aacCarryoverActive = true
+                self.aacCarryoverFXAdjusted = false
                 #if DEBUG
                 print("🎚️ AAC show-change heuristic: reset FX to defaults early")
                 #endif
