@@ -37,7 +37,10 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 - Adaptive Compressor
 - Mono - Stereo - Stereo-Wider slider
 - L-R Panner
+- Synthesised Sub Bass
 - **Per-show FX memory** — optionally saves your FX settings so they are recalled automatically when the show next plays on the stream
+
+→ See the [in-depth Audio FX guide](docs/AUDIO_FX.md) for what every control does and the subtleties behind each one.
 
 ### Platform Features
 

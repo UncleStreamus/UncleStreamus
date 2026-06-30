@@ -139,8 +139,11 @@ extension BASSRadioPlayer {
 
         // Level-meter DSP: measures RMS of the post-compression signal (feedback topology).
         // BASS FX (EQ, compressor) run before DSP callbacks, so this sees the compressed output.
-        // Feedback measurement is intentional — like an LA-2A, the slow ~4.5s time constant
-        // (1.5s window × 0.3 EMA) keeps it stable and tracks overall program level changes.
+        // Feedback measurement (sensing the output) is intentional — it tends toward a
+        // smoother, more forgiving response. The slow ~4.5s time constant (1.5s window ×
+        // 0.3 EMA) sets only the adaptive *threshold*, not the gain envelope: it keeps the
+        // threshold stable and lets it drift gently with overall program level. (The
+        // compressor's own attack/release are conventional and quick — see applyCompressorParams.)
         levelMeterDSP = BASS_ChannelSetDSP(
             handle,
             { _, _, buffer, length, user in
