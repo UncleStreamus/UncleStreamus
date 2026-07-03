@@ -297,16 +297,19 @@ struct SyncSettingsView: View {
                     Text("Sign in to iCloud in System Settings to enable sync.")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text("Sync your listening history and favourites across all your devices.")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if showRestartBanner {
                     Text("Restart UncleStreamus to apply.")
                         .font(.caption)
                         .foregroundColor(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -344,11 +347,13 @@ struct SyncSettingsView: View {
                                 Text("Restart UncleStreamus to apply.")
                                     .font(.caption)
                                     .foregroundColor(.orange)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         } else {
                             Text("No backup available yet. A snapshot will be saved automatically the next time you open the app with listening history present.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     .padding(.top, 4)
