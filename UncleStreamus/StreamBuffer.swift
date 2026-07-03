@@ -116,9 +116,11 @@ final class StreamBuffer {
 
     /// Update the ring buffer window while recording is active (increase or safe decrease).
     /// Dispatched onto the write queue so it's serialised with segment rotation.
-    func updateMaxSegments(_ newMax: Int) {
+    /// `completion` (if given) runs on the write queue once the change has been applied.
+    func updateMaxSegments(_ newMax: Int, completion: (() -> Void)? = nil) {
         writeQueue.async { [weak self] in
             self?.maxSegments = newMax
+            completion?()
         }
     }
 

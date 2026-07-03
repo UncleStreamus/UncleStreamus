@@ -147,16 +147,14 @@ final class StreamBufferTests: XCTestCase {
             buf.cleanup()
         }
 
+        // updateMaxSegments applies the change asynchronously on the write queue.
+        // Assert only after its completion fires so the test is deterministic on
+        // loaded CI runners (a fixed sleep was racy) and free of a cross-thread read.
         let expectation = XCTestExpectation(description: "maxSegments updated to 20")
-        buf.updateMaxSegments(20)
-
-        // updateMaxSegments dispatches async onto the write queue; wait briefly
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            XCTAssertEqual(buf.maxSegments, 20)
-            expectation.fulfill()
-        }
-
+        buf.updateMaxSegments(20) { expectation.fulfill() }
         wait(for: [expectation], timeout: 2.0)
+
+        XCTAssertEqual(buf.maxSegments, 20)
     }
 }
 #endif
