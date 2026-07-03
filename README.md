@@ -2,8 +2,9 @@
 
 A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted by [norbert.de](https://www.norbert.de/index.php/frank-zappa/).
 
-<img width="762" height="838" alt="Screenshot 2026-04-09 at 18 32 17" src="https://github.com/user-attachments/assets/13529a0a-250a-4d31-9790-c9a10db9efc7" />
-<img width="520" height="1018" alt="Screenshot 2026-06-13 at 17 28 08" src="https://github.com/user-attachments/assets/ad535d8e-225d-4f0f-ba3b-3c1f9aed4f0b" />
+<img width="778" height="912" alt="Screenshot 2026-07-03 at 13 29 06" src="https://github.com/user-attachments/assets/71abd70f-c34f-439e-a78a-e1112698c860" />
+<img width="564" height="1062" alt="Screenshot 2026-07-03 at 13 53 58" src="https://github.com/user-attachments/assets/31489344-1ad5-48aa-ba9d-50da82eb5d48" />
+
 
 
 
@@ -79,7 +80,8 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 - Right click or long press on a show either when it's currently playing, or in the History or Favourites sidebar and choose 'Report Issue...' to email me with the details of the show from the livestream metadata and I will look into why the full setlist didn't display or had a formatting issue
 
 <img width="447" height="660" alt="Screenshot 2026-03-05 at 11 31 08" src="https://github.com/user-attachments/assets/4fcdeb51-7fdf-4d80-9db6-47199f66b50a" />
-<img width="429" height="648" alt="Screenshot 2026-03-05 at 11 30 40" src="https://github.com/user-attachments/assets/d4491e25-a2d2-4a45-a918-def2883e64d8" />
+<img width="427" height="682" alt="Screenshot 2026-07-03 at 13 31 59" src="https://github.com/user-attachments/assets/62e2d69e-e04c-48a7-8f08-5bbf2881f917" />
+
 
 
 
@@ -88,20 +90,22 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 
 **macOS:**
 
-<img width="447" height="316" alt="Screenshot 2026-06-05 at 09 08 24" src="https://github.com/user-attachments/assets/50e91a67-c6f0-4288-a94b-356197d24c7e" />
-<img width="859" height="676" alt="Screenshot 2026-03-05 at 11 35 01" src="https://github.com/user-attachments/assets/483f2387-f761-4cf6-8f67-156a0b33a26d" />
-<img width="763" height="892" alt="Screenshot 2026-03-05 at 11 33 55" src="https://github.com/user-attachments/assets/d3bb3571-e768-4fb7-9565-cc008958f2c3" />
-<img width="926" height="859" alt="Screenshot 2026-03-05 at 11 32 51" src="https://github.com/user-attachments/assets/89a9980b-c3be-4d65-b132-382b07566c98" />
-<img width="482" height="912" alt="Screenshot 2026-03-05 at 11 38 38" src="https://github.com/user-attachments/assets/81b7743c-c6eb-4c69-8d73-3c2c00cd6d64" />
-<img width="512" height="420" alt="Screenshot 2026-04-20 at 17 20 30" src="https://github.com/user-attachments/assets/7383615b-359e-4249-a6ce-4271830cfdc3" />
-
+<img width="446" height="426" alt="Screenshot 2026-07-03 at 13 33 12" src="https://github.com/user-attachments/assets/14036cbe-1954-4598-ab88-69e52d6eb770" />
+<img width="855" height="708" alt="Screenshot 2026-07-03 at 13 34 19" src="https://github.com/user-attachments/assets/2c0ed19c-f8e3-432d-a847-e1858e86869a" />
+<img width="778" height="767" alt="Screenshot 2026-07-03 at 13 35 23" src="https://github.com/user-attachments/assets/18fea225-a885-421e-8fcb-a26fe6d4db2b" />
+<img width="936" height="1071" alt="Screenshot 2026-07-03 at 13 35 57" src="https://github.com/user-attachments/assets/6c91cb02-75f5-4cf8-94ea-e223c2475361" />
+<img width="497" height="912" alt="Screenshot 2026-07-03 at 13 36 13" src="https://github.com/user-attachments/assets/4853ca7f-87cf-4b17-b43d-0169cc328c1d" />
+<img width="512" height="392" alt="Screenshot 2026-07-03 at 13 36 41" src="https://github.com/user-attachments/assets/2107bed0-800a-4bf1-9a04-7f0ea63096c4" />
+<img width="512" height="689" alt="Screenshot 2026-07-03 at 13 37 45" src="https://github.com/user-attachments/assets/fa8c33fc-84d8-4c31-b472-b90e7330e8fc" />
+<img width="512" height="846" alt="Screenshot 2026-07-03 at 13 38 01" src="https://github.com/user-attachments/assets/10637e35-7499-464e-aae7-700c8a502f6d" />
 
 
 **iOS/iPadOS:**
 
-<img width="559" height="1062" alt="Screenshot 2026-03-05 at 11 43 30" src="https://github.com/user-attachments/assets/c5b15e52-fa5e-4d39-9896-8ab390c2b0d4" />
+<img width="564" height="1062" alt="Screenshot 2026-07-03 at 13 54 36" src="https://github.com/user-attachments/assets/8c8a604d-3874-4a52-9fd1-0b5f9d351c07" />
 <img width="559" height="1062" alt="Screenshot 2026-03-05 at 11 41 15" src="https://github.com/user-attachments/assets/3287cf48-d28d-422d-a529-62586d390d9a" />
 <img width="2360" height="1640" alt="Screenshot 2026-03-05 at 11 43 43" src="https://github.com/user-attachments/assets/c518e0a8-098e-4d89-b53a-672671442ce5" />
+
 
 
 
@@ -120,11 +124,11 @@ Download the latest `.dmg` from the [Releases](../../releases) page, open it, an
 
 UncleStreamus is notarized by Apple — it will open normally on first launch.
 
-Available in the App Store soon.
+Soon to be available via TestFlight: https://testflight.apple.com/join/KdhXVGyY
 
 ### iOS
 
-Available in the App Store soon.
+Now available via TestFlight: https://testflight.apple.com/join/KdhXVGyY
 
 
 ## Credits
