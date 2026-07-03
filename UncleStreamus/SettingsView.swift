@@ -53,26 +53,28 @@ struct SettingsView: View {
                 tabContent
             }
             #else
+            // Measure the *live* pane and size the window to it. `.fixedSize` locks
+            // the content to its ideal height, so the GeometryReader always reports
+            // the true natural height (independent of the outer frame — no feedback
+            // loop) and any in-pane change (disclosure expand, banners, text swaps)
+            // re-fires the preference and resizes the window.
+            //
+            // The resize is intentionally *not* animated: animating the frame height
+            // while `tabContent` swaps to a new pane makes SwiftUI animate the new
+            // subviews' layout into place (content "flies in" from the edges). The
+            // per-tab cache below applies the correct height synchronously with the
+            // tab switch, so switches are instant and flash-free.
             tabContent
                 .animation(nil, value: selectedTab)
-                .frame(height: tabContentHeight)
-                .background(
-                    // Only render the measurement layer for tabs not yet measured.
-                    Group {
-                        if measuredHeights[selectedTab] == nil {
-                            tabContent
-                                .frame(width: 400)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .hidden()
-                                .background(GeometryReader { geo in
-                                    Color.clear.preference(
-                                        key: TabContentHeightKey.self,
-                                        value: geo.size.height
-                                    )
-                                })
-                        }
-                    }
-                )
+                .frame(width: 400)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(GeometryReader { geo in
+                    Color.clear.preference(
+                        key: TabContentHeightKey.self,
+                        value: geo.size.height
+                    )
+                })
+                .frame(height: tabContentHeight, alignment: .top)
             #endif
         }
         #if os(macOS)
@@ -83,6 +85,9 @@ struct SettingsView: View {
             tabContentHeight = newHeight
         }
         .onChange(of: selectedTab) { _, tab in
+            // Apply the last-known height for the incoming pane synchronously with the
+            // switch so the window is already the right size before the live measurement
+            // arrives — avoids a one-frame flash. The preference then refines it.
             if let cached = measuredHeights[tab] {
                 tabContentHeight = cached
             }
