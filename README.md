@@ -125,7 +125,7 @@ Download the latest `.dmg` from the [Releases](../../releases) page, open it, an
 
 UncleStreamus is notarized by Apple — it will open normally on first launch.
 
-Soon to be available via TestFlight: https://testflight.apple.com/join/KdhXVGyY
+Now available via TestFlight: https://testflight.apple.com/join/KdhXVGyY
 
 ### iOS
 
