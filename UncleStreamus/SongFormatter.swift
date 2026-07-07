@@ -45,10 +45,13 @@ struct SongFormatter {
 
             guard let range = nextRange else { break }
 
-            // Add text before this match as plain text
+            // Add text before this match as plain text.
+            // NOTE: `Text(verbatim:)` is required — these are scraped runtime strings, not
+            // localization keys. A plain `Text(String)` is a LocalizedStringKey and runs
+            // format-string escaping that crashes when the song name contains a `%`.
             let before = String(remainingText[..<range.lowerBound])
             if !before.isEmpty {
-                result = result + Text(before)
+                result = result + Text(verbatim: before)
             }
 
             // Format the matched content
@@ -57,7 +60,7 @@ struct SongFormatter {
                 result = result + formatBracketWithAcronyms(content, acronyms: acronyms)
             } else {
                 // Parentheses (q: or incl.) content gets italic + secondary gray
-                result = result + Text(content).italic().foregroundColor(.secondary)
+                result = result + Text(verbatim: content).italic().foregroundColor(.secondary)
             }
 
             // Continue with remaining text
@@ -66,7 +69,7 @@ struct SongFormatter {
 
         // Add any remaining regular text
         if !remainingText.isEmpty {
-            result = result + Text(remainingText)
+            result = result + Text(verbatim: remainingText)
         }
 
         return result
@@ -99,13 +102,13 @@ struct SongFormatter {
                 // Text before the acronym - orange
                 let before = String(remaining[..<range.lowerBound])
                 if !before.isEmpty {
-                    result = result + Text(before)
+                    result = result + Text(verbatim: before)
                         .foregroundColor(Color.orange.opacity(0.8))
                         .italic()
                 }
 
                 // The acronym itself - highlighted distinctly in blue
-                result = result + Text(acronym.short)
+                result = result + Text(verbatim: acronym.short)
                     .foregroundColor(.blue)
                     .bold()
                     .italic()
@@ -116,7 +119,7 @@ struct SongFormatter {
 
         // Any remaining inner text after all acronyms - orange
         if !remaining.isEmpty {
-            result = result + Text(remaining)
+            result = result + Text(verbatim: remaining)
                 .foregroundColor(Color.orange.opacity(0.8))
                 .italic()
         }

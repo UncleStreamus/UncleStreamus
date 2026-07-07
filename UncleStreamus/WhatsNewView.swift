@@ -100,7 +100,7 @@ struct WhatsNewView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("•")
                         .foregroundStyle(section.color)
-                    Text(item)
+                    Text(verbatim: item)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(.body)

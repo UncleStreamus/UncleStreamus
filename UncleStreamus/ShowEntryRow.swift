@@ -19,7 +19,9 @@ struct ShowEntryRow: View {
                     Text(savedShow.showDate)
                         .scaledFont(.caption)
                         .foregroundColor(.secondary)
-                    Text(savedShow.venue)
+                    // verbatim: scraped strings aren't localization keys — a plain Text(String)
+                    // is a LocalizedStringKey and crashes on a `%` in the scraped data.
+                    Text(verbatim: savedShow.venue)
                         .scaledFont(.subheadline, weight: .medium)
                         .lineLimit(isExpanded ? nil : 2)
                 }
@@ -39,7 +41,7 @@ struct ShowEntryRow: View {
             }
 
             if !savedShow.showInfo.isEmpty {
-                Text(savedShow.showInfo)
+                Text(verbatim: savedShow.showInfo)
                     .scaledFont(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -48,7 +50,7 @@ struct ShowEntryRow: View {
                 Divider()
 
                 if let note = savedShow.note {
-                    Text(note)
+                    Text(verbatim: note)
                         .scaledFont(.caption2)
                         .foregroundColor(Color.red.opacity(0.8))
                 }
@@ -106,10 +108,10 @@ struct ShowEntryRow: View {
                             }
                             VStack(alignment: .leading, spacing: 2) {
                                 ForEach(uniqueAcronyms, id: \.short) { acronym in
-                                    (Text(acronym.short)
+                                    (Text(verbatim: acronym.short)
                                         .foregroundColor(.blue)
                                         .bold()
-                                     + Text(" = \(acronym.full)")
+                                     + Text(verbatim: " = \(acronym.full)")
                                         .foregroundColor(.secondary))
                                         .scaledFont(.caption2)
                                         .italic()

@@ -33,7 +33,8 @@ struct MarqueeText: View {
         GeometryReader { geometry in
             let availableWidth = geometry.size.width
 
-            Text(text)
+            // verbatim: `text` is scraped metadata, not a localization key (crashes on a `%`)
+            Text(verbatim: text)
                 .font(.system(size: fontSize, weight: weight))
                 .fixedSize()
                 .offset(x: offset)
@@ -61,7 +62,7 @@ struct MarqueeText: View {
         .frame(height: fontSize * 1.3) // Approximate line height
         .background(
             // Measure text width off-screen
-            Text(text)
+            Text(verbatim: text)
                 .font(.system(size: fontSize, weight: weight))
                 .fixedSize()
                 .background(

@@ -438,7 +438,7 @@ struct ShowDatabaseSettingsView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 2) {
                             ForEach(Array(FZShowsLog.shared.entries.enumerated()), id: \.offset) { _, entry in
-                                Text(entry)
+                                Text(verbatim: entry)
                                     .font(.system(size: 11, design: .monospaced))
                                     .foregroundColor(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)

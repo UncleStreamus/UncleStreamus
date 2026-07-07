@@ -179,7 +179,7 @@ struct TrackInfoView: View {
     private var lookingUpView: some View {
         VStack(spacing: 10) {
             ProgressView()
-            Text("Looking up \"\(trackName)\"…")
+            Text(verbatim: "Looking up \"\(trackName)\"…")
                 .scaledFont(.caption)
                 .foregroundColor(.secondary)
         }
@@ -205,7 +205,7 @@ struct TrackInfoView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 28))
                 .foregroundColor(.secondary)
-            Text("No info found for\n\"\(attempted)\"")
+            Text(verbatim: "No info found for\n\"\(attempted)\"")
                 .scaledFont(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
