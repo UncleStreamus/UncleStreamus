@@ -14,8 +14,15 @@
 		8F7455CF51B663EDFD96802D /* FZShowsPageRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFAF780DA29F39C724E66902 /* FZShowsPageRecord.swift */; };
 		9D924559343B4593F5DE1323 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA7404A7B6B3A2EB5BE9DFC /* SettingsView.swift */; };
 		A5B56D4EB5104EC7B090E187 /* AudioFXView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */; };
-		AAAA00112FAA001100AA0011 /* ParsedTrackInfoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00012FAA000100AA0001 /* ParsedTrackInfoTests.swift */; };
+		AA0000000000000000000002 /* ContentViewShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* ContentViewShared.swift */; };
+		AA0000000000000000000003 /* ContentViewShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* ContentViewShared.swift */; };
 		AA0000000000000000000012 /* ContentViewSharedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000011 /* ContentViewSharedTests.swift */; };
+		AA0000000000000000000022 /* RadioViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000021 /* RadioViewModel.swift */; };
+		AA0000000000000000000023 /* RadioViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000021 /* RadioViewModel.swift */; };
+		AA0000000000000000000031 /* BASSRadioPlayerLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000030 /* BASSRadioPlayerLogic.swift */; };
+		AA0000000000000000000032 /* BASSRadioPlayerLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000030 /* BASSRadioPlayerLogic.swift */; };
+		AA0000000000000000000034 /* BASSRadioPlayerLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000033 /* BASSRadioPlayerLogicTests.swift */; };
+		AAAA00112FAA001100AA0011 /* ParsedTrackInfoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00012FAA000100AA0001 /* ParsedTrackInfoTests.swift */; };
 		AAAA00122FAA001200AA0012 /* TourMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00022FAA000200AA0002 /* TourMappingTests.swift */; };
 		AAAA00132FAA001300AA0013 /* ShowTimeFetcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00032FAA000300AA0003 /* ShowTimeFetcherTests.swift */; };
 		AAAA00142FAA001400AA0014 /* SavedShowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA00042FAA000400AA0004 /* SavedShowTests.swift */; };
@@ -69,12 +76,8 @@
 		BE2FCA692F3CBB2E0038E706 /* PlatformHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE2FCA672F3CBB2E0038E706 /* PlatformHelpers.swift */; };
 		BE2FCA6B2F3CBB520038E706 /* ContentView_iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */; };
 		BE2FCA6C2F3CBBC90038E706 /* ContentView_iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */; };
-		BEFADE0100000000000000F2 /* TransportControlsLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEFADE0100000000000000F1 /* TransportControlsLayout.swift */; };
-		BEFADE0100000000000000F3 /* TransportControlsLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEFADE0100000000000000F1 /* TransportControlsLayout.swift */; };
 		BE2FCA6D2F3CBBCA0038E706 /* Stream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */; };
 		BE2FCA6E2F3CBBCA0038E706 /* ParsedTrackInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */; };
-		AA0000000000000000000003 /* ContentViewShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* ContentViewShared.swift */; };
-		AA0000000000000000000023 /* RadioViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000021 /* RadioViewModel.swift */; };
 		BE2FCA6F2F3CBBCA0038E706 /* FilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCCF0D1FDDFBD14D1C5551E6 /* FilterView.swift */; };
 		BE2FCA702F3CBBCA0038E706 /* ShowEntryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00082F34000100AA0009 /* ShowEntryRow.swift */; };
 		BE2FCA712F3CBBCA0038E706 /* TourPeriods.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5728FAB37EE9743EFCABFB0B /* TourPeriods.swift */; };
@@ -91,11 +94,6 @@
 		BE5A1F012F5A1F0100BE5A11 /* StoreProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */; };
 		BE5A1F022F5A1F0200BE5A12 /* StoreProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */; };
 		BE9A83BD2F33ABC900D3B5D7 /* ParsedTrackInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */; };
-		AA0000000000000000000002 /* ContentViewShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* ContentViewShared.swift */; };
-		AA0000000000000000000022 /* RadioViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000021 /* RadioViewModel.swift */; };
-		AA0000000000000000000031 /* BASSRadioPlayerLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000030 /* BASSRadioPlayerLogic.swift */; };
-		AA0000000000000000000032 /* BASSRadioPlayerLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000030 /* BASSRadioPlayerLogic.swift */; };
-		AA0000000000000000000034 /* BASSRadioPlayerLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000033 /* BASSRadioPlayerLogicTests.swift */; };
 		BE9A83BF2F33AC3500D3B5D7 /* Stream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */; };
 		BEAA00012F34000100AA0001 /* Acronym.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00002F34000100AA0001 /* Acronym.swift */; };
 		BEAA00032F34000100AA0003 /* SavedShow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEAA00022F34000100AA0003 /* SavedShow.swift */; };
@@ -107,6 +105,8 @@
 		BEB8D8F32FC4F7B100286967 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BEB8D8F12FC4F7B100286967 /* PrivacyInfo.xcprivacy */; };
 		BEE59E1F2F3223DB00230D3D /* FZShowsFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE59E1E2F3223DB00230D3D /* FZShowsFetcher.swift */; };
 		BEF8E53E2F3A873A000B6773 /* MarqueeText.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF8E53D2F3A873A000B6773 /* MarqueeText.swift */; };
+		BEFADE0100000000000000F2 /* TransportControlsLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEFADE0100000000000000F1 /* TransportControlsLayout.swift */; };
+		BEFADE0100000000000000F3 /* TransportControlsLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEFADE0100000000000000F1 /* TransportControlsLayout.swift */; };
 		C3A1F8B52F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */; };
 		C3A1F8B62F9D0E5700C3A1F8 /* StreamBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A1F8B42F9D0E5700C3A1F8 /* StreamBuffer.swift */; };
 		CC03DC000003DC0300CC03DC /* DonlopeIndexCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC01DC000001DC0100CC01DC /* DonlopeIndexCache.swift */; };
@@ -159,8 +159,12 @@
 		72F66D9B51B903E6898BC392 /* CachedFZShow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CachedFZShow.swift; sourceTree = "<group>"; };
 		752DBEE239607630EF9BE524 /* SongFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SongFormatter.swift; sourceTree = "<group>"; };
 		A2D1D3BDE8FA45B18C165DAE /* AudioFXView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFXView.swift; sourceTree = "<group>"; };
-		AAAA00012FAA000100AA0001 /* ParsedTrackInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfoTests.swift; sourceTree = "<group>"; };
+		AA0000000000000000000001 /* ContentViewShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewShared.swift; sourceTree = "<group>"; };
 		AA0000000000000000000011 /* ContentViewSharedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewSharedTests.swift; sourceTree = "<group>"; };
+		AA0000000000000000000021 /* RadioViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadioViewModel.swift; sourceTree = "<group>"; };
+		AA0000000000000000000030 /* BASSRadioPlayerLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASSRadioPlayerLogic.swift; sourceTree = "<group>"; };
+		AA0000000000000000000033 /* BASSRadioPlayerLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASSRadioPlayerLogicTests.swift; sourceTree = "<group>"; };
+		AAAA00012FAA000100AA0001 /* ParsedTrackInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfoTests.swift; sourceTree = "<group>"; };
 		AAAA00022FAA000200AA0002 /* TourMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TourMappingTests.swift; sourceTree = "<group>"; };
 		AAAA00032FAA000300AA0003 /* ShowTimeFetcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowTimeFetcherTests.swift; sourceTree = "<group>"; };
 		AAAA00042FAA000400AA0004 /* SavedShowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedShowTests.swift; sourceTree = "<group>"; };
@@ -192,7 +196,7 @@
 		BE1A34242F30C6D800647B01 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BE1A34262F30C6D800647B01 /* UncleStreamus.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = UncleStreamus.entitlements; sourceTree = "<group>"; };
 		BE1A34282F30C6D800647B01 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		BE2FCA562F3CB6F60038E706 /* UncleStreamus-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "UncleStreamus-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		BE2FCA562F3CB6F60038E706 /* UncleStreamus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = UncleStreamus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE2FCA5E2F3CB6F70038E706 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BE2FCA612F3CB6F70038E706 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		BE2FCA662F3CB93F0038E706 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -200,10 +204,6 @@
 		BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentView_iOS.swift; sourceTree = "<group>"; };
 		BE5A1F002F5A1F0000BE5A10 /* StoreProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreProtection.swift; sourceTree = "<group>"; };
 		BE9A83BC2F33ABC900D3B5D7 /* ParsedTrackInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedTrackInfo.swift; sourceTree = "<group>"; };
-		AA0000000000000000000001 /* ContentViewShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewShared.swift; sourceTree = "<group>"; };
-		AA0000000000000000000021 /* RadioViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadioViewModel.swift; sourceTree = "<group>"; };
-		AA0000000000000000000030 /* BASSRadioPlayerLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASSRadioPlayerLogic.swift; sourceTree = "<group>"; };
-		AA0000000000000000000033 /* BASSRadioPlayerLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASSRadioPlayerLogicTests.swift; sourceTree = "<group>"; };
 		BE9A83BE2F33AC3500D3B5D7 /* Stream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stream.swift; sourceTree = "<group>"; };
 		BEA501FE2FD98D8A00C2A02F /* UncleStreamusTests.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = UncleStreamusTests.entitlements; sourceTree = "<group>"; };
 		BEA501FF2FD9904000C2A02F /* UncleStreamus-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "UncleStreamus-Debug.entitlements"; path = "UncleStreamus/UncleStreamus-Debug.entitlements"; sourceTree = "<group>"; };
@@ -303,7 +303,7 @@
 			isa = PBXGroup;
 			children = (
 				BE1A341B2F30C6D600647B01 /* UncleStreamus.app */,
-				BE2FCA562F3CB6F60038E706 /* UncleStreamus-iOS.app */,
+				BE2FCA562F3CB6F60038E706 /* UncleStreamus.app */,
 				AAAA00062FAA000600AA0006 /* UncleStreamusTests.xctest */,
 			);
 			name = Products;
@@ -452,7 +452,7 @@
 			);
 			name = "UncleStreamus-iOS";
 			productName = "UncleStreamus-iOS";
-			productReference = BE2FCA562F3CB6F60038E706 /* UncleStreamus-iOS.app */;
+			productReference = BE2FCA562F3CB6F60038E706 /* UncleStreamus.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -694,7 +694,8 @@
 				CODE_SIGN_ENTITLEMENTS = UncleStreamusTests/UncleStreamusTests.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = M94NB5JY3R;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
@@ -713,7 +714,8 @@
 				CODE_SIGN_ENTITLEMENTS = UncleStreamusTests/UncleStreamusTests.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = M94NB5JY3R;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
@@ -761,6 +763,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -825,6 +828,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -855,10 +859,12 @@
 				CURRENT_PROJECT_VERSION = 20260707;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus/Preview Content\"";
-				DEVELOPMENT_TEAM = M94NB5JY3R;
+				ENABLE_APP_SANDBOX = YES;
 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				"INFOPLIST_FILE[sdk=macosx*]" = UncleStreamus/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = UncleStreamus;
@@ -880,6 +886,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.unclestreamus.UncleStreamus;
 				PRODUCT_MODULE_NAME = UncleStreamus;
 				PRODUCT_NAME = UncleStreamus;
+				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = macosx;
 				SUPPORTS_MACCATALYST = NO;
@@ -898,10 +905,12 @@
 				CURRENT_PROJECT_VERSION = 20260707;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus/Preview Content\"";
-				DEVELOPMENT_TEAM = M94NB5JY3R;
+				ENABLE_APP_SANDBOX = YES;
 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				"INFOPLIST_FILE[sdk=macosx*]" = UncleStreamus/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = UncleStreamus;
@@ -923,6 +932,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.unclestreamus.UncleStreamus;
 				PRODUCT_MODULE_NAME = UncleStreamus;
 				PRODUCT_NAME = UncleStreamus;
+				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = macosx;
 				SUPPORTS_MACCATALYST = NO;
@@ -941,7 +951,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20260707;
 				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus-iOS/Preview Content\"";
-				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -982,7 +991,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20260707;
 				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus-iOS/Preview Content\"";
-				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1021,7 +1029,8 @@
 				CODE_SIGN_ENTITLEMENTS = UncleStreamusTests/UncleStreamusTests.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = M94NB5JY3R;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
@@ -1069,6 +1078,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -1107,10 +1117,12 @@
 				CURRENT_PROJECT_VERSION = 20260707;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus/Preview Content\"";
-				DEVELOPMENT_TEAM = M94NB5JY3R;
+				ENABLE_APP_SANDBOX = YES;
 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				"INFOPLIST_FILE[sdk=macosx*]" = UncleStreamus/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = UncleStreamus;
@@ -1132,6 +1144,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.unclestreamus.UncleStreamus;
 				PRODUCT_MODULE_NAME = UncleStreamus;
 				PRODUCT_NAME = UncleStreamus;
+				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = macosx;
 				SUPPORTS_MACCATALYST = NO;
@@ -1150,7 +1163,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20260707;
 				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus-iOS/Preview Content\"";
-				DEVELOPMENT_TEAM = M94NB5JY3R;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
