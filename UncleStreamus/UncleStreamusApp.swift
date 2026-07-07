@@ -34,8 +34,27 @@ struct UncleStreamusApp: App {
             fatalError("App Group container unavailable — check entitlements and Developer Portal configuration.")
         }
         let storeDir = groupContainer.appendingPathComponent("UncleStreamus", isDirectory: true)
-        let historyStoreURL = storeDir.appendingPathComponent("UncleStreamus-history.store")
         try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
+        let groupHistoryURL = storeDir.appendingPathComponent("UncleStreamus-history.store")
+
+        // iOS: relocate the CloudKit store out of the shared App Group container into the
+        // private sandbox to avoid RunningBoard's 0xdead10cc (held SQLite lock on a shared-
+        // container file during suspension). Copy-verify-repoint, CloudKit metadata preserved
+        // (same container ID → sync resumes with no re-upload). See StoreProtection.
+        #if os(iOS)
+        let historyStoreURL: URL = {
+            guard let privateDir = StoreProtection.privateStoreDirectory() else { return groupHistoryURL }
+            return StoreProtection.resolveHistoryStoreURL(
+                groupURL: groupHistoryURL,
+                privateURL: privateDir.appendingPathComponent("UncleStreamus-history.store")
+            )
+        }()
+        #else
+        let historyStoreURL = groupHistoryURL
+        #endif
+        #if DEBUG
+        print("🗄️ history store → \(historyStoreURL.path)")
+        #endif
 
         // Pre-launch store protection: backup before CloudKit can wipe, and auto-restore
         // if CloudKit performed a zone-reset that emptied the store.
@@ -109,9 +128,24 @@ struct UncleStreamusApp: App {
         ) else { fatalError("App Group container unavailable.") }
         let storeDir = groupContainer.appendingPathComponent("UncleStreamus", isDirectory: true)
         try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
+        let groupCacheURL = storeDir.appendingPathComponent("UncleStreamusCache.store")
+
+        // iOS: relocate the cache store to the private sandbox too — it also holds SQLite
+        // locks during background page downloads, so it shares the 0xdead10cc exposure.
+        #if os(iOS)
+        let cacheStoreURL: URL = {
+            guard let privateDir = StoreProtection.privateStoreDirectory() else { return groupCacheURL }
+            return StoreProtection.resolveCacheStoreURL(
+                groupURL: groupCacheURL,
+                privateURL: privateDir.appendingPathComponent("UncleStreamusCache.store")
+            )
+        }()
+        #else
+        let cacheStoreURL = groupCacheURL
+        #endif
         let config = ModelConfiguration(
             schema: Schema([CachedFZShow.self, FZShowsPageRecord.self]),
-            url: storeDir.appendingPathComponent("UncleStreamusCache.store"),
+            url: cacheStoreURL,
             cloudKitDatabase: .none
         )
         return (try? ModelContainer(for: Schema([CachedFZShow.self, FZShowsPageRecord.self]), configurations: [config]))

@@ -18,6 +18,28 @@ class ShowDataManager {
         }
     }
 
+    /// Runs `body`, surviving any Objective-C `NSException` thrown by CoreData /
+    /// SwiftData (which Swift's `try?` cannot catch — see `ObjCExceptionCatcher.h`).
+    /// Returns `true` if `body` completed cleanly, `false` if an ObjC exception was
+    /// caught. A caught exception at launch (store mid-migration / CloudKit import in
+    /// flight) means the best-effort maintenance work is simply skipped this launch
+    /// rather than crashing. macOS has no bridging header, so it runs `body` directly.
+    @discardableResult
+    private func withObjCExceptionGuard(_ label: String, _ body: () -> Void) -> Bool {
+        #if os(iOS)
+        if let exception = USCCatchException(body) {
+            #if DEBUG
+            print("⚠️ ShowDataManager: caught ObjC exception in \(label): \(exception.name.rawValue) — \(exception.reason ?? "nil")")
+            #endif
+            return false
+        }
+        return true
+        #else
+        body()
+        return true
+        #endif
+    }
+
     // MARK: - Deduplication
 
     /// Removes duplicate SavedShow records that represent the same show listened to on the same
@@ -27,7 +49,11 @@ class ShowDataManager {
     /// listenedAt timestamp; preserves isFavorite from any duplicate. Runs every launch (fast O(n)
     /// scan) so it handles new CloudKit-sourced duplicates too.
     private func deduplicateSavedShows() {
-        guard let all = try? modelContext.fetch(FetchDescriptor<SavedShow>()) else { return }
+        var all: [SavedShow] = []
+        let fetched = withObjCExceptionGuard("deduplicateSavedShows.fetch") {
+            all = (try? modelContext.fetch(FetchDescriptor<SavedShow>())) ?? []
+        }
+        guard fetched, !all.isEmpty else { return }
         let calendar = Calendar.current
 
         // Key: showDate + calendar day of listenedAt (or a nil sentinel for unfavourited non-listens)
@@ -54,7 +80,9 @@ class ShowDataManager {
         }
 
         if deletedCount > 0 {
-            try? modelContext.save()
+            withObjCExceptionGuard("deduplicateSavedShows.save") {
+                try? modelContext.save()
+            }
             #if DEBUG
             print("✅ ShowDataManager: removed \(deletedCount) duplicate show record(s)")
             #endif
@@ -76,7 +104,12 @@ class ShowDataManager {
 
     private func migrateRederivedSetlists() {
         guard !UserDefaults.standard.bool(forKey: Self.rederiveSetlistsMigrationKey) else { return }
-        guard let shows = try? modelContext.fetch(FetchDescriptor<SavedShow>()) else { return }
+        var shows: [SavedShow] = []
+        let fetched = withObjCExceptionGuard("migrateRederivedSetlists.fetch") {
+            shows = (try? modelContext.fetch(FetchDescriptor<SavedShow>())) ?? []
+        }
+        // Bail without setting the migration flag so it's retried once the store settles.
+        guard fetched else { return }
 
         var changedCount = 0
         for show in shows {
@@ -88,7 +121,9 @@ class ShowDataManager {
         }
 
         if changedCount > 0 {
-            try? modelContext.save()
+            withObjCExceptionGuard("migrateRederivedSetlists.save") {
+                try? modelContext.save()
+            }
         }
         UserDefaults.standard.set(true, forKey: Self.rederiveSetlistsMigrationKey)
         #if DEBUG

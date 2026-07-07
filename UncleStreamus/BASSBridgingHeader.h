@@ -3,6 +3,8 @@
 
 #import <Foundation/Foundation.h>
 
+#import "ObjCExceptionCatcher.h"
+
 #include "bass.h"
 #include "bass_fx.h"
 #include "bassmix.h"
