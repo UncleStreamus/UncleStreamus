@@ -67,6 +67,10 @@ struct ContentView_iOS: View {
     ]
 
     @State private var sidebarNavigationActive: Bool = false
+    /// Whether the setlist auto-follows the now-playing track on advance. Turned
+    /// off the moment the user manually scrolls the setlist; reset to true at
+    /// natural reset points (launch, new show, returning from the sidebar).
+    @State private var autoFollowSetlist: Bool = true
     @State private var contentBounceOffset: CGFloat = 0
     @State private var interruptionHandlerSetUp = false
     @State private var carPlayHandlersSetUp = false
@@ -209,13 +213,11 @@ struct ContentView_iOS: View {
                                     Image(systemName: "sidebar.right")
                                 }
                             } else {
-                                // iPhone: use navigation push
-                                NavigationLink {
-                                    if let manager = showDataManager {
-                                        SidebarView(showDataManager: manager, selectedTab: $selectedSidebarTab)
-                                            .navigationTitle("")
-                                            .navigationBarTitleDisplayMode(.inline)
-                                    }
+                                // iPhone: navigation push via the shared sidebarNavigationActive
+                                // flag (same path as the swipe gesture) so its dismissal is
+                                // observable — see the .navigationDestination above.
+                                Button {
+                                    sidebarNavigationActive = true
                                 } label: {
                                     Image(systemName: "sidebar.right")
                                 }
@@ -506,7 +508,8 @@ struct ContentView_iOS: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     if let parsed = vm.parsedTrack, let trackName = parsed.trackName, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
-                        Text(trackName)
+                        // verbatim: scraped metadata, not a localization key (crashes on a `%`)
+                        Text(verbatim: trackName)
                             .scaledFont(.title2, weight: .semibold)
                             .lineLimit(2)
                     } else {
@@ -517,16 +520,16 @@ struct ContentView_iOS: View {
 
                     HStack {
                         if let parsed = vm.parsedTrack, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
-                            Text(parsed.inferredArtist)
+                            Text(verbatim: parsed.inferredArtist)
                                 .scaledFont(.subheadline)
                                 .foregroundColor(.secondary)
                             if let trackNumber = parsed.trackNumber {
-                                Text("• Track \(trackNumber)")
+                                Text(verbatim: "• Track \(trackNumber)")
                                     .scaledFont(.caption)
                                     .foregroundColor(.secondary)
                             }
                             if let trackDuration = parsed.trackDuration {
-                                Text("• \(trackDuration)")
+                                Text(verbatim: "• \(trackDuration)")
                                     .scaledFont(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -555,7 +558,7 @@ struct ContentView_iOS: View {
 
             HStack {
                 if let parsed = vm.parsedTrack, let date = parsed.date, let city = parsed.city, let state = parsed.state, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
-                    Text("\(date) • \(city), \(state)")
+                    Text(verbatim: "\(date) • \(city), \(state)")
                         .scaledFont(.caption)
                         .foregroundColor(.secondary)
                 } else {
@@ -565,7 +568,7 @@ struct ContentView_iOS: View {
                 }
                 Spacer()
                 if let source = displaySource, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
-                    Text(source)
+                    Text(verbatim: source)
                         .scaledFont(.caption)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)
@@ -825,7 +828,9 @@ struct ContentView_iOS: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     if let show = vm.currentShow {
-                        Text(show.venue)
+                        // verbatim: scraped strings, not localization keys — a plain Text(String)
+                        // is a LocalizedStringKey and crashes on a `%` in the scraped data.
+                        Text(verbatim: show.venue)
                             .scaledFont(.headline, weight: .semibold)
                             .foregroundColor(.primary)
 
@@ -836,7 +841,7 @@ struct ContentView_iOS: View {
                         }
 
                         if !show.showInfo.isEmpty {
-                            Text(show.showInfo)
+                            Text(verbatim: show.showInfo)
                                 .scaledFont(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -912,12 +917,39 @@ struct ContentView_iOS: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                    // Auto-scroll the now-playing track into view (centered): jump on
-                    // open, animate as the track advances. No-op for the no-match state.
-                    .onAppear { scrollToNowPlaying(proxy, animated: false) }
-                    .onChange(of: vm.currentSetlistPosition) { _, _ in
-                        scrollToNowPlaying(proxy, animated: true)
+                    // Auto-follow the now-playing track: jump on open, animate as the
+                    // track advances — but only while auto-follow is on. Manual scrolling
+                    // turns it off (so we don't fight the user); it resets at launch, on a
+                    // new show, and on returning from the sidebar. No-op for the no-match state.
+                    .onAppear {
+                        autoFollowSetlist = true
+                        scrollToNowPlaying(proxy, animated: false)
                     }
+                    .onChange(of: vm.currentSetlistPosition) { _, _ in
+                        if autoFollowSetlist { scrollToNowPlaying(proxy, animated: true) }
+                    }
+                    .onChange(of: vm.currentShow?.date) { _, _ in
+                        autoFollowSetlist = true
+                    }
+                    .onChange(of: sidebarNavigationActive) { _, active in
+                        if !active {
+                            autoFollowSetlist = true
+                            scrollToNowPlaying(proxy, animated: false)
+                        }
+                    }
+                    .onChange(of: showSidebar) { _, shown in
+                        if !shown {
+                            autoFollowSetlist = true
+                            scrollToNowPlaying(proxy, animated: false)
+                        }
+                    }
+                    // A manual drag on the setlist stops auto-follow (programmatic
+                    // scrollTo does not fire this, so following never fights itself).
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 8).onChanged { _ in
+                            autoFollowSetlist = false
+                        }
+                    )
                     }
 
                     // Footer section - with bounce effect
@@ -985,13 +1017,13 @@ struct ContentView_iOS: View {
                                 let parts = bandInfo.split(separator: "\n", maxSplits: 1).map(String.init)
                                 VStack(alignment: .leading, spacing: 4) {
                                     if parts.count >= 1 {
-                                        Text(parts[0])
+                                        Text(verbatim: parts[0])
                                             .scaledFont(.caption, weight: .medium)
                                             .foregroundColor(.secondary)
                                             .italic()
                                     }
                                     if parts.count >= 2 {
-                                        Text(parts[1])
+                                        Text(verbatim: parts[1])
                                             .scaledFont(.caption2)
                                             .foregroundColor(.secondary)
                                     }
@@ -1006,10 +1038,10 @@ struct ContentView_iOS: View {
                                 }
                                 VStack(alignment: .leading, spacing: 2) {
                                     ForEach(uniqueAcronyms, id: \.short) { acronym in
-                                        (Text(acronym.short)
+                                        (Text(verbatim: acronym.short)
                                             .foregroundColor(.blue)
                                             .bold()
-                                         + Text(" = \(acronym.full)")
+                                         + Text(verbatim: " = \(acronym.full)")
                                             .foregroundColor(.secondary))
                                             .scaledFont(.caption2)
                                             .italic()

@@ -31,6 +31,10 @@ struct ContentView: View {
     @State private var contentBounceOffset: CGFloat = 0
     @State private var bounceResetTask: DispatchWorkItem?
     @State private var setlistFrameInWindow: CGRect = .zero  // Track setlist area to exclude from bounce
+    /// Whether the setlist auto-follows the now-playing track on advance. Turned
+    /// off the moment the user manually scrolls the setlist; reset to true at
+    /// natural reset points (launch, new show, closing the sidebar panel).
+    @State private var autoFollowSetlist: Bool = true
     @AppStorage("delayWarningDismissed") private var delayWarningDismissed: Bool = false
     @State private var selectedSidebarTab: SidebarView.SidebarTab = .history  // Preserve sidebar tab selection
     @State private var showFXPane: Bool = false
@@ -408,14 +412,15 @@ struct ContentView: View {
 
                             HStack {
                                 if let parsed = vm.parsedTrack, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
-                                    Text(parsed.inferredArtist)
+                                    // verbatim: scraped metadata, not a localization key (crashes on a `%`)
+                                    Text(verbatim: parsed.inferredArtist)
                                         .scaledFont(.subheadline)
                                         .foregroundColor(.secondary)
                                     if let trackNumber = parsed.trackNumber {
-                                        Text("• Track \(trackNumber)").scaledFont(.caption).foregroundColor(.secondary)
+                                        Text(verbatim: "• Track \(trackNumber)").scaledFont(.caption).foregroundColor(.secondary)
                                     }
                                     if let trackDuration = parsed.trackDuration {
-                                        Text("• \(trackDuration)").scaledFont(.caption).foregroundColor(.secondary)
+                                        Text(verbatim: "• \(trackDuration)").scaledFont(.caption).foregroundColor(.secondary)
                                     }
                                 } else {
                                     Text(" ")
@@ -443,7 +448,7 @@ struct ContentView: View {
 
                     HStack {
                         if let parsed = vm.parsedTrack, let date = parsed.date, let city = parsed.city, let state = parsed.state, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
-                            Text("\(date) • \(city), \(state)")
+                            Text(verbatim: "\(date) • \(city), \(state)")
                                 .scaledFont(.caption)
                                 .foregroundColor(.secondary)
                         } else {
@@ -453,7 +458,7 @@ struct ContentView: View {
                         }
                         Spacer()
                         if let source = displaySource, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
-                            Text(source)
+                            Text(verbatim: source)
                                 .scaledFont(.caption)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 2)
@@ -740,7 +745,10 @@ struct ContentView: View {
         .frame(minWidth: mainContentMinWidth, idealWidth: showInfoExpanded ? 450 : mainContentMinWidth)
         .coordinateSpace(name: "mainContent")
         .overlay(
-            ScrollWheelOverlay(excludeZone: setlistFrameInWindow) { delta in
+            ScrollWheelOverlay(
+                excludeZone: setlistFrameInWindow,
+                onSetlistScroll: { autoFollowSetlist = false }
+            ) { delta in
                 handleScrollWheel(delta: delta)
             }
         )
@@ -821,7 +829,9 @@ struct ContentView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     if let show = vm.currentShow {
-                        Text(show.venue)
+                        // verbatim: scraped strings aren't localization keys — a plain Text(String)
+                        // is a LocalizedStringKey and crashes on a `%` in the scraped data.
+                        Text(verbatim: show.venue)
                             .scaledFont(.headline, weight: .semibold)
 
                         if let note = show.note {
@@ -831,7 +841,7 @@ struct ContentView: View {
                         }
 
                         if !show.showInfo.isEmpty {
-                            Text(show.showInfo)
+                            Text(verbatim: show.showInfo)
                                 .scaledFont(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -954,11 +964,26 @@ struct ContentView: View {
                     }
                 }
             )
-            // Auto-scroll the now-playing track into view (centered): jump on open,
-            // animate as the track advances. Guarded against the no-match (0) state.
-            .onAppear { scrollToNowPlaying(proxy, animated: false) }
+            // Auto-follow the now-playing track: jump on open, animate as the track
+            // advances — but only while auto-follow is on. Manual scrolling turns it
+            // off (see ScrollWheelOverlay's onSetlistScroll) so we don't fight the user;
+            // it resets at launch, on a new show, and on closing the sidebar panel.
+            // Guarded against the no-match (0) state.
+            .onAppear {
+                autoFollowSetlist = true
+                scrollToNowPlaying(proxy, animated: false)
+            }
             .onChange(of: vm.currentSetlistPosition) { _, _ in
-                scrollToNowPlaying(proxy, animated: true)
+                if autoFollowSetlist { scrollToNowPlaying(proxy, animated: true) }
+            }
+            .onChange(of: vm.currentShow?.date) { _, _ in
+                autoFollowSetlist = true
+            }
+            .onChange(of: isSidebarVisible) { _, visible in
+                if !visible {
+                    autoFollowSetlist = true
+                    scrollToNowPlaying(proxy, animated: false)
+                }
             }
         }
         }
@@ -1041,13 +1066,13 @@ struct ContentView: View {
                 let parts = bandInfo.split(separator: "\n", maxSplits: 1).map(String.init)
                 VStack(alignment: .leading, spacing: 4) {
                     if parts.count >= 1 {
-                        Text(parts[0])
+                        Text(verbatim: parts[0])
                             .scaledFont(.caption, weight: .medium)
                             .foregroundColor(.secondary)
                             .italic()
                     }
                     if parts.count >= 2 {
-                        Text(parts[1])
+                        Text(verbatim: parts[1])
                             .scaledFont(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -1061,10 +1086,10 @@ struct ContentView: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(uniqueAcronyms, id: \.short) { acronym in
-                        (Text(acronym.short)
+                        (Text(verbatim: acronym.short)
                             .foregroundColor(.blue)
                             .bold()
-                         + Text(" = \(acronym.full)")
+                         + Text(verbatim: " = \(acronym.full)")
                             .foregroundColor(.secondary))
                             .scaledFont(.caption2)
                             .italic()
@@ -1566,23 +1591,27 @@ struct DraggableDivider: View {
 /// A transparent overlay that monitors scroll wheel events at the window level
 struct ScrollWheelOverlay: NSViewRepresentable {
     let excludeZone: CGRect  // Area to exclude from bounce effect (e.g., setlist ScrollView)
+    var onSetlistScroll: (() -> Void)? = nil  // Fired when the user scrolls over the setlist
     let onScroll: (CGFloat) -> Void
 
     func makeNSView(context: Context) -> ScrollWheelMonitorNSView {
         let view = ScrollWheelMonitorNSView()
         view.onScroll = onScroll
+        view.onSetlistScroll = onSetlistScroll
         view.excludeZone = excludeZone
         return view
     }
 
     func updateNSView(_ nsView: ScrollWheelMonitorNSView, context: Context) {
         nsView.onScroll = onScroll
+        nsView.onSetlistScroll = onSetlistScroll
         nsView.excludeZone = excludeZone
     }
 }
 
 class ScrollWheelMonitorNSView: NSView {
     var onScroll: ((CGFloat) -> Void)?
+    var onSetlistScroll: (() -> Void)?
     var excludeZone: CGRect = .zero
     private var scrollMonitor: Any?
 
@@ -1624,7 +1653,11 @@ class ScrollWheelMonitorNSView: NSView {
                 )
 
                 if self.excludeZone.contains(mouseInSwiftUI) {
-                    // Mouse is over setlist - let it scroll normally, no bounce
+                    // Mouse is over setlist - let it scroll normally, no bounce.
+                    // A manual setlist scroll stops the now-playing auto-follow.
+                    DispatchQueue.main.async {
+                        self.onSetlistScroll?()
+                    }
                     return event
                 }
             }
