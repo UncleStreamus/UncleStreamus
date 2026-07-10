@@ -87,7 +87,14 @@ final class RadioViewModel {
         currentTrack = metadata
         parsedTrack = ParsedTrackInfo.merged(new: newParsed, previous: parsedTrack)
 
-        if let date = parsedTrack?.date {
+        if parsedTrack?.isNonZappaShow == true {
+            // Non-Zappa broadcast (cover band / guest set): no zappateers setlist
+            // exists, so skip the futile fetch. Clear any prior show so the previous
+            // Zappa setlist doesn't linger under the new track.
+            currentShow = nil
+            currentSetlistPosition = 0
+            isFetchingShowInfo = false
+        } else if let date = parsedTrack?.date {
             let showTime = ShowTime(from: parsedTrack?.showTime)
             fetchShowInfo(date: date, showTime: showTime, fxPersistAcrossShows: fxPersistAcrossShows)
         }

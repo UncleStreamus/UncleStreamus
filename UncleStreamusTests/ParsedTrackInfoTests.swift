@@ -178,6 +178,77 @@ final class ParsedTrackInfoTests: XCTestCase {
         XCTAssertNil(info.state)
     }
 
+    func testBareName_notFlaggedNonZappa() {
+        let info = ParsedTrackInfo.parse("Cosmik Debris")
+        XCTAssertFalse(info.isNonZappaShow)
+    }
+
+    // MARK: - Non-Zappa Broadcast Fallback
+
+    func testNonZappa_reportedTrebuchetLine() {
+        let info = ParsedTrackInfo.parse("08 11 15 Trebuchet 03 Let It Rock [0:04:13]")
+        XCTAssertEqual(info.artist, "Trebuchet")
+        XCTAssertEqual(info.trackNumber, "03")
+        XCTAssertEqual(info.trackName, "Let It Rock")
+        XCTAssertEqual(info.trackDuration, "0:04:13")
+        XCTAssertEqual(info.date, "2008 11 15")
+        XCTAssertTrue(info.isNonZappaShow)
+    }
+
+    func testNonZappa_fourDigitYearVariant() {
+        let info = ParsedTrackInfo.parse("2008 11 15 Trebuchet 03 Let It Rock [0:04:13]")
+        XCTAssertEqual(info.artist, "Trebuchet")
+        XCTAssertEqual(info.trackNumber, "03")
+        XCTAssertEqual(info.trackName, "Let It Rock")
+        XCTAssertEqual(info.date, "2008 11 15")
+        XCTAssertTrue(info.isNonZappaShow)
+    }
+
+    func testNonZappa_multiWordBandName() {
+        let info = ParsedTrackInfo.parse("08 11 15 The Mighty Reeds 02 Peaches [3:00]")
+        XCTAssertEqual(info.artist, "The Mighty Reeds")
+        XCTAssertEqual(info.trackNumber, "02")
+        XCTAssertEqual(info.trackName, "Peaches")
+        XCTAssertEqual(info.date, "2008 11 15")
+        XCTAssertTrue(info.isNonZappaShow)
+    }
+
+    func testNonZappa_noDateBandTrackName() {
+        let info = ParsedTrackInfo.parse("Trebuchet 03 Let It Rock [4:13]")
+        XCTAssertEqual(info.artist, "Trebuchet")
+        XCTAssertEqual(info.trackNumber, "03")
+        XCTAssertEqual(info.trackName, "Let It Rock")
+        XCTAssertNil(info.date)
+        XCTAssertTrue(info.isNonZappaShow)
+    }
+
+    func testNonZappa_dashedLineNotMisparsed() {
+        // No Zappa date + a dash → the Zappa dash branch must be skipped and this
+        // falls to the best-effort fallback (rather than mis-parsing the dash).
+        let info = ParsedTrackInfo.parse("Some Band - Some Song [3:20]")
+        XCTAssertTrue(info.isNonZappaShow)
+        XCTAssertNotNil(info.trackName)
+        XCTAssertFalse(info.trackName?.isEmpty ?? true)
+    }
+
+    func testNonZappa_unstructuredFullLineNeverBlank() {
+        let info = ParsedTrackInfo.parse("Just A Jam Session [10:00]")
+        XCTAssertTrue(info.isNonZappaShow)
+        XCTAssertEqual(info.trackName, "Just A Jam Session")
+    }
+
+    func testNonZappa_zappaSimpleNotFlagged() {
+        let info = ParsedTrackInfo.parse("1973 11 07 Boston MA - 01 Intro [0:03:30]")
+        XCTAssertEqual(info.trackName, "Intro")
+        XCTAssertFalse(info.isNonZappaShow)
+    }
+
+    func testNonZappa_fullBracketNotFlagged() {
+        let info = ParsedTrackInfo.parse("[1973 11 07 Boston MA] Frank Zappa: (01) Cosmik Debris (1973) [3:30]")
+        XCTAssertEqual(info.trackName, "Cosmik Debris")
+        XCTAssertFalse(info.isNonZappaShow)
+    }
+
     // MARK: - tracksMatch
 
     func testTracksMatch_exactMatch() {

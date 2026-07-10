@@ -23,6 +23,14 @@ struct ParsedTrackInfo {
     let trackDuration: String?
     let rawTitle: String
 
+    /// True when the metadata is a non-Zappa broadcast (cover band / guest set)
+    /// that isn't in the zappateers catalogue. Set by the best-effort fallback in
+    /// `parse()`; tells the pipeline to skip the (futile) show fetch and the UI to
+    /// show a "not a Zappa show" note instead of a stuck "Waiting for show info…".
+    /// A `var` with a default so the synthesized memberwise init keeps it optional
+    /// (existing call sites and tests compile unchanged).
+    var isNonZappaShow: Bool = false
+
     // MARK: - Track Name Normalization
 
     /// Maps stream metadata track names to display-normalized forms (fixes capitalization/alternate titles)
@@ -127,6 +135,7 @@ struct ParsedTrackInfo {
         var trackName: String?
         var year: String?
         var trackDuration: String?
+        var isNonZappaShow = false
 
         // Check if it's the full bracketed format or simple format
         let isFullFormat = title.hasPrefix("[")
@@ -265,8 +274,12 @@ struct ParsedTrackInfo {
                 date = "\(parts[0]) \(parts[1]) \(parts[2])"
             }
             
-            // Find the dash separator
-            if let dashIndex = parts.firstIndex(of: "-") {
+            // Find the dash separator. Gated on a 4-digit Zappa date being present:
+            // this is the Zappa simple format ("1973 11 07 Boston MA - 01 Intro …"),
+            // which always carries such a date. A dashed *non-Zappa* line without a
+            // Zappa date (e.g. "Some Band - Song [3:20]") is left for the best-effort
+            // fallback below instead of being mis-parsed into a garbage track name.
+            if date != nil, let dashIndex = parts.firstIndex(of: "-") {
                 // City and State are between date and dash
                 if dashIndex > 3 {
                     // Filter out (E), (L), (E), (L) show time indicators from location
@@ -330,7 +343,50 @@ struct ParsedTrackInfo {
         if let durationRange = title.range(of: #"\[[\d:]+\]$"#, options: .regularExpression) {
             trackDuration = String(String(title[durationRange]).dropFirst().dropLast())
         }
-        
+
+        // General non-Zappa best-effort fallback. If none of the Zappa formats above
+        // produced a track name but this is a "full" metadata line (a trailing
+        // [duration] or a leading date), treat it as a non-Zappa broadcast (cover
+        // band / guest set) and surface whatever structure we can — always leaving a
+        // non-empty track name so the UI never sits on "Waiting for info…".
+        if trackName == nil {
+            let hasDuration = trackDuration != nil
+            var remainder = title
+            if let durationRange = remainder.range(of: #"\s*\[[\d:]+\]$"#, options: .regularExpression) {
+                remainder.removeSubrange(durationRange)
+            }
+            remainder = remainder.trimmingCharacters(in: .whitespaces)
+            var tokens = remainder.components(separatedBy: " ").filter { !$0.isEmpty }
+
+            // Optional leading date: "YY MM DD" or "YYYY MM DD".
+            var hasLeadingDate = false
+            if tokens.count >= 3,
+               (tokens[0].count == 2 || tokens[0].count == 4),
+               let _ = Int(tokens[0]), let mm = Int(tokens[1]), let dd = Int(tokens[2]),
+               (1...12).contains(mm), (1...31).contains(dd) {
+                date = Self.expandedDate(year: tokens[0], month: tokens[1], day: tokens[2])
+                tokens.removeFirst(3)
+                hasLeadingDate = true
+            }
+
+            if hasDuration || hasLeadingDate {
+                // Split "band NN track name" on the first standalone 1–2 digit token.
+                if let tnIdx = tokens.firstIndex(where: { $0.count <= 2 && Int($0) != nil }) {
+                    trackNumber = tokens[tnIdx]
+                    let band = tokens[..<tnIdx].filter { $0 != "-" }.joined(separator: " ")
+                    if !band.isEmpty { artist = band }
+                    let name = tokens[(tnIdx + 1)...].joined(separator: " ")
+                    if !name.isEmpty { trackName = name }
+                }
+                // Guarantee a visible title: remainder, else the raw title.
+                if trackName == nil {
+                    let joined = tokens.joined(separator: " ")
+                    trackName = !joined.isEmpty ? joined : (remainder.isEmpty ? title : remainder)
+                }
+                isNonZappaShow = true
+            }
+        }
+
         return ParsedTrackInfo(
             date: date,
             showTime: showTime,
@@ -345,8 +401,21 @@ struct ParsedTrackInfo {
             trackName: normalizeTrackName(trackName),
             year: year,
             trackDuration: trackDuration,
-            rawTitle: title
+            rawTitle: title,
+            isNonZappaShow: isNonZappaShow
         )
+    }
+
+    /// Expands a possibly 2-digit year date ("08 11 15") to a 4-digit display date
+    /// ("2008 11 15") via a sliding-century pivot on the current year. 4-digit years
+    /// pass through unchanged. Display-only — it drives no show fetch.
+    private static func expandedDate(year: String, month: String, day: String) -> String {
+        guard year.count == 2, let yy = Int(year) else {
+            return "\(year) \(month) \(day)"
+        }
+        let pivot = Calendar.current.component(.year, from: Date()) % 100
+        let fullYear = yy <= pivot ? 2000 + yy : 1900 + yy
+        return "\(fullYear) \(month) \(day)"
     }
 }
 
@@ -402,7 +471,8 @@ extension ParsedTrackInfo {
             generation: old.generation, creator: old.creator,
             artist: old.artist, trackNumber: newParsed.trackNumber ?? old.trackNumber,
             trackName: newParsed.trackName, year: newParsed.year,
-            trackDuration: preservedDuration, rawTitle: newParsed.rawTitle
+            trackDuration: preservedDuration, rawTitle: newParsed.rawTitle,
+            isNonZappaShow: newParsed.isNonZappaShow
         )
     }
 
@@ -417,7 +487,8 @@ extension ParsedTrackInfo {
             generation: generation, creator: creator,
             artist: artist, trackNumber: trackNumber,
             trackName: trackName, year: year,
-            trackDuration: trackDuration, rawTitle: rawTitle
+            trackDuration: trackDuration, rawTitle: rawTitle,
+            isNonZappaShow: isNonZappaShow
         )
     }
 }

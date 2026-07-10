@@ -447,8 +447,11 @@ struct ContentView: View {
                     Divider()
 
                     HStack {
-                        if let parsed = vm.parsedTrack, let date = parsed.date, let city = parsed.city, let state = parsed.state, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
-                            Text(verbatim: "\(date) • \(city), \(state)")
+                        if let parsed = vm.parsedTrack, let date = parsed.date, vm.currentTrack != "No track info" && !vm.currentTrack.isEmpty {
+                            // Location appended only when both city and state are known
+                            // (non-Zappa broadcasts have a date but no location).
+                            let location = (parsed.city != nil && parsed.state != nil) ? " • \(parsed.city!), \(parsed.state!)" : ""
+                            Text(verbatim: "\(date)\(location)")
                                 .scaledFont(.caption)
                                 .foregroundColor(.secondary)
                         } else {
@@ -853,6 +856,10 @@ struct ContentView: View {
                                 .scaledFont(.headline)
                                 .foregroundColor(.gray)
                         }
+                    } else if vm.parsedTrack?.isNonZappaShow == true {
+                        Text("Not a Zappa show — no setlist available.")
+                            .scaledFont(.headline)
+                            .foregroundColor(.gray)
                     } else {
                         Text(showInfoPlaceholderText)
                             .scaledFont(.headline)
