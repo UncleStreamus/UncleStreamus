@@ -59,8 +59,10 @@ struct SongFormatter {
             if isBracket {
                 result = result + formatBracketWithAcronyms(content, acronyms: acronyms)
             } else {
-                // Parentheses (q: or incl.) content gets italic + secondary gray
-                result = result + Text(verbatim: content).italic().foregroundColor(.secondary)
+                // Parentheses (q: or incl.) content gets italic + secondary gray,
+                // but any acronym brackets nested inside (e.g. "(incl. Lobster Girl
+                // [YCDTOSA6], ...)") still get the highlighted bracket treatment.
+                result = result + formatParenWithAcronyms(content, acronyms: acronyms)
             }
 
             // Continue with remaining text
@@ -70,6 +72,34 @@ struct SongFormatter {
         // Add any remaining regular text
         if !remainingText.isEmpty {
             result = result + Text(verbatim: remainingText)
+        }
+
+        return result
+    }
+
+    /// Formats a parenthetical block (e.g. "(incl. ...)" or "(q: ...)") as italic
+    /// secondary gray, while still highlighting any acronym brackets nested inside.
+    private static func formatParenWithAcronyms(_ paren: String, acronyms: [(short: String, full: String)]) -> Text {
+        var result = Text("")
+        var remaining = paren
+
+        // Walk through the paren text, splitting out any [bracketed] segments so
+        // they can be highlighted like standalone brackets; everything else stays
+        // italic secondary gray.
+        while let range = remaining.range(of: #"\[[^\]]+\]"#, options: .regularExpression) {
+            let before = String(remaining[..<range.lowerBound])
+            if !before.isEmpty {
+                result = result + Text(verbatim: before).italic().foregroundColor(.secondary)
+            }
+
+            let content = String(remaining[range])
+            result = result + formatBracketWithAcronyms(content, acronyms: acronyms)
+
+            remaining = String(remaining[range.upperBound...])
+        }
+
+        if !remaining.isEmpty {
+            result = result + Text(verbatim: remaining).italic().foregroundColor(.secondary)
         }
 
         return result
