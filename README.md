@@ -67,7 +67,7 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 ### Current issues & Feedback options
 
  **Mismatched 'Now Playing' track to setlist:**
-- This isargely unavoidable as often there are more audio files for sections of the show (.e.g., Preamble) than are listed in the setlist
+- This is largely unavoidable as often there are more audio files for sections of the show (.e.g., Preamble) than are listed in the setlist
 - ... which means that often the track number is different from the setlist number
 - Also, the filenames may differ sometimes from how the tracks are named in the FZShows setlist database which means no 'currently playing' track indicator
 - And sometimes the html is inconsistent, leading to misinterpratations of the formatting
