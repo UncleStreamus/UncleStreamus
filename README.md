@@ -72,6 +72,10 @@ A native macOS and iOS app for streaming the 24/7 Zappateers radio stream hosted
 - Also, the filenames may differ sometimes from how the tracks are named in the FZShows setlist database which means no 'currently playing' track indicator
 - And sometimes the html is inconsistent, leading to misinterpratations of the formatting
 
+ **Non Zappa shows are missing info:**
+- There are a very small number of non-Zappa shows that appear on the stream occasionally. I'm working to have the app parse the info for these so it's clear what they are
+- Currently, the app may fail to display the info for these shows as their metadata is often formatted differently.
+
 **AAC quirks**
 - The AAC stream has no native track metadata, so it's taken from the MP3 stream which is often several minutes behind, so the now playing track will generally always be out of sync
 - The AAC stream appers to require a restart at the end of each track, which is why there's a short gap between tracks when listening to the AAC stream. Something I will come back around to at somepoint to try and solve. 
