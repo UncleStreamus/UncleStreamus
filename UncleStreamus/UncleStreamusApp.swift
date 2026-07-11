@@ -156,6 +156,20 @@ struct UncleStreamusApp: App {
         if ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil {
             PerShowFXSync.start()
         }
+        #if os(iOS)
+        // Bootstrap the app-lifetime playback owner here. App.init runs on every launch
+        // before any scene connects — crucially including a CarPlay-only background launch
+        // where the SwiftUI window scene (and ContentView_iOS.onAppear) never fire — and it
+        // is the only context with the SwiftData containers ready. This makes the audio
+        // session, MPRemoteCommandCenter handlers, CarPlayBridge closures and now-playing
+        // live before either scene connects, so CarPlay can control audio on a cold launch.
+        // See PlaybackController.
+        let history = historyModelContainer
+        let cache = cacheModelContainer
+        MainActor.assumeIsolated {
+            PlaybackController.shared.bootstrap(historyContainer: history, cacheContainer: cache)
+        }
+        #endif
         #if DEBUG
         UserDefaults.standard.removeObject(forKey: "delayWarningDismissed")
         #endif

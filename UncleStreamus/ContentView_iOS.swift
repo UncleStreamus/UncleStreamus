@@ -14,23 +14,33 @@ import MediaPlayer
 private enum FooterSection { case bandInfo, officialReleases }
 
 struct ContentView_iOS: View {
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.cacheModelContainer) private var cacheModelContainer
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
-    @State private var showDataManager: ShowDataManager?
-    @State private var fzShowsDB: FZShowsDatabase?
     @State private var safariURL: IdentifiableURL?
     @State private var setlistInfoItem: SetlistInfoItem?
 
-    @State private var isPlaying = false
-    @State private var selectedStream: Stream?
-    @State private var bassPlayer = BASSRadioPlayer()
-    /// Shared runtime state (track/show pipeline). See RadioViewModel.
-    @State private var vm = RadioViewModel()
+    /// App-lifetime owner of the player, playback verbs, remote-command/CarPlay wiring,
+    /// and now-playing publishing. Bootstrapped in `UncleStreamusApp.init` so it's live
+    /// even on a CarPlay-only cold launch where this view's `onAppear` never fires. The
+    /// view consumes it through the thin forwarding accessors just below, so the large
+    /// body and subviews keep referencing `bassPlayer` / `vm` / `isPlaying` / … unchanged.
+    @State private var controller = PlaybackController.shared
+
+    private var bassPlayer: BASSRadioPlayer { controller.bassPlayer }
+    private var vm: RadioViewModel { controller.vm }
+    private var showDataManager: ShowDataManager? { controller.showDataManager }
+    private var fzShowsDB: FZShowsDatabase? { controller.fzShowsDB }
+    private var streams: [Stream] { controller.streams }
+    private var isPlaying: Bool {
+        get { controller.isPlaying }
+        nonmutating set { controller.isPlaying = newValue }
+    }
+    private var selectedStream: Stream? {
+        get { controller.selectedStream }
+        nonmutating set { controller.selectedStream = newValue }
+    }
     @State private var availableWidth: CGFloat = 500
     @AppStorage("textScale") private var textScale: Double = 1.1
-    @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "OGG"
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
     @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
     @AppStorage("dvrEnabled") private var dvrEnabled: Bool = true
@@ -59,13 +69,6 @@ struct ContentView_iOS: View {
     /// FX sheet detent height (fraction of screen) on compact-width (iPhone) layouts.
     private let fxSheetDetentCompact: CGFloat = 0.78
 
-    let streams = [
-        Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
-        Stream(name: "OGG (90 kbit/s)", url: "https://shoutcast.norbert.de/zappa.ogg", format: "OGG"),
-        Stream(name: "AAC (256 kbit/s)", url: "https://shoutcast.norbert.de/zappa.aac", format: "AAC"),
-        Stream(name: "FLAC (750 kbit/s)", url: "https://shoutcast.norbert.de/zappa.flac", format: "FLAC")
-    ]
-
     @State private var sidebarNavigationActive: Bool = false
     /// Whether the setlist auto-follows the now-playing track on advance. Turned
     /// off the moment the user manually scrolls the setlist; reset to true at
@@ -73,7 +76,6 @@ struct ContentView_iOS: View {
     @State private var autoFollowSetlist: Bool = true
     @State private var contentBounceOffset: CGFloat = 0
     @State private var interruptionHandlerSetUp = false
-    @State private var carPlayHandlersSetUp = false
     // Opaque tokens for the closure-based AVAudioSession observers (interruption +
     // two route-change handlers). Held so onDisappear can remove them rather than
     // leaking them for the process lifetime.
@@ -371,43 +373,23 @@ struct ContentView_iOS: View {
             Text("You have buffered audio from before. Play it back, or jump to the live stream?")
         }
         .onAppear {
-            configureAudioSession()
+            // Player/DB/command wiring now lives in PlaybackController (bootstrapped from
+            // UncleStreamusApp.init so it survives a CarPlay-only cold launch). This view
+            // just activates the controller (one-shot auto-resume + a fresh now-playing/
+            // bridge publish for the freshly-mounted window) and does its own UI-only work.
+            controller.activate()
+            // Only (re)configure the audio session on mount when nothing is playing yet.
+            // If the app was cold-launched by CarPlay and audio is already live, the session
+            // is already active and correctly configured — re-running configureAudioSession()
+            // here would call setActive(true) + BASS_Stop()/BASS_Start() on the live output,
+            // briefly cutting out the audio the user just started from the car.
+            if !isPlaying {
+                configureAudioSession()
+            }
             checkWhatsNew()
-            if showDataManager == nil {
-                showDataManager = ShowDataManager(modelContext: modelContext)
-            }
-            if fzShowsDB == nil {
-                let cacheContext = cacheModelContainer.map { ModelContext($0) } ?? modelContext
-                let db = FZShowsDatabase(modelContext: cacheContext)
-                fzShowsDB = db
-                if db.totalCachedShows == 0 {
-                    db.downloadAllPages()
-                } else {
-                    db.refreshStalePages()
-                }
-            }
-            if selectedStream == nil {
-                selectedStream = streams.first { $0.format == lastStreamFormat } ?? streams.first
-            }
-            setupPlayer()
             if !interruptionHandlerSetUp {
                 setupInterruptionHandler()
                 interruptionHandlerSetUp = true
-            }
-            if !carPlayHandlersSetUp {
-                CarPlayBridge.shared.availableFormats = streams.map { .init(format: $0.format, label: $0.name) }
-                setupCarPlayHandlers()
-                carPlayHandlersSetUp = true
-            }
-            syncCarPlayBridge()
-
-            // Auto-play if was playing when app quit (and auto-resume is enabled)
-            let wasPlaying = UserDefaults.standard.bool(forKey: "wasPlayingOnQuit")
-            let autoResumeEnabled = UserDefaults.standard.object(forKey: "autoResumeOnLaunch") as? Bool ?? false
-            if wasPlaying && autoResumeEnabled {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.playStream()
-                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .refreshShowDatabase)) { _ in
@@ -467,38 +449,10 @@ struct ContentView_iOS: View {
         .onChange(of: dvrBufferMinutes) { _, _ in
             bassPlayer.updateDVRBufferSize()
         }
-        .onChange(of: bassPlayer.dvrState) { _, newState in
-            updateNowPlayingInfo()
-            syncCarPlayBridge()
-            // Try to start the keepalive when DVR pauses so the recording pump keeps the ring
-            // buffer filling if/when the app is backgrounded. This is a NO-OP in the foreground:
-            // startSilenceKeepalive() guards on isAppInForeground because an active silent player
-            // makes iOS think audio is rendering and route the AirPods/lock-screen button to
-            // pauseCommand (a no-op while paused) — we can't correct that via playbackState, since
-            // the set-playback-state entitlement is private. The background case is also covered by
-            // the scenePhase handler above. dvrResume()/goLive() call stopSilenceKeepalive().
-            if newState == .paused {
-                bassPlayer.startSilenceKeepalive()
-            }
-        }
-        .onChange(of: bassPlayer.isReconnecting) { _, _ in
-            updateNowPlayingInfo()
-        }
-        .onChange(of: bassPlayer.playbackState) { _, newState in
-            // Reconnect attempts exhausted (~1 min of failures): the engine has truly
-            // stopped, but `isPlaying` (intent-based, drives the big transport button on
-            // CarPlay/lock screen/in-app) was never reset — it stays "Pause" even though
-            // no audio is playing. Bring it back in sync once the engine gives up for real.
-            if newState == .stopped, isPlaying, !bassPlayer.isReconnecting,
-               bassPlayer.reconnectAttempt >= bassPlayer.reconnectMaxAttempts {
-                isPlaying = false
-                updateNowPlayingInfo()
-                syncCarPlayBridge()
-            }
-        }
-        .onChange(of: bassPlayer.preBufferProgress > 0) { _, _ in
-            updateNowPlayingInfo()
-        }
+        // Reactions to bassPlayer state changes (dvrState → now-playing + CarPlay mirror +
+        // keepalive; reconnect-exhausted → reset isPlaying; reconnect/pre-buffer → now-playing)
+        // moved to PlaybackController.startObservingPlayerState(), so they also run on a
+        // CarPlay-only session where this view's `.onChange` never fires.
     }
 
     // MARK: - Track Info Card
@@ -689,7 +643,7 @@ struct ContentView_iOS: View {
                 Menu {
                     ForEach(streams) { stream in
                         Button {
-                            selectedStream = stream
+                            controller.selectStream(stream)
                         } label: {
                             HStack {
                                 Text(stream.name)
@@ -712,15 +666,6 @@ struct ContentView_iOS: View {
                     .padding(.vertical, 8)
                     .background(Color(.tertiarySystemBackground))
                     .cornerRadius(8)
-                }
-                .onChange(of: selectedStream) { _, newValue in
-                    if let stream = newValue {
-                        lastStreamFormat = stream.format
-                        if isPlaying {
-                            playStream()
-                        }
-                        syncCarPlayBridge()
-                    }
                 }
 
                 // FX button
@@ -1377,349 +1322,17 @@ struct ContentView_iOS: View {
         }
     }
 
-    private func configureAudioSession() {
-        let audioSession = AVAudioSession.sharedInstance()
-        // setCategory is best-effort: may throw -50 during a Bluetooth route transition
-        // when iOS has the session temporarily locked. The category was already set correctly
-        // during playStream(), so failure here is harmless — we just need setActive(true).
-        try? audioSession.setCategory(.playback, mode: .default, options: [.allowBluetoothA2DP, .allowAirPlay])
-        // IO buffer duration is best-effort: can fail during hardware handover.
-        try? audioSession.setPreferredIOBufferDuration(0.5)
-        // setActive(true) always runs (not gated by setCategory success) so BASS's audio
-        // unit gets a properly active session before BASS_ChannelPlay is called.
-        do {
-            try audioSession.setActive(true)
-            // Reconnect BASS's RemoteIO output unit to the now-active session. After a
-            // BASS_ChannelPause (DVR pause/resume cycle) + freeStream + new stream, the
-            // RemoteIO unit can become stale and output silence even though BASS reports
-            // ACTIVE_PLAYING. BASS_Stop/Start forces it to re-bind to the current route.
-            bassPlayer.reconnectOutputToAudioSession()
-            #if DEBUG
-            print("✅ Audio session activated")
-            #endif
-        } catch {
-            #if DEBUG
-            print("❌ Failed to activate audio session: \(error)")
-            #endif
-        }
-    }
+    // MARK: - Playback (forwards to the app-lifetime PlaybackController)
+    //
+    // The player, remote-command/CarPlay wiring, now-playing publishing and the
+    // playback verbs moved to PlaybackController (see its header) so they survive a
+    // CarPlay-only cold launch. These thin forwards keep the view body, the buffered-
+    // audio alert, the onChange handlers and subview closures calling the same names.
 
-    // MARK: - Player Setup
-
-    func setupPlayer() {
-        // Wire the shared view model: references it needs + platform side-effect
-        // hooks (now-playing refresh + CarPlay mirror).
-        vm.bassPlayer = bassPlayer
-        vm.showDataManager = showDataManager
-        vm.fzShowsDB = fzShowsDB
-        vm.onNowPlayingShouldUpdate = { [self] in updateNowPlayingInfo() }
-        vm.onShowDidLoad = { [self] in syncCarPlayBridge() }
-
-        bassPlayer.onMetadataUpdate = { metadata in
-            DispatchQueue.main.async {
-                self.vm.handleMetadata(metadata, fxPersistAcrossShows: self.fxPersistAcrossShows)
-            }
-        }
-
-        setupRemoteCommandCenter()
-    }
-
-    // MARK: - Remote Command Center
-
-    private func setupRemoteCommandCenter() {
-        let commandCenter = MPRemoteCommandCenter.shared()
-
-        commandCenter.playCommand.removeTarget(nil)
-        commandCenter.pauseCommand.removeTarget(nil)
-        commandCenter.togglePlayPauseCommand.removeTarget(nil)
-
-        commandCenter.playCommand.isEnabled = true
-        commandCenter.playCommand.addTarget { _ in
-            DispatchQueue.main.async {
-                #if DEBUG
-                print("▶️  remoteCmd PLAY — isPlaying=\(self.isPlaying) dvrState=\(self.bassPlayer.dvrState) streamActive=\(self.bassPlayer.isStreamActive)")
-                #endif
-                guard self.bassPlayer.checkUserActionAllowed() else { return }
-                if self.bassPlayer.dvrState == .paused {
-                    configureAudioSession()
-                    self.bassPlayer.dvrResume()
-                    self.updateNowPlayingInfo()
-                } else if self.bassPlayer.dvrState == .playing {
-                    // iOS sent play while DVR is already in playback state — mixer may have
-                    // stopped silently after an audio route change. Re-route and kick it.
-                    configureAudioSession()
-                    self.bassPlayer.ensureOutputPlaying()
-                    self.updateNowPlayingInfo()
-                } else if !self.isPlaying || !self.bassPlayer.isStreamActive {
-                    // Start or restart: covers initial play AND the case where isPlaying is
-                    // true but handles are gone (stream died in a tunnel while device was locked).
-                    self.playStream()
-                }
-            }
-            return .success
-        }
-
-        commandCenter.pauseCommand.isEnabled = true
-        commandCenter.pauseCommand.addTarget { _ in
-            DispatchQueue.main.async {
-                #if DEBUG
-                print("⏸️  remoteCmd PAUSE — isPlaying=\(self.isPlaying) dvrState=\(self.bassPlayer.dvrState)")
-                #endif
-                guard self.isPlaying else { return }
-                // If DVR is already paused, iOS routed a *resume* intent to pauseCommand: it can't
-                // read our paused state (no com.apple.mediaremote.set-playback-state entitlement),
-                // so once it last saw us "playing" it keeps sending pause. Treat it as resume. The
-                // 1.2s debounce blocks an iOS double-fired pause right after the real pause from
-                // accidentally resuming.
-                if self.bassPlayer.dvrState == .paused {
-                    guard self.bassPlayer.checkUserActionAllowed() else { return }
-                    configureAudioSession()
-                    self.bassPlayer.dvrResume()
-                    self.updateNowPlayingInfo()
-                    return
-                }
-                guard self.bassPlayer.checkUserActionAllowed() else { return }
-                switch self.bassPlayer.dvrState {
-                case .live:
-                    if self.dvrEnabled { self.bassPlayer.dvrPause() } else { self.stopStream() }
-                    self.updateNowPlayingInfo()
-                case .paused:
-                    break  // unreachable; handled above
-                case .playing:
-                    self.bassPlayer.dvrPausePlayback()
-                    self.updateNowPlayingInfo()
-                }
-            }
-            return .success
-        }
-
-        commandCenter.togglePlayPauseCommand.isEnabled = true
-        commandCenter.togglePlayPauseCommand.addTarget { _ in
-            DispatchQueue.main.async {
-                #if DEBUG
-                print("⏯️  remoteCmd TOGGLE — isPlaying=\(self.isPlaying) dvrState=\(self.bassPlayer.dvrState) streamActive=\(self.bassPlayer.isStreamActive)")
-                #endif
-                guard self.bassPlayer.checkUserActionAllowed() else { return }
-                switch (self.isPlaying, self.bassPlayer.dvrState) {
-                case (false, _):
-                    self.playStream()
-                case (true, .live):
-                    if !self.bassPlayer.isStreamActive {
-                        // Stream died (tunnel) — restart instead of trying to DVR pause a dead stream.
-                        // Without this, the second tap would dvrResume() and create a DVR playback
-                        // stream that plays simultaneously with the reconnecting live stream.
-                        self.playStream()
-                    } else if self.dvrEnabled {
-                        self.bassPlayer.dvrPause()
-                        self.updateNowPlayingInfo()
-                    } else {
-                        self.stopStream()
-                    }
-                case (true, .paused):
-                    configureAudioSession()
-                    self.bassPlayer.dvrResume()
-                    self.updateNowPlayingInfo()
-                case (true, .playing):
-                    self.bassPlayer.dvrPausePlayback()
-                    self.updateNowPlayingInfo()
-                }
-            }
-            return .success
-        }
-
-        commandCenter.nextTrackCommand.isEnabled = false
-        commandCenter.previousTrackCommand.isEnabled = false
-    }
-
-    /// Transient status text ("Reconnecting...", "Buffering...") shown in place of the
-    /// track title — the only text CarPlay's Now Playing screen can display comes from
-    /// MPNowPlayingInfoCenter, so this also flashes briefly on the lock screen.
-    private var nowPlayingStatusOverride: String? {
-        if bassPlayer.isReconnecting {
-            return bassPlayer.reconnectAttempt > 1
-                ? "Reconnecting (attempt \(bassPlayer.reconnectAttempt))..."
-                : "Reconnecting..."
-        }
-        if let stream = selectedStream, stream.format == "FLAC", bassPlayer.preBufferProgress > 0 {
-            return "Buffering \(stream.name)..."
-        }
-        return nil
-    }
-
-    private func updateNowPlayingInfo() {
-        var nowPlayingInfo = [String: Any]()
-
-        if let parsed = vm.parsedTrack {
-            nowPlayingInfo[MPMediaItemPropertyTitle] = parsed.trackName ?? "UncleStreamus"
-
-            if let show = vm.currentShow {
-                // Put all info in Artist line: "Frank Zappa • 1975 10 04 • Paramount Theatre, Seattle, WA"
-                // The venue field already includes location, so no need to add city/state/country
-                let artist = parsed.inferredArtist
-                let artistLine = "\(artist) • \(show.date) • \(show.venue)"
-                nowPlayingInfo[MPMediaItemPropertyArtist] = artistLine
-                #if DEBUG
-                print("🎵 Now Playing: \(parsed.trackName ?? "?") | \(artistLine)")
-                #endif
-            } else {
-                nowPlayingInfo[MPMediaItemPropertyArtist] = parsed.inferredArtist
-                #if DEBUG
-                print("🎵 Now Playing: No show info available yet")
-                #endif
-            }
-        } else {
-            nowPlayingInfo[MPMediaItemPropertyTitle] = "UncleStreamus"
-            nowPlayingInfo[MPMediaItemPropertyArtist] = "UncleStreamus"
-            #if DEBUG
-            print("🎵 Now Playing: Default (no parsed track)")
-            #endif
-        }
-
-        if let statusOverride = nowPlayingStatusOverride {
-            nowPlayingInfo[MPMediaItemPropertyTitle] = statusOverride
-        }
-
-        let dvrPaused = bassPlayer.dvrState == .paused
-        let isActuallyPlaying = isPlaying && !dvrPaused
-        // CarPlay/lock screen derive the big transport button's icon from which of
-        // playCommand/pauseCommand is currently *enabled* — not from a passive read of
-        // MPNowPlayingInfoPropertyPlaybackRate. Confirmed by debug logs: after Stop,
-        // tapping the (still "pause"-shaped) button fired `pauseCommand` even though
-        // isPlaying was already false, and vice versa while actively playing. Toggling
-        // these in lockstep with actual state keeps the displayed icon truthful.
-        let commandCenter = MPRemoteCommandCenter.shared()
-        commandCenter.playCommand.isEnabled = !isActuallyPlaying
-        commandCenter.pauseCommand.isEnabled = isActuallyPlaying
-        // KNOWN LIMITATION (accepted — see memory ios_lockscreen_playstate_limitation.md):
-        // iOS *ignores* every playbackState write below — it requires the private
-        // `com.apple.mediaremote.set-playback-state` entitlement, which a third-party app
-        // cannot have (device logs: "Ignoring setPlaybackState because application does not
-        // contain entitlement…"). So the lock-screen/Control-Center transport icon is NOT
-        // driven by playbackState. iOS falls back to (a) playbackRate below and (b) its own
-        // observation of whether we're producing audio. While DVR-paused *and locked*, the
-        // silence keepalive is deliberately running (it must, to keep the recording pump
-        // filling the buffer in the background), so iOS sees active audio and shows the PAUSE
-        // icon even though we're paused. A direct lock-screen button tap flips the icon
-        // optimistically; an AirPods press does not, so the icon can lag when paused via
-        // AirPods while locked. This is a cosmetic-only issue — playback pause/resume itself
-        // is correct (the pauseCommand→resume branch in setupRemoteCommandCenter handles the
-        // case where iOS routes the resume press to pauseCommand). We still set playbackState
-        // and playbackRate because they're honored on platforms/contexts that DO read them
-        // (e.g. CarPlay) and cost nothing where they're ignored.
-        let nowPlayingCenter = MPNowPlayingInfoCenter.default()
-        if isActuallyPlaying {
-            nowPlayingCenter.playbackState = .playing
-        } else if isPlaying {
-            // DVR paused (or DVR playback momentarily stalled) — still "in session", not stopped.
-            nowPlayingCenter.playbackState = .paused
-        } else {
-            nowPlayingCenter.playbackState = .stopped
-        }
-        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isActuallyPlaying ? 1.0 : 0.0
-        // Only set IsLiveStream=true when actively at the live edge. iOS treats
-        // IsLiveStream=true as "broadcast in progress" — if left true while stopped,
-        // it can block AirPods/lock screen from offering a play command (interpreted
-        // as "the live broadcast ended"). Tying it to isActuallyPlaying ensures the
-        // play affordance is always available when stopped or DVR-paused.
-        nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = isActuallyPlaying
-        // Marks "now" as the playhead position for a live item — recommended for live
-        // streams, and also gives the system a fresh, changing value on every publish
-        // so it has a reason to re-evaluate (and not cache) the displayed transport state.
-        if isActuallyPlaying {
-            nowPlayingInfo[MPNowPlayingInfoPropertyCurrentPlaybackDate] = Date()
-        }
-        nowPlayingInfo[MPMediaItemPropertyMediaType] = MPMediaType.music.rawValue
-
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
-    }
-
-    // MARK: - CarPlay
-
-    /// Mirrors current state into `CarPlayBridge.shared` and asks the CarPlay scene
-    /// delegate to refresh its templates. CarPlay runs in a separate scene and can't
-    /// read this view's `@State`, so this is the one-way data path to it — the
-    /// reverse path (CarPlay buttons → playback actions) is `setupCarPlayHandlers()`.
-    private func syncCarPlayBridge() {
-        let bridge = CarPlayBridge.shared
-        bridge.isPlaying = isPlaying
-        bridge.dvrState = bassPlayer.dvrState
-        bridge.setlist = vm.currentShow?.setlist ?? []
-        bridge.currentTrackIndex = vm.currentShow != nil ? vm.currentSetlistPosition : nil
-        bridge.selectedFormat = selectedStream?.format ?? lastStreamFormat
-        bridge.onDataChanged?()
-    }
-
-    /// Wires `CarPlaySceneDelegate`'s buttons to this view's playback actions via
-    /// typed closures on `CarPlayBridge.shared` — mirrors how the macOS menubar
-    /// drives `ContentView` through `RadioViewModel`'s command hooks.
-    private func setupCarPlayHandlers() {
-        let bridge = CarPlayBridge.shared
-
-        bridge.onStop = { [self] in
-            stopStream()
-        }
-        bridge.onGoLive = { [self] in
-            bassPlayer.goLive()
-            updateNowPlayingInfo()
-            syncCarPlayBridge()
-        }
-        bridge.onSelectFormat = { [self] format in
-            if let stream = streams.first(where: { $0.format == format }) {
-                selectedStream = stream
-            }
-        }
-        // CarPlay can connect after this app already published its initial Now
-        // Playing state (e.g. auto-resume on launch) — force a fresh republish so
-        // its transport controls never start out of sync with actual playback.
-        bridge.onSceneConnect = { [self] in
-            updateNowPlayingInfo()
-            syncCarPlayBridge()
-        }
-    }
-
-    /// Resume from a paused buffer (in-app play button only). If the buffer has filled and the
-    /// user hasn't started draining it yet, offer the play-buffer-vs-go-live choice instead of
-    /// resuming directly; the alert presents on the foreground app UI. Once draining has begun
-    /// (or the buffer isn't full), resume directly. Remote/lock-screen play paths intentionally
-    /// bypass this and resume directly with no prompt.
-    func resumeOrOfferBuffer() {
-        if bassPlayer.dvrBufferFull && !bassPlayer.dvrFullBufferDrainStarted {
-            bassPlayer.dvrReturnOfferPending = true
-        } else {
-            configureAudioSession()
-            bassPlayer.dvrResume()
-            updateNowPlayingInfo()
-        }
-    }
-
-    func playStream(showWarning: Bool = true) {
-        guard let stream = selectedStream else { return }
-
-        configureAudioSession()
-        bassPlayer.play(format: stream.format, url: stream.url)
-        isPlaying = true
-        updateNowPlayingInfo()
-        syncCarPlayBridge()
-
-        UserDefaults.standard.set(true, forKey: "wasPlayingOnQuit")
-    }
-
-    func stopStream() {
-        bassPlayer.stopWithFadeOut()
-        isPlaying = false
-        updateNowPlayingInfo()
-        syncCarPlayBridge()
-        UserDefaults.standard.set(false, forKey: "wasPlayingOnQuit")
-        // After the 0.4s fade, deactivate the session so other audio apps (Spotify,
-        // Podcasts, Music) receive interruptionNotification .ended and auto-resume.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            guard !bassPlayer.isUserIntendedPlay else { return }
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        }
-    }
-
-    func fetchShowInfo(date: String, showTime: ShowTime = .none) {
-        vm.fetchShowInfo(date: date, showTime: showTime, fxPersistAcrossShows: fxPersistAcrossShows)
-    }
+    private func configureAudioSession() { controller.configureAudioSession() }
+    private func updateNowPlayingInfo() { controller.updateNowPlayingInfo() }
+    func playStream(showWarning: Bool = true) { controller.playStream(showWarning: showWarning) }
+    func stopStream() { controller.stopStream() }
+    func resumeOrOfferBuffer() { controller.resumeOrOfferBuffer() }
 }
 #endif

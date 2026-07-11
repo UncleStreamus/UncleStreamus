@@ -60,6 +60,7 @@
 		BE024DE42F4A67F600B2C079 /* BASSRadioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */; };
 		BE033A062FD3818A0061FEE3 /* CarPlaySceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE033A052FD3818A0061FEE3 /* CarPlaySceneDelegate.swift */; };
 		BE033A082FD3818A0061FEE5 /* CarPlayBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE033A072FD3818A0061FEE4 /* CarPlayBridge.swift */; };
+		BE0C0FFEE0000000000000B1 /* PlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE0C0FFEE0000000000000A1 /* PlaybackController.swift */; };
 		BE17E5000004E5000017E503 /* ReleaseNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000001E5000017E500 /* ReleaseNotes.swift */; };
 		BE17E5000005E5000017E504 /* ReleaseNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000001E5000017E500 /* ReleaseNotes.swift */; };
 		BE17E5000006E5000017E505 /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE17E5000002E5000017E501 /* WhatsNewView.swift */; };
@@ -187,6 +188,7 @@
 		BE024DE22F4A67D800B2C079 /* BASSRadioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BASSRadioPlayer.swift; sourceTree = "<group>"; };
 		BE033A052FD3818A0061FEE3 /* CarPlaySceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlaySceneDelegate.swift; sourceTree = "<group>"; };
 		BE033A072FD3818A0061FEE4 /* CarPlayBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlayBridge.swift; sourceTree = "<group>"; };
+		BE0C0FFEE0000000000000A1 /* PlaybackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackController.swift; sourceTree = "<group>"; };
 		BE17E5000001E5000017E500 /* ReleaseNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseNotes.swift; sourceTree = "<group>"; };
 		BE17E5000002E5000017E501 /* WhatsNewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewView.swift; sourceTree = "<group>"; };
 		BE17E5000002E5000017E511 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
@@ -325,6 +327,7 @@
 				72F66D9B51B903E6898BC392 /* CachedFZShow.swift */,
 				BE033A072FD3818A0061FEE4 /* CarPlayBridge.swift */,
 				BE033A052FD3818A0061FEE3 /* CarPlaySceneDelegate.swift */,
+				BE0C0FFEE0000000000000A1 /* PlaybackController.swift */,
 				BE1A34202F30C6D600647B01 /* ContentView.swift */,
 				BE2FCA6A2F3CBB520038E706 /* ContentView_iOS.swift */,
 				CC01DC000001DC0100CC01DC /* DonlopeIndexCache.swift */,
@@ -645,6 +648,7 @@
 				BE2FCA702F3CBBCA0038E706 /* ShowEntryRow.swift in Sources */,
 				BE033A062FD3818A0061FEE3 /* CarPlaySceneDelegate.swift in Sources */,
 				BE033A082FD3818A0061FEE5 /* CarPlayBridge.swift in Sources */,
+				BE0C0FFEE0000000000000B1 /* PlaybackController.swift in Sources */,
 				BE2FCA712F3CBBCA0038E706 /* TourPeriods.swift in Sources */,
 				BE2FCA722F3CBBCA0038E706 /* ShowDataManager.swift in Sources */,
 				BE5A1F022F5A1F0200BE5A12 /* StoreProtection.swift in Sources */,

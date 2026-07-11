@@ -13,6 +13,13 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         _ templateApplicationScene: CPTemplateApplicationScene,
         didConnect interfaceController: CPInterfaceController
     ) {
+        // Ensure the app-lifetime playback owner is active. On a CarPlay-only cold
+        // launch the window scene may never connect, so this is the scene that has to
+        // trigger the one-shot auto-resume + a fresh now-playing/bridge publish.
+        // (Command wiring itself already happened in PlaybackController.bootstrap from
+        // App.init, so the transport/buttons work regardless of this call.)
+        PlaybackController.shared.activate()
+
         self.interfaceController = interfaceController
 
         let nowPlaying = CPNowPlayingTemplate.shared
