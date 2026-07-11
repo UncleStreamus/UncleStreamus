@@ -14,7 +14,6 @@ import MediaPlayer
 private enum FooterSection { case bandInfo, officialReleases }
 
 struct ContentView_iOS: View {
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
     @State private var safariURL: IdentifiableURL?
     @State private var setlistInfoItem: SetlistInfoItem?
@@ -75,11 +74,6 @@ struct ContentView_iOS: View {
     /// natural reset points (launch, new show, returning from the sidebar).
     @State private var autoFollowSetlist: Bool = true
     @State private var contentBounceOffset: CGFloat = 0
-    @State private var interruptionHandlerSetUp = false
-    // Opaque tokens for the closure-based AVAudioSession observers (interruption +
-    // two route-change handlers). Held so onDisappear can remove them rather than
-    // leaking them for the process lifetime.
-    @State private var systemObservers: [NSObjectProtocol] = []
 
     var body: some View {
         HStack(spacing: 0) {
@@ -387,64 +381,9 @@ struct ContentView_iOS: View {
                 configureAudioSession()
             }
             checkWhatsNew()
-            if !interruptionHandlerSetUp {
-                setupInterruptionHandler()
-                interruptionHandlerSetUp = true
-            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .refreshShowDatabase)) { _ in
             fzShowsDB?.downloadAllPages()
-        }
-        .onDisappear {
-            // Remove the AVAudioSession observers so they don't outlive the view. Reset
-            // the guard so they re-register cleanly if the view reappears.
-            systemObservers.forEach(NotificationCenter.default.removeObserver)
-            systemObservers.removeAll()
-            interruptionHandlerSetUp = false
-        }
-        .onChange(of: scenePhase) { _, newPhase in
-            // Track foreground state first so startSilenceKeepalive()'s foreground guard sees the
-            // correct value when the background-keepalive start below runs. Only .active counts as
-            // foreground; .inactive is treated as backgrounding (matches the check below).
-            bassPlayer.isAppInForeground = (newPhase == .active)
-            if newPhase == .background || newPhase == .inactive {
-                UserDefaults.standard.set(isPlaying, forKey: "wasPlayingOnQuit")
-                // Safety net: start keepalive on backgrounding if DVR is paused and it
-                // isn't already running (e.g. paused while already in background).
-                if bassPlayer.dvrState == .paused {
-                    bassPlayer.startSilenceKeepalive()
-                }
-                #if DEBUG
-                // Logged AFTER the keepalive-start above so the snapshot confirms the keepalive
-                // actually started for the background window (the linchpin of recording survival).
-                if bassPlayer.dvrState == .paused { bassPlayer.logDVRDiag("→background") }
-                #endif
-            }
-            if newPhase == .active {
-                #if DEBUG
-                if bassPlayer.dvrState == .paused { bassPlayer.logDVRDiag("→foreground") }
-                #endif
-                // Reconnect whenever the user intended to play but the stream isn't
-                // healthy — covers both zero handles (app was suspended during reconnect
-                // backoff) and stalled/stopped handles (BASS timed out but handles
-                // weren't cleared before suspension). triggerImmediateReconnect() guards
-                // internally against disrupting a legitimately playing stream.
-                // Skip while the buffer is paused: reconnecting would restart the live
-                // stream and wipe a full buffer. The play-buffer-vs-go-live choice is offered
-                // when the user presses play (resumeOrOfferBuffer()), not on returning.
-                if bassPlayer.dvrState == .paused {
-                    // no-op: leave the paused buffer intact
-                } else if bassPlayer.isUserIntendedPlay {
-                    bassPlayer.triggerImmediateReconnect()
-                }
-                // Only stop the keepalive on foreground resume if DVR is no longer paused.
-                // If DVR is still paused, the keepalive must stay alive so the recording
-                // pump keeps filling the buffer. dvrResume()/goLive() stop it when the
-                // user actually plays.
-                if bassPlayer.dvrState != .paused {
-                    bassPlayer.stopSilenceKeepalive()
-                }
-            }
         }
         .onChange(of: dvrBufferMinutes) { _, _ in
             bassPlayer.updateDVRBufferSize()
@@ -452,7 +391,10 @@ struct ContentView_iOS: View {
         // Reactions to bassPlayer state changes (dvrState → now-playing + CarPlay mirror +
         // keepalive; reconnect-exhausted → reset isPlaying; reconnect/pre-buffer → now-playing)
         // moved to PlaybackController.startObservingPlayerState(), so they also run on a
-        // CarPlay-only session where this view's `.onChange` never fires.
+        // CarPlay-only session where this view's `.onChange` never fires. Likewise the
+        // foreground/background lifecycle (was `.onChange(of: scenePhase)`) and the audio-
+        // session interruption/route-change observers now live in PlaybackController — keyed
+        // off UIApplication/AVAudioSession notifications so they too work with no window scene.
     }
 
     // MARK: - Track Info Card
@@ -1177,123 +1119,6 @@ struct ContentView_iOS: View {
 
     func formatSong(_ song: String, acronyms: [(short: String, full: String)]) -> Text {
         SongFormatter.format(song, acronyms: acronyms)
-    }
-
-    // MARK: - Audio Session Interruption Handler
-
-    private func setupInterruptionHandler() {
-        systemObservers.append(NotificationCenter.default.addObserver(
-            forName: AVAudioSession.interruptionNotification,
-            object: AVAudioSession.sharedInstance(),
-            queue: .main
-        ) { [weak bassPlayer] notification in
-            guard let bassPlayer = bassPlayer,
-                  let typeValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
-                  let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
-            if type == .began {
-                #if DEBUG
-                // Interruption is the prime suspect for DVR background-recording loss: another app
-                // (e.g. a video call) claiming the session stops our silence keepalive, after which
-                // iOS suspends us and the recording pump freezes. Snapshot to capture that moment.
-                print("🔔 AVAudioSession interruption BEGAN — dvrState=\(bassPlayer.dvrState)")
-                bassPlayer.logDVRDiag("interrupt-began")
-                #endif
-                // Stop audio immediately on interruption (phone call, Siri, another app
-                // claiming the session). Use DVR-aware pause so the ring buffer keeps
-                // recording through the call; user can catch up when it ends.
-                let dvrEnabled = UserDefaults.standard.object(forKey: "dvrEnabled") as? Bool ?? true
-                switch bassPlayer.dvrState {
-                case .live:
-                    if dvrEnabled { bassPlayer.dvrPause() } else { bassPlayer.stopWithFadeOut() }
-                case .playing:
-                    bassPlayer.dvrPausePlayback()
-                case .paused:
-                    break  // already paused
-                }
-            } else if type == .ended {
-                let opts = AVAudioSession.InterruptionOptions(
-                    rawValue: notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0)
-                #if DEBUG
-                print("🔔 AVAudioSession interruption ENDED — shouldResume=\(opts.contains(.shouldResume)) dvrState=\(bassPlayer.dvrState) userIntendedPlay=\(bassPlayer.isUserIntendedPlay)")
-                bassPlayer.logDVRDiag("interrupt-ended")
-                #endif
-                if opts.contains(.shouldResume) && bassPlayer.isUserIntendedPlay {
-                    configureAudioSession()
-                    bassPlayer.triggerImmediateReconnect()
-                }
-            }
-        })
-
-        // Pause to DVR when headphones are removed (AirPod taken out of ear, Bluetooth
-        // disconnect, wired headphones unplugged). Without this, audio routes to the
-        // iPhone speaker and the DVR ring buffer never gets created.
-        // ContentView_iOS is a struct so [weak self] is invalid; capture bassPlayer as a
-        // weak class reference instead. dvrEnabled is read from UserDefaults at fire time
-        // so it reflects the current setting, not the value at observer-registration time.
-        // updateNowPlayingInfo() is triggered automatically via .onChange(of: bassPlayer.dvrState).
-        systemObservers.append(NotificationCenter.default.addObserver(
-            forName: AVAudioSession.routeChangeNotification,
-            object: AVAudioSession.sharedInstance(),
-            queue: .main
-        ) { [weak bassPlayer] notification in
-            guard let bassPlayer,
-                  let reasonValue = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
-                  AVAudioSession.RouteChangeReason(rawValue: reasonValue) == .oldDeviceUnavailable else { return }
-
-            let prevRoute = notification.userInfo?[AVAudioSessionRouteChangePreviousRouteKey]
-                as? AVAudioSessionRouteDescription
-            let wasHeadphones = prevRoute?.outputs.contains {
-                [.headphones, .bluetoothA2DP, .bluetoothHFP].contains($0.portType)
-            } ?? false
-
-            guard wasHeadphones, bassPlayer.isUserIntendedPlay else { return }
-
-            #if DEBUG
-            print("🎧 Route change: headphones removed — DVR pause")
-            #endif
-
-            let dvrEnabled = UserDefaults.standard.object(forKey: "dvrEnabled") as? Bool ?? true
-            switch bassPlayer.dvrState {
-            case .live:
-                if dvrEnabled { bassPlayer.dvrPause() } else { bassPlayer.stopWithFadeOut() }
-            case .playing:
-                bassPlayer.dvrPausePlayback()
-            case .paused:
-                break   // already paused
-            }
-        })
-
-        // Re-activate the audio session when a Bluetooth device (AirPods) reconnects.
-        // After BASS_ChannelPause during DVR pause, CoreAudio's output unit goes idle.
-        // Re-calling setActive(true) here re-routes the session to the new device so
-        // BASS_ChannelPlay in dvrResume() can start rendering audio immediately.
-        systemObservers.append(NotificationCenter.default.addObserver(
-            forName: AVAudioSession.routeChangeNotification,
-            object: AVAudioSession.sharedInstance(),
-            queue: .main
-        ) { [weak bassPlayer] notification in
-            guard let bassPlayer,
-                  let reasonValue = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
-                  AVAudioSession.RouteChangeReason(rawValue: reasonValue) == .newDeviceAvailable,
-                  bassPlayer.isUserIntendedPlay else { return }
-
-            let session = AVAudioSession.sharedInstance()
-            let hasBluetoothOutput = session.currentRoute.outputs.contains {
-                [.bluetoothA2DP, .bluetoothHFP].contains($0.portType)
-            }
-            guard hasBluetoothOutput else { return }
-
-            #if DEBUG
-            print("🎧 Route change: Bluetooth device available — re-activating audio session")
-            #endif
-            // Re-set category here: on launch after a process kill (e.g. Xcode install-over),
-            // the -50 session lock from the Bluetooth transition prevents setCategory from
-            // succeeding in configureAudioSession(). By the time this routeChange fires the
-            // lock is released, so we set it now to enable A2DP before restarting BASS.
-            try? session.setCategory(.playback, mode: .default, options: [.allowBluetoothA2DP, .allowAirPlay])
-            try? session.setActive(true)
-            bassPlayer.restartOutputAfterRouteChange()
-        })
     }
 
     // MARK: - Audio Session Setup
