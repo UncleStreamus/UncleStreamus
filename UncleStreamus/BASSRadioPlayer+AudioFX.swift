@@ -673,24 +673,20 @@ extension BASSRadioPlayer {
 
     func applyCompressorParams() {
         guard compressorFX != 0 else { return }
-        let t = compressorAmount * 0.75  // Scale so slider max = old 0.75 (tamer ceiling)
-
-        // Adaptive threshold: set relative to measured program level.
-        // headroom = how far above the average RMS the threshold sits.
-        // At gentle (t=0): threshold = measuredRMS + 6 dB (only peaks compressed)
-        // At heavy (t=1):  threshold = measuredRMS + 2.25 dB
-        let headroom: Float = 6.0 - 5.0 * t
-        let adaptiveThreshold = max(min(measuredRMSdB + headroom, -2.0), -40.0)
-
+        // Adaptive threshold + ratio/attack/release/gain derivation is pure — see
+        // BASSRadioPlayerLogic.compressorParams (unit-tested). Threshold sits headroom dB
+        // above the measured RMS (6 dB gentle → 2.25 dB heavy), clamped to [-40, -2] dBFS.
+        let params = BASSRadioPlayerLogic.compressorParams(amount: compressorAmount,
+                                                           measuredRMSdB: measuredRMSdB)
         var p = BASS_BFX_COMPRESSOR2()
-        p.fThreshold = adaptiveThreshold
-        p.fRatio     = 1.5  + 6.5   * t
-        p.fAttack    = 25   - 22    * t
-        p.fRelease   = 300  - 220   * t
-        p.fGain      = (-adaptiveThreshold) * (1.0 - 1.0 / p.fRatio) * (0.5 + 0.25 * t)
+        p.fThreshold = params.threshold
+        p.fRatio     = params.ratio
+        p.fAttack    = params.attack
+        p.fRelease   = params.release
+        p.fGain      = params.gain
         p.lChannel   = -1
         BASS_FXSetParameters(compressorFX, &p)
-        lastAppliedThreshold = adaptiveThreshold
+        lastAppliedThreshold = params.threshold
     }
 
     /// Called from the level-meter DSP when a new RMS measurement is ready.
@@ -698,11 +694,11 @@ extension BASSRadioPlayer {
     func applyAdaptiveCompressor() {
         guard compressorFX != 0, compressorOn, !masterBypassEnabled else { return }
         guard compressorBlend >= 0.99 else { return }  // Don't override an active blend ramp
-        let t = compressorAmount * 0.75
-        let headroom: Float = 6.0 - 5.0 * t
-        let newThreshold = max(min(measuredRMSdB + headroom, -2.0), -40.0)
+        let newThreshold = BASSRadioPlayerLogic.compressorParams(amount: compressorAmount,
+                                                                measuredRMSdB: measuredRMSdB).threshold
         // Skip if threshold hasn't changed meaningfully
-        guard abs(newThreshold - lastAppliedThreshold) > 0.5 else { return }
+        guard BASSRadioPlayerLogic.shouldReapplyCompressor(newThreshold: newThreshold,
+                                                          lastAppliedThreshold: lastAppliedThreshold) else { return }
         applyCompressorParams()
     }
 
