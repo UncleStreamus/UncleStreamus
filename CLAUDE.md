@@ -152,6 +152,33 @@ Caveats: builds expire 90 days after upload; the public link can be paused/disab
 anytime without affecting the Internal group; bumping `MARKETING_VERSION`
 re-triggers review for the first public build of that version (build-only bumps don't).
 
+## Feature-Branch CI (Xcode Cloud)
+
+A dedicated **"Feature CI"** Xcode Cloud workflow auto-runs on any branch matching
+the **`feature/*`** pattern (start condition: Branch Changes → `feature/*`). Its
+actions are **Build + Test only** — no Archive, no TestFlight upload — so
+in-flight branches get a compile + unit-test check without touching distribution.
+This is configured in the App Store Connect web UI, **not** in this repo.
+
+**Branch naming convention:** cut in-flight work as `feature/<short-name>` (branched
+from `main` as usual — the `feature/` is just a name prefix, not a parent branch) so
+it funnels through the single Feature CI workflow. **Refactors and pure-logic
+cleanups use the same `feature/` prefix** — don't create a separate `refactor/*`
+pattern; one workflow covers all non-release in-flight work (refactors are in fact
+where the Test action pays off most). Release distribution stays gated to `main` /
+`v*` tags (see above) and is untouched by this workflow.
+
+**What the green check does and doesn't mean:** the macOS **Test** action runs the
+unit suite (`platform=macOS` — where all tests live), so it genuinely vouches for
+the pure-logic changes (refactors, parsing, shared decision logic). It does **not**
+verify audio behaviour: `BASSRadioPlayer` and the DSP/DVR/CarPlay paths have no
+unit tests and require manual on-device verification. For those branches treat the
+check as "still builds + logic tests pass," and keep the manual 4-format / DVR /
+CarPlay checklist as the real gate.
+
+Optional cost tweak: a Files-and-Folders condition can exclude doc-only pushes
+(`**/*.md`) so README/doc commits don't burn Xcode Cloud minutes.
+
 ## Architecture
 
 ### Layers
