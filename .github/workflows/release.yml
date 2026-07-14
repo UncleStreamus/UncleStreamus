@@ -5,20 +5,25 @@ on:
     tags:
       - 'v*'
 
+# Least-privilege default: any new job must opt into the scopes it needs.
+permissions: {}
+
 jobs:
   create-release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
 
       - name: Build release notes
         id: notes
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          CURRENT_TAG="${{ github.ref_name }}"
+          CURRENT_TAG="$REF_NAME"
           PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${CURRENT_TAG}$" | head -1)
 
           if [ -z "$PREV_TAG" ]; then
@@ -40,7 +45,7 @@ jobs:
           printf '%b' "$NOTES" > /tmp/release_notes.md
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           body_path: /tmp/release_notes.md
 
@@ -50,7 +55,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           # Full history + tags so the macOS "Generate Release Notes" build phase
           # (Scripts/generate_release_notes.sh) can find the previous release tag.
@@ -64,19 +69,20 @@ jobs:
           CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
         run: |
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          security create-keychain -p "" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "" $KEYCHAIN_PATH
-          echo "$CERTIFICATE_BASE64" | base64 --decode -o $RUNNER_TEMP/cert.p12
-          security import $RUNNER_TEMP/cert.p12 -P "$CERTIFICATE_PASSWORD" \
-            -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
-          security set-key-partition-list -S apple-tool:,apple: -s -k "" $KEYCHAIN_PATH
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          echo "$CERTIFICATE_BASE64" | base64 --decode -o "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
       - name: Write App Store Connect API key
         env:
           API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
-        run: echo "$API_KEY" > $RUNNER_TEMP/api_key.p8
+        run: echo "$API_KEY" > "$RUNNER_TEMP/api_key.p8"
 
       - name: Install provisioning profile
         env:
@@ -91,7 +97,7 @@ jobs:
           xcodebuild archive \
             -scheme UncleStreamus \
             -configuration Release \
-            -archivePath $RUNNER_TEMP/UncleStreamus.xcarchive \
+            -archivePath "$RUNNER_TEMP/UncleStreamus.xcarchive" \
             ARCHS="arm64 x86_64" \
             ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_STYLE=Manual \
@@ -102,8 +108,8 @@ jobs:
       - name: Export
         run: |
           xcodebuild -exportArchive \
-            -archivePath $RUNNER_TEMP/UncleStreamus.xcarchive \
-            -exportPath $RUNNER_TEMP/export \
+            -archivePath "$RUNNER_TEMP/UncleStreamus.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
             -exportOptionsPlist .github/ExportOptions.plist
 
       - name: Create DMG
@@ -120,7 +126,7 @@ jobs:
           ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           xcrun notarytool submit "$RUNNER_TEMP/UncleStreamus.dmg" \
-            --key $RUNNER_TEMP/api_key.p8 \
+            --key "$RUNNER_TEMP/api_key.p8" \
             --key-id "$KEY_ID" \
             --issuer "$ISSUER_ID" \
             --wait
@@ -131,4 +137,12 @@ jobs:
       - name: Upload DMG to release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.ref_name }}" "$RUNNER_TEMP/UncleStreamus.dmg"
+          REF_NAME: ${{ github.ref_name }}
+        run: gh release upload "$REF_NAME" "$RUNNER_TEMP/UncleStreamus.dmg"
+
+      - name: Clean up signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/api_key.p8"
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/UncleStreamus.provisionprofile"

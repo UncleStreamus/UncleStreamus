@@ -18,3 +18,17 @@ DerivedData/
 
 # XcodeBuildMCP workspace cache
 .xcodebuildmcp/
+
+# Signing material / secrets (never commit)
+*.p12
+*.p8
+*.mobileprovision
+*.provisionprofile
+*.cer
+*.certSigningRequest
+*.keychain
+*.keychain-db
+*.pem
+*.key
+.env
+.env.*
