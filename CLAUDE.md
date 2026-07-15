@@ -187,15 +187,22 @@ popup; commits touching `.github/workflows/*` must go over SSH).
 - `APP_STORE_CONNECT_KEY_ID` / `APP_STORE_CONNECT_ISSUER_ID` / `APP_STORE_CONNECT_API_KEY` — App Store Connect API key (full `.p8` contents); the key needs **App Manager** role so it can manage provisioning during signing/notarization
 - `MACOS_PROVISIONING_PROFILE` — base64 of the **Developer ID** provisioning profile named exactly `UncleStreamus Developer ID` (must match the workflow and `ExportOptions.plist`)
 
-**To ship a macOS release:** bump `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`, commit, then push a `v*` tag (e.g. `v1.4.5-build20260612`). This is independent of TestFlight/App Store distribution, which is handled separately by Xcode Cloud.
+**To ship a macOS release:** bump `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`, commit, then push a `v*` tag (e.g. `v1.4.5-build20260612`). The DMG pipeline is *configured* independently of Xcode Cloud, but the two share a trigger — that same tag also starts an iOS TestFlight build (see [TestFlight Distribution](#testflight-distribution-ios)). There is no way to cut one without the other.
 
 ## TestFlight Distribution (iOS)
 
 iOS beta distribution is driven by **Xcode Cloud**, configured in the App Store
-Connect (ASC) web UI — **not** in this repo. The `v*` tag only triggers the
-GitHub Actions macOS DMG; it does not drive iOS TestFlight. Export compliance is
-already declared (`ITSAppUsesNonExemptEncryption = NO` in `Info.plist` and the
+Connect (ASC) web UI — **not** in this repo. But it fires on the **same `v*` tag**
+as the macOS DMG: pushing one tag drives **both** pipelines (Xcode Cloud → TestFlight,
+GitHub Actions → notarized DMG). A plain push to `main` cuts neither. Export compliance
+is already declared (`ITSAppUsesNonExemptEncryption = NO` in `Info.plist` and the
 iOS build settings), so external builds aren't blocked on encryption each build.
+
+> Until 2026-07-15 this section claimed the `v*` tag "only triggers the GitHub Actions
+> macOS DMG; it does not drive iOS TestFlight." That was wrong — confirmed by watching
+> Xcode Cloud start a TestFlight build off `v1.5.2-build20260715`. Because the tag drives
+> both, a **re-cut must bump the build number** (`20260703` → `20260703.1`), not just move
+> the tag: reusing a build number ASC has already accepted fails the TestFlight upload.
 
 **Two-group model:**
 
