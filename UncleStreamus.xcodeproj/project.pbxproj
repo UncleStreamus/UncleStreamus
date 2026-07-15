@@ -860,7 +860,7 @@
 				CODE_SIGN_ENTITLEMENTS = "UncleStreamus/UncleStreamus-Debug.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260712;
+				CURRENT_PROJECT_VERSION = 20260715;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus/Preview Content\"";
 				ENABLE_APP_SANDBOX = YES;
@@ -906,7 +906,7 @@
 				CODE_SIGN_ENTITLEMENTS = UncleStreamus/UncleStreamus.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260712;
+				CURRENT_PROJECT_VERSION = 20260715;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus/Preview Content\"";
 				ENABLE_APP_SANDBOX = YES;
@@ -953,7 +953,7 @@
 				CODE_SIGN_ENTITLEMENTS = "UncleStreamus-iOS/UncleStreamus-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260712;
+				CURRENT_PROJECT_VERSION = 20260715;
 				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus-iOS/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -993,7 +993,7 @@
 				CODE_SIGN_ENTITLEMENTS = "UncleStreamus-iOS/UncleStreamus-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260712;
+				CURRENT_PROJECT_VERSION = 20260715;
 				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus-iOS/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -1118,7 +1118,7 @@
 				CODE_SIGN_ENTITLEMENTS = "UncleStreamus/UncleStreamus-DebugSync.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260712;
+				CURRENT_PROJECT_VERSION = 20260715;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus/Preview Content\"";
 				ENABLE_APP_SANDBOX = YES;
@@ -1165,7 +1165,7 @@
 				CODE_SIGN_ENTITLEMENTS = "UncleStreamus-iOS/UncleStreamus-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20260712;
+				CURRENT_PROJECT_VERSION = 20260715;
 				DEVELOPMENT_ASSET_PATHS = "\"UncleStreamus-iOS/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
