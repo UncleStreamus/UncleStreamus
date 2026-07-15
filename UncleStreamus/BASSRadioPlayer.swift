@@ -318,6 +318,64 @@ enum BASSConfig {
     var smoothedStereoCoeff: Float = 1.0   // Tracks stereoWidthCoeff
     var smoothedPanOffset:   Float = 0.0   // Tracks (stereoPan - 0.5) * 2.0
 
+    // MARK: - Stereo Auto-Center (per-band, mid-emphasised balance)
+    // Gently rebalances a lopsided stereo image (common in bootleg/AUD sources) by
+    // measuring each band's own L/R balance — low (<300 Hz) and mid (~300 Hz–3 kHz) —
+    // and combining them mid-emphasised (so direction follows where the ear localises,
+    // not where the bass energy sits) to nudge the pan target. Additive: layers a
+    // small, slow correction on top of the manual Stereo Pan slider. Open-loop
+    // proportional controller (measures the DSP input, before pan is applied this
+    // buffer) so the proportional+cap law is inherently stable.
+    var stereoAutoCenterEnabled: Bool = false
+    var acLowLState: Float = 0     // ~300 Hz one-pole LPF state, L
+    var acLowRState: Float = 0     // ~300 Hz one-pole LPF state, R
+    var acMidLState: Float = 0     // ~3 kHz one-pole LPF state, L (mid band = lp3k − lp300)
+    var acMidRState: Float = 0     // ~3 kHz one-pole LPF state, R
+    var acSumLowL: Float = 0       // window accumulator: sum-of-squares of low-passed L
+    var acSumLowR: Float = 0       // window accumulator: sum-of-squares of low-passed R
+    var acSumMidL: Float = 0       // window accumulator: sum-of-squares of mid-band L
+    var acSumMidR: Float = 0       // window accumulator: sum-of-squares of mid-band R
+    var acSampleCount: Int = 0     // frames accumulated in the current window
+    var acBalance: Float = 0       // slow-smoothed balance (−1 = right-heavy … +1 = left-heavy)
+    var autoCenterPanOffset: Float = 0  // clamped pan offset the stereo DSP adds
+    let acWindowSamples: Int = 66150    // ~1.5 s @ 44.1 kHz (mirrors rmsWindowSamples)
+    let acLowLPFAlpha: Float = 0.0413   // ~300 Hz: 2π·300/(2π·300+44100) — low/mid split
+    let acMidLPFAlpha: Float = 0.2994   // ~3 kHz: 2π·3000/(2π·3000+44100) — mid ceiling
+    let acLowWeight: Float = 1.0        // low-band vote weight in the per-band combine
+    let acMidWeight: Float = 1.5        // mid-band vote weight (emphasised — localisation cue)
+    let acBandPresenceFloor: Float = 0.01  // a band only votes once its RMS sum exceeds ~this
+    let acBalanceAlpha: Float = 0.25    // per-window EMA → several-second response
+    let autoCenterGain: Float = 0.9     // balance → offset proportional gain
+    let autoCenterMaxOffset: Float = 0.20  // cap on the auto correction (±0.20 of pan range)
+
+    // MARK: - Auto-Centre: Low-Frequency Phase (adaptive bass-mono)
+    // Folded into stereoAutoCenterEnabled. Measures low-band (~120 Hz) L/R correlation
+    // open-loop on the DSP input; when the bass is decorrelated/anti-phase it collapses
+    // the out-of-phase part of the Side signal below ~120 Hz toward mono (bassMonoDepth),
+    // firming up a hollow low end and improving mono-compatibility. Correlation also
+    // gates pan confidence: anti-phase bass makes the amplitude balance ambiguous, so
+    // the pan correction eases off. Monotonic + capped ⇒ stable like the level balance.
+    var acPhaseLowLState: Float = 0     // ~120 Hz one-pole LPF state, L (correlation band)
+    var acPhaseLowRState: Float = 0     // ~120 Hz one-pole LPF state, R
+    var acSumPhaseLR: Float = 0         // window accumulator: Σ(Llp·Rlp)
+    var acSumPhaseLL: Float = 0         // window accumulator: Σ(Llp²)
+    var acSumPhaseRR: Float = 0         // window accumulator: Σ(Rlp²)
+    var acLowCorrelation: Float = 0     // slow-smoothed low-band correlation r (−1…+1)
+    var bassMonoDepth: Float = 0        // target sub-low Side collapse (0…bassMonoMaxDepth), read by DSP
+    var smoothedBassMonoDepth: Float = 0  // per-buffer smoothed depth applied in the stereo DSP
+    var sideChannelSubLPFState: Float = 0 // ~120 Hz LPF state for the Side sub-low band (correction)
+    let acPhaseLPFAlpha: Float = 0.0168   // ~120 Hz: 2π·120/(2π·120+44100)
+    let sideChannelSubLPFAlpha: Float = 0.0168  // ~120 Hz crossover for the bass-mono Side filter
+    let bassMonoMaxDepth: Float = 0.85    // cap on sub-low Side collapse (never forces 100% mono)
+    let acCorrHi: Float = 0.7             // r at/above which bass is "in phase" → no correction
+    let acCorrLo: Float = 0.0             // r at/below which correction reaches the cap
+    let acPanConfFloor: Float = 0.3       // smallest pan-confidence scale at r → −1
+    // UI-facing mirror of autoCenterPanOffset, written only on the main thread by
+    // autoCenterDisplayTimer (eased toward the audio-thread value). The Stereo Pan
+    // slider's ghost marker observes this; SwiftUI never reads the audio-thread value.
+    var displayedAutoCenterOffset: Float = 0
+    var autoCenterDisplayTimer: Timer? = nil
+
     // MARK: - Frequency-Dependent Stereo Processing (400 Hz and 3.5 kHz crossovers)
     var centerSpreadLPFState:  Float = 0.0  // Low-pass filter state for mono center channel
     var sideChannelLPFState:   Float = 0.0  // Low-pass filter state for side channel (low/mid crossover ~400 Hz)
@@ -446,7 +504,7 @@ enum BASSConfig {
     var stereoWidthCoeff: Float {
         // Below the "Original" snap (0.75): mono→original maps linearly to coeff 0→1.
         // Above it: the top quarter of the slider spans only 75% of the former widening
-        // boost, so the slider maximum caps at coeff 1.75 instead of 2.0 (gentler widest).
+        // boost, so the slider maximum now caps at coeff 1.75 instead of 2.0.
         stereoWidth <= 0.75
             ? stereoWidth / 0.75
             : 1.0 + (stereoWidth - 0.75) / 0.25 * 0.75
@@ -463,6 +521,7 @@ enum BASSConfig {
             eqEnabled: eqEnabled, eqLowGain: eqLowGain, eqMidGain: eqMidGain, eqHighGain: eqHighGain,
             compressorOn: compressorOn,
             stereoWidthEnabled: stereoWidthEnabled, stereoWidth: stereoWidth, stereoPan: stereoPan,
+            stereoAutoCenterEnabled: stereoAutoCenterEnabled,
             subBassEnabled: subBassEnabled)
     }
 

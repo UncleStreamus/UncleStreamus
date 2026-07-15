@@ -203,18 +203,21 @@ enum BASSRadioPlayerLogic {
 
     /// Whether any effect is audibly engaged — drives the FX-active UI indicator.
     /// Master bypass wins outright. Stereo counts only when enabled *and* moved off its
-    /// defaults (width 0.75 = "original" stereo, pan 0.5 = centre); EQ counts only when
-    /// enabled *and* at least one band is non-zero.
+    /// defaults (width 0.75 = "original" stereo, pan 0.5 = centre) — or when auto-centre
+    /// is on, which moves the image on its own; EQ counts only when enabled *and* at
+    /// least one band is non-zero.
     static func isFXBeingUsed(masterBypassEnabled: Bool,
                               eqEnabled: Bool,
                               eqLowGain: Float, eqMidGain: Float, eqHighGain: Float,
                               compressorOn: Bool,
                               stereoWidthEnabled: Bool,
                               stereoWidth: Float, stereoPan: Float,
+                              stereoAutoCenterEnabled: Bool = false,
                               subBassEnabled: Bool) -> Bool {
         guard !masterBypassEnabled else { return false }
         let eqIsUsed = eqEnabled && (eqLowGain != 0 || eqMidGain != 0 || eqHighGain != 0)
-        let stereoIsUsed = stereoWidthEnabled && (stereoWidth != 0.75 || stereoPan != 0.5)
+        let stereoIsUsed = stereoWidthEnabled
+            && (stereoWidth != 0.75 || stereoPan != 0.5 || stereoAutoCenterEnabled)
         return eqIsUsed || compressorOn || stereoIsUsed || subBassEnabled
     }
 

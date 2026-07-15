@@ -238,12 +238,14 @@ final class BASSRadioPlayerLogicTests: XCTestCase {
                         eqEnabled: Bool = true, low: Float = 0, mid: Float = 0, high: Float = 0,
                         compressorOn: Bool = false,
                         stereoEnabled: Bool = true, width: Float = 0.75, pan: Float = 0.5,
+                        autoCenter: Bool = false,
                         subBass: Bool = false) -> Bool {
         BASSRadioPlayerLogic.isFXBeingUsed(
             masterBypassEnabled: masterBypass,
             eqEnabled: eqEnabled, eqLowGain: low, eqMidGain: mid, eqHighGain: high,
             compressorOn: compressorOn,
             stereoWidthEnabled: stereoEnabled, stereoWidth: width, stereoPan: pan,
+            stereoAutoCenterEnabled: autoCenter,
             subBassEnabled: subBass)
     }
 
@@ -268,6 +270,14 @@ final class BASSRadioPlayerLogicTests: XCTestCase {
         XCTAssertTrue(fxUsed(width: 1.0))                       // width off default
         XCTAssertTrue(fxUsed(pan: 0.3))                         // pan off default
         XCTAssertFalse(fxUsed(stereoEnabled: false, width: 1.0)) // moved but disabled
+    }
+
+    func testFXUsed_autoCenterCountsEvenAtStereoDefaults() {
+        // Auto-centre moves the image on its own, so it counts as "in use" with width
+        // and pan still parked at their defaults.
+        XCTAssertTrue(fxUsed(autoCenter: true))
+        XCTAssertFalse(fxUsed(stereoEnabled: false, autoCenter: true)) // gated by the stereo toggle
+        XCTAssertFalse(fxUsed(masterBypass: true, autoCenter: true))   // bypass still wins
     }
 
     func testFXUsed_subBassCounts() {
