@@ -977,6 +977,8 @@ extension BASSRadioPlayer {
     /// Tops up the mixer output buffer with freshly-processed audio.
     /// Call after any FX parameter change so the new settings fill the buffer sooner.
     /// With reduced mixer buffers (0.5–1.0s), the remaining latency is at most the buffer size.
+    /// Deliberately runs on **every** format, FLAC included: FLAC was once excluded here, and
+    /// that exclusion was removed once the mixer buffer shrank. Don't reinstate it.
     func flushEffects() {
         let ph = playbackHandle
         guard ph != 0 else { return }
