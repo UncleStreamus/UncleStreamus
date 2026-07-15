@@ -4,11 +4,13 @@
 //
 //  Pure, BASS-free decision logic extracted from BASSRadioPlayer and its
 //  extensions. These functions were previously inline in checkStreamStatus(),
-//  scheduleReconnect(), restartStream() and updateDVRBufferSize() — places that
-//  can't be unit-tested directly because they touch the BASS C API and live
-//  audio hardware. The predicates and arithmetic, however, are pure: given a few
-//  scalar inputs they return a decision. They live here so there is a single,
-//  testable source of truth, mirroring the ContentViewShared.swift pattern.
+//  scheduleReconnect(), restartStream(), updateDVRBufferSize(),
+//  applyCompressorParams(), applyAdaptiveCompressor(), isFXBeingUsed and the
+//  DVR timing call sites — places that can't be unit-tested directly because
+//  they touch the BASS C API and live audio hardware. The predicates and
+//  arithmetic, however, are pure: given a few scalar inputs they return a
+//  decision. They live here so there is a single, testable source of truth,
+//  mirroring the ContentViewShared.swift pattern.
 //
 //  Nothing here imports BASS or mutates state — the BASSRadioPlayer methods keep
 //  their thin shells (read BASS values in, apply side effects out) and call into
