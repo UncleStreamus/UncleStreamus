@@ -441,7 +441,7 @@ Platform-Specific:
 - Context menu "Report Issue...": opens `BugReportData` → email via `MailComposerView` (iOS) or `openMailClient()` (macOS)
 - Bounce/rubber-band effect: macOS via `ScrollWheelOverlay` (excludes setlist area); iOS via `DragGesture`
 - Swipe left gesture → opens history sidebar (both platforms)
-- Delay warning: 5-second "info can be up to 1min behind" notice shown when switching to non-MP3 stream
+- Delay warning: dismissible "Track info can be several mins behind when using AAC..." notice shown while the AAC stream is selected; dismissal persists via @AppStorage("delayWarningDismissed")
 
 **iOS-Specific UI:**
 - **iPhone**: Settings slide in as overlay drawer from left (`.move(edge: .leading)`, dark overlay behind); history via NavigationLink push

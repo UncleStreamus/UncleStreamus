@@ -458,13 +458,12 @@ enum BASSConfig {
     /// - Compressor: on (always counts as used when enabled)
     /// - Stereo: enabled AND at least one control is not at default (width ≠ 0.75 OR pan ≠ 0.5)
     var isFXBeingUsed: Bool {
-        guard !masterBypassEnabled else { return false }
-
-        let eqIsUsed = eqEnabled && (eqLowGain != 0 || eqMidGain != 0 || eqHighGain != 0)
-        let compressorIsUsed = compressorOn
-        let stereoIsUsed = stereoWidthEnabled && (stereoWidth != 0.75 || stereoPan != 0.5)
-
-        return eqIsUsed || compressorIsUsed || stereoIsUsed || subBassEnabled
+        BASSRadioPlayerLogic.isFXBeingUsed(
+            masterBypassEnabled: masterBypassEnabled,
+            eqEnabled: eqEnabled, eqLowGain: eqLowGain, eqMidGain: eqMidGain, eqHighGain: eqHighGain,
+            compressorOn: compressorOn,
+            stereoWidthEnabled: stereoWidthEnabled, stereoWidth: stereoWidth, stereoPan: stereoPan,
+            subBassEnabled: subBassEnabled)
     }
 
     // MARK: - Init / Deinit

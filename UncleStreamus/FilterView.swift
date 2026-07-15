@@ -27,7 +27,7 @@ class FilterState: ObservableObject {
         let text = searchText
         debounceTask?.cancel()
         debounceTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 250_000_000) // 250ms
+            try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
             self.debouncedSearchText = text
         }

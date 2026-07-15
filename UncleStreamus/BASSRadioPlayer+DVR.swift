@@ -197,7 +197,8 @@ extension BASSRadioPlayer {
         }
 
         dvrPlaybackStream = stream
-        dvrCurrentSegNum  = Int(dvrPauseTimestamp / buffer.segmentDuration)
+        dvrCurrentSegNum  = BASSRadioPlayerLogic.dvrSegmentIndex(pauseTimestamp: dvrPauseTimestamp,
+                                                                segmentDuration: buffer.segmentDuration)
 
         // Register gapless end-sync and pre-load the following segment.
         // segOriginTime is the recording-time start of the segment file — captured here
@@ -357,7 +358,9 @@ extension BASSRadioPlayer {
         // point. Using bufferedDuration (not maxSecs - dvrPauseTimestamp) is correct for
         // both dvrPause() (small timestamp, e.g. 9s) and dvrPausePlayback() (large
         // absolute timestamp, e.g. 1399s) where the old formula gave a negative result.
-        behindLiveSeconds = max(0, (streamBuffer?.bufferedDuration ?? 0) - dvrPauseTimestamp)
+        behindLiveSeconds = BASSRadioPlayerLogic.behindLivePaused(
+            bufferedDuration: streamBuffer?.bufferedDuration ?? 0,
+            pauseTimestamp: dvrPauseTimestamp)
         dvrBufferFull = true
         streamBuffer?.stop()          // idempotent: StreamBuffer already stopped itself via stopBeforeSegmentIndex
         // Stop metadata + state polling (includes FLAC health check) — no longer needed.
@@ -394,8 +397,10 @@ extension BASSRadioPlayer {
                 // smaller real buffer and matches what dvrResume()/.playing shows, so there is
                 // no jump when the user presses play. Same measure as handleDVRBufferFull and
                 // the .playing branch below. Capped at the buffer max as a safety bound.
-                let recorded = max(0, buffer.bufferedDuration - self.dvrPauseTimestamp)
-                self.behindLiveSeconds = min(recorded, self.dvrMaxBufferSeconds)
+                self.behindLiveSeconds = BASSRadioPlayerLogic.behindLivePaused(
+                    bufferedDuration: buffer.bufferedDuration,
+                    pauseTimestamp: self.dvrPauseTimestamp,
+                    cappedAt: self.dvrMaxBufferSeconds)
                 #if DEBUG
                 // Snapshot roughly every 30 s; the timer fires ~1/s. While foregrounded `buffered`
                 // should climb in step; the moment it flatlines marks where recording stopped.
@@ -408,8 +413,11 @@ extension BASSRadioPlayer {
                 // Both advance at ~1 s/s, so this value stays roughly constant.
                 let posBytes = BASS_ChannelGetPosition(self.dvrPlaybackStream, DWORD(BASS_POS_BYTE))
                 let posSecs  = BASS_ChannelBytes2Seconds(self.dvrPlaybackStream, posBytes)
-                let currentRecordingTime = Double(self.dvrCurrentSegNum) * buffer.segmentDuration + posSecs
-                self.behindLiveSeconds   = max(0, buffer.bufferedDuration - currentRecordingTime)
+                self.behindLiveSeconds = BASSRadioPlayerLogic.behindLivePlaying(
+                    bufferedDuration: buffer.bufferedDuration,
+                    currentSegNum: self.dvrCurrentSegNum,
+                    segmentDuration: buffer.segmentDuration,
+                    positionSeconds: posSecs)
 
                 // If the next segment wasn't available at resume time, retry now.
                 // Once it's been recorded, preload it so the upcoming transition is gapless.
@@ -448,11 +456,13 @@ extension BASSRadioPlayer {
         }
         guard let buffer = streamBuffer else { return }
         let nextSeg = dvrCurrentSegNum + 1
-        let nextTs  = Double(nextSeg) * buffer.segmentDuration
+        let nextTs  = BASSRadioPlayerLogic.dvrNextSegmentTimestamp(currentSegNum: dvrCurrentSegNum,
+                                                                  segmentDuration: buffer.segmentDuration)
         // Require at least 2 s of data in the next segment before preloading.
         // Opening a near-empty file produces a stream that fires EOF in milliseconds,
         // which causes rapid cycling and can starve the mixer — leading to a false go-live.
-        guard buffer.bufferedDuration - nextTs >= 2.0 else { return }
+        guard BASSRadioPlayerLogic.shouldPreloadNextSegment(bufferedDuration: buffer.bufferedDuration,
+                                                           nextSegmentTimestamp: nextTs) else { return }
         let s = buffer.createPlaybackStream(from: nextTs)
         if s != 0 {
             dvrNextStream = s

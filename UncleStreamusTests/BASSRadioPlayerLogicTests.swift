@@ -183,5 +183,165 @@ final class BASSRadioPlayerLogicTests: XCTestCase {
             BASSRadioPlayerLogic.dvrBufferResize(isLive: false, newMaxSeconds: 600, recordedSeconds: 600),
             .applyImmediately)
     }
+
+    // MARK: - compressorParams(amount:measuredRMSdB:)
+
+    private let cAccuracy: Float = 1e-4
+
+    func testCompressor_gentle_amountZero() {
+        // t = 0 → headroom 6 dB, threshold = RMS + 6, ratio 1.5.
+        let p = BASSRadioPlayerLogic.compressorParams(amount: 0, measuredRMSdB: -20)
+        XCTAssertEqual(p.threshold, -14, accuracy: cAccuracy)   // -20 + 6
+        XCTAssertEqual(p.ratio,     1.5, accuracy: cAccuracy)
+        XCTAssertEqual(p.attack,    25,  accuracy: cAccuracy)
+        XCTAssertEqual(p.release,   300, accuracy: cAccuracy)
+        // gain = 14 * (1 - 1/1.5) * (0.5 + 0) = 14 * (1/3) * 0.5
+        XCTAssertEqual(p.gain, 14 * (1 - 1/1.5) * 0.5, accuracy: cAccuracy)
+    }
+
+    func testCompressor_heavy_amountOne() {
+        // t = 0.75 → headroom 6 - 3.75 = 2.25 dB, threshold = RMS + 2.25.
+        let p = BASSRadioPlayerLogic.compressorParams(amount: 1.0, measuredRMSdB: -20)
+        XCTAssertEqual(p.threshold, -17.75, accuracy: cAccuracy)   // -20 + 2.25
+        XCTAssertEqual(p.ratio,     1.5 + 6.5 * 0.75, accuracy: cAccuracy)
+        XCTAssertEqual(p.attack,    25 - 22 * 0.75, accuracy: cAccuracy)
+        XCTAssertEqual(p.release,   300 - 220 * 0.75, accuracy: cAccuracy)
+    }
+
+    func testCompressor_thresholdClampedHigh() {
+        // Very loud program: RMS -1 + 6 = +5 would exceed the -2 dBFS ceiling.
+        let p = BASSRadioPlayerLogic.compressorParams(amount: 0, measuredRMSdB: -1)
+        XCTAssertEqual(p.threshold, -2, accuracy: cAccuracy)
+    }
+
+    func testCompressor_thresholdClampedLow() {
+        // Near-silent program: RMS -80 + 6 = -74 would exceed the -40 dBFS floor.
+        let p = BASSRadioPlayerLogic.compressorParams(amount: 0, measuredRMSdB: -80)
+        XCTAssertEqual(p.threshold, -40, accuracy: cAccuracy)
+    }
+
+    // MARK: - shouldReapplyCompressor(newThreshold:lastAppliedThreshold:)
+
+    func testReapplyCompressor_true_whenChangeExceedsHalfDB() {
+        XCTAssertTrue(BASSRadioPlayerLogic.shouldReapplyCompressor(newThreshold: -14, lastAppliedThreshold: -14.6))
+    }
+
+    func testReapplyCompressor_false_whenChangeAtOrBelowHalfDB() {
+        // Exactly 0.5 dB is not "> 0.5" — no re-apply.
+        XCTAssertFalse(BASSRadioPlayerLogic.shouldReapplyCompressor(newThreshold: -14, lastAppliedThreshold: -14.5))
+        XCTAssertFalse(BASSRadioPlayerLogic.shouldReapplyCompressor(newThreshold: -14, lastAppliedThreshold: -14.3))
+    }
+
+    // MARK: - isFXBeingUsed(...)
+
+    private func fxUsed(masterBypass: Bool = false,
+                        eqEnabled: Bool = true, low: Float = 0, mid: Float = 0, high: Float = 0,
+                        compressorOn: Bool = false,
+                        stereoEnabled: Bool = true, width: Float = 0.75, pan: Float = 0.5,
+                        subBass: Bool = false) -> Bool {
+        BASSRadioPlayerLogic.isFXBeingUsed(
+            masterBypassEnabled: masterBypass,
+            eqEnabled: eqEnabled, eqLowGain: low, eqMidGain: mid, eqHighGain: high,
+            compressorOn: compressorOn,
+            stereoWidthEnabled: stereoEnabled, stereoWidth: width, stereoPan: pan,
+            subBassEnabled: subBass)
+    }
+
+    func testFXUsed_falseAtAllDefaults() {
+        XCTAssertFalse(fxUsed())
+    }
+
+    func testFXUsed_masterBypassWinsOverEverything() {
+        XCTAssertFalse(fxUsed(masterBypass: true, mid: 6, compressorOn: true, width: 1.0, subBass: true))
+    }
+
+    func testFXUsed_eqCountsOnlyWhenEnabledAndNonZero() {
+        XCTAssertTrue(fxUsed(mid: 3))                       // enabled + non-zero band
+        XCTAssertFalse(fxUsed(eqEnabled: false, mid: 3))    // gain set but EQ off → not used
+    }
+
+    func testFXUsed_compressorOnAlwaysCounts() {
+        XCTAssertTrue(fxUsed(compressorOn: true))
+    }
+
+    func testFXUsed_stereoCountsOnlyWhenMovedOffDefaults() {
+        XCTAssertTrue(fxUsed(width: 1.0))                       // width off default
+        XCTAssertTrue(fxUsed(pan: 0.3))                         // pan off default
+        XCTAssertFalse(fxUsed(stereoEnabled: false, width: 1.0)) // moved but disabled
+    }
+
+    func testFXUsed_subBassCounts() {
+        XCTAssertTrue(fxUsed(subBass: true))
+    }
+
+    // MARK: - behindLivePaused(...)
+
+    private let dAccuracy: Double = 1e-9
+
+    func testBehindLivePaused_uncapped() {
+        // handleDVRBufferFull path: no cap.
+        XCTAssertEqual(BASSRadioPlayerLogic.behindLivePaused(bufferedDuration: 1399, pauseTimestamp: 9),
+                       1390, accuracy: dAccuracy)
+    }
+
+    func testBehindLivePaused_clampedToZero() {
+        // Pause point ahead of buffered content → never negative.
+        XCTAssertEqual(BASSRadioPlayerLogic.behindLivePaused(bufferedDuration: 5, pauseTimestamp: 20),
+                       0, accuracy: dAccuracy)
+    }
+
+    func testBehindLivePaused_cappedAtMax() {
+        // Paused-tick path: capped at the buffer max (900 s).
+        XCTAssertEqual(BASSRadioPlayerLogic.behindLivePaused(bufferedDuration: 2000, pauseTimestamp: 0, cappedAt: 900),
+                       900, accuracy: dAccuracy)
+    }
+
+    // MARK: - behindLivePlaying(...)
+
+    func testBehindLivePlaying_headMinusPlaybackPosition() {
+        // Recording head at 1200 s; playing seg 3 (×60) + 25 s in = 205 s → 995 behind.
+        XCTAssertEqual(
+            BASSRadioPlayerLogic.behindLivePlaying(bufferedDuration: 1200, currentSegNum: 3,
+                                                   segmentDuration: 60, positionSeconds: 25),
+            995, accuracy: dAccuracy)
+    }
+
+    func testBehindLivePlaying_clampedToZero() {
+        XCTAssertEqual(
+            BASSRadioPlayerLogic.behindLivePlaying(bufferedDuration: 100, currentSegNum: 3,
+                                                   segmentDuration: 60, positionSeconds: 0),
+            0, accuracy: dAccuracy)
+    }
+
+    // MARK: - dvrSegmentIndex(...)
+
+    func testDVRSegmentIndex_floorsToSegment() {
+        XCTAssertEqual(BASSRadioPlayerLogic.dvrSegmentIndex(pauseTimestamp: 185, segmentDuration: 60), 3)
+        XCTAssertEqual(BASSRadioPlayerLogic.dvrSegmentIndex(pauseTimestamp: 0,   segmentDuration: 60), 0)
+        XCTAssertEqual(BASSRadioPlayerLogic.dvrSegmentIndex(pauseTimestamp: 59,  segmentDuration: 60), 0)
+    }
+
+    func testDVRSegmentIndex_zeroDurationGuarded() {
+        XCTAssertEqual(BASSRadioPlayerLogic.dvrSegmentIndex(pauseTimestamp: 100, segmentDuration: 0), 0)
+    }
+
+    // MARK: - shouldPreloadNextSegment(...)
+
+    func testPreload_true_whenNextSegmentHasEnoughLead() {
+        // seg 2 → nextTs = 3×60 = 180; buffered 183 → 3 s lead ≥ 2.
+        let nextTs = BASSRadioPlayerLogic.dvrNextSegmentTimestamp(currentSegNum: 2, segmentDuration: 60)
+        XCTAssertEqual(nextTs, 180, accuracy: dAccuracy)
+        XCTAssertTrue(BASSRadioPlayerLogic.shouldPreloadNextSegment(bufferedDuration: 183, nextSegmentTimestamp: nextTs))
+    }
+
+    func testPreload_true_atExactlyMinLead() {
+        // Exactly 2 s lead satisfies the >= threshold.
+        XCTAssertTrue(BASSRadioPlayerLogic.shouldPreloadNextSegment(bufferedDuration: 182, nextSegmentTimestamp: 180))
+    }
+
+    func testPreload_false_whenNextSegmentNearlyEmpty() {
+        // 1 s lead < 2 → would cause rapid cycling / false go-live.
+        XCTAssertFalse(BASSRadioPlayerLogic.shouldPreloadNextSegment(bufferedDuration: 181, nextSegmentTimestamp: 180))
+    }
 }
 #endif

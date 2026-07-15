@@ -4,11 +4,13 @@
 //
 //  Pure, BASS-free decision logic extracted from BASSRadioPlayer and its
 //  extensions. These functions were previously inline in checkStreamStatus(),
-//  scheduleReconnect(), restartStream() and updateDVRBufferSize() — places that
-//  can't be unit-tested directly because they touch the BASS C API and live
-//  audio hardware. The predicates and arithmetic, however, are pure: given a few
-//  scalar inputs they return a decision. They live here so there is a single,
-//  testable source of truth, mirroring the ContentViewShared.swift pattern.
+//  scheduleReconnect(), restartStream(), updateDVRBufferSize(),
+//  applyCompressorParams(), applyAdaptiveCompressor(), isFXBeingUsed and the
+//  DVR timing call sites — places that can't be unit-tested directly because
+//  they touch the BASS C API and live audio hardware. The predicates and
+//  arithmetic, however, are pure: given a few scalar inputs they return a
+//  decision. They live here so there is a single, testable source of truth,
+//  mirroring the ContentViewShared.swift pattern.
 //
 //  Nothing here imports BASS or mutates state — the BASSRadioPlayer methods keep
 //  their thin shells (read BASS values in, apply side effects out) and call into
@@ -149,5 +151,119 @@ enum BASSRadioPlayerLogic {
             return .applyImmediately
         }
         return .deferToGoLive
+    }
+
+    // MARK: - Compressor Parameters
+
+    /// Fully-derived adaptive-compressor settings. Every coefficient that shapes the
+    /// compressor curve lives here so a refactor can't silently alter the sound — the
+    /// BASS-touching `applyCompressorParams()` is just a thin shell that copies these
+    /// into a `BASS_BFX_COMPRESSOR2` and pushes it.
+    struct CompressorParams: Equatable {
+        var threshold: Float   // dBFS
+        var ratio: Float
+        var attack: Float      // ms
+        var release: Float     // ms
+        var gain: Float        // makeup gain, dB
+    }
+
+    /// Derives the adaptive compressor parameters from the slider and the measured level.
+    /// - `amount`: raw slider value (0…1); scaled ×0.75 internally so the max maps to the
+    ///   old tamer ceiling.
+    /// - `measuredRMSdB`: slow-moving program level from the level-meter DSP.
+    /// The threshold sits `headroom` dB above the measured RMS (6 dB at gentle → 2.25 dB
+    /// at heavy) and is clamped to [-40, -2] dBFS.
+    static func compressorParams(amount: Float, measuredRMSdB: Float) -> CompressorParams {
+        let t = amount * 0.75
+        let headroom: Float = 6.0 - 5.0 * t
+        let threshold = max(min(measuredRMSdB + headroom, -2.0), -40.0)
+        let ratio: Float = 1.5 + 6.5 * t
+        return CompressorParams(
+            threshold: threshold,
+            ratio:     ratio,
+            attack:    25 - 22 * t,
+            release:   300 - 220 * t,
+            gain:      (-threshold) * (1.0 - 1.0 / ratio) * (0.5 + 0.25 * t)
+        )
+    }
+
+    /// Minimum threshold change (dB) worth pushing to BASS — avoids churning
+    /// `BASS_FXSetParameters` on sub-audible level drift.
+    static let compressorReapplyThresholdDB: Float = 0.5
+
+    /// Whether a freshly-computed threshold differs enough from the last-applied one to
+    /// justify re-applying the compressor.
+    static func shouldReapplyCompressor(newThreshold: Float,
+                                        lastAppliedThreshold: Float,
+                                        minChangeDB: Float = compressorReapplyThresholdDB) -> Bool {
+        abs(newThreshold - lastAppliedThreshold) > minChangeDB
+    }
+
+    // MARK: - FX Active Predicate
+
+    /// Whether any effect is audibly engaged — drives the FX-active UI indicator.
+    /// Master bypass wins outright. Stereo counts only when enabled *and* moved off its
+    /// defaults (width 0.75 = "original" stereo, pan 0.5 = centre); EQ counts only when
+    /// enabled *and* at least one band is non-zero.
+    static func isFXBeingUsed(masterBypassEnabled: Bool,
+                              eqEnabled: Bool,
+                              eqLowGain: Float, eqMidGain: Float, eqHighGain: Float,
+                              compressorOn: Bool,
+                              stereoWidthEnabled: Bool,
+                              stereoWidth: Float, stereoPan: Float,
+                              subBassEnabled: Bool) -> Bool {
+        guard !masterBypassEnabled else { return false }
+        let eqIsUsed = eqEnabled && (eqLowGain != 0 || eqMidGain != 0 || eqHighGain != 0)
+        let stereoIsUsed = stereoWidthEnabled && (stereoWidth != 0.75 || stereoPan != 0.5)
+        return eqIsUsed || compressorOn || stereoIsUsed || subBassEnabled
+    }
+
+    // MARK: - DVR Behind-Live Timing
+
+    /// Seconds of playable buffer behind the live edge, measured from the pause point.
+    /// Used by `handleDVRBufferFull` (no cap) and the paused-state tick (`cappedAt` = the
+    /// buffer max). `bufferedDuration` already sits on a clean segment boundary, so this
+    /// is the exact playable window from the pause point for both small (`dvrPause`) and
+    /// large-absolute (`dvrPausePlayback`) pause timestamps.
+    static func behindLivePaused(bufferedDuration: Double,
+                                 pauseTimestamp: Double,
+                                 cappedAt: Double = .infinity) -> Double {
+        min(max(0, bufferedDuration - pauseTimestamp), cappedAt)
+    }
+
+    /// Behind-live while DVR playback is running: the live recording head minus the
+    /// current playback position (segment origin + position within the segment). Both
+    /// advance ~1 s/s, so this stays roughly constant.
+    static func behindLivePlaying(bufferedDuration: Double,
+                                  currentSegNum: Int,
+                                  segmentDuration: Double,
+                                  positionSeconds: Double) -> Double {
+        let currentRecordingTime = Double(currentSegNum) * segmentDuration + positionSeconds
+        return max(0, bufferedDuration - currentRecordingTime)
+    }
+
+    /// The ring-buffer segment index containing `pauseTimestamp` (floor via truncation;
+    /// timestamps are non-negative). Guards a zero `segmentDuration` defensively — in
+    /// practice it's a fixed 60 s and never zero.
+    static func dvrSegmentIndex(pauseTimestamp: Double, segmentDuration: Double) -> Int {
+        guard segmentDuration > 0 else { return 0 }
+        return Int(pauseTimestamp / segmentDuration)
+    }
+
+    /// Recording-time start of the segment following `currentSegNum`.
+    static func dvrNextSegmentTimestamp(currentSegNum: Int, segmentDuration: Double) -> Double {
+        Double(currentSegNum + 1) * segmentDuration
+    }
+
+    /// Minimum data (s) that must exist in the next segment before it's safe to preload.
+    /// Opening a near-empty segment file yields a stream that hits EOF within ms, causing
+    /// rapid cycling that can starve the mixer into a false go-live.
+    static let dvrPreloadMinLeadSeconds: Double = 2.0
+
+    /// Whether the next DVR segment has accumulated enough data to preload gaplessly.
+    static func shouldPreloadNextSegment(bufferedDuration: Double,
+                                         nextSegmentTimestamp: Double,
+                                         minLeadSeconds: Double = dvrPreloadMinLeadSeconds) -> Bool {
+        bufferedDuration - nextSegmentTimestamp >= minLeadSeconds
     }
 }
