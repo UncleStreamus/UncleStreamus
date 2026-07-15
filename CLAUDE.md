@@ -110,10 +110,27 @@ optional scope, strips it, and excludes the backend scopes listed above. So a
 > including user-facing ones. (v1.5.2's notes lost two real CarPlay fixes this way.)
 > If you edit either matcher, keep the two in sync.
 
-**One remaining difference, by design:** only the in-app sheet applies the backend
-*keyword denylist*. An **unscoped** backend commit (`Fix: build universal binary`) is
-therefore still excluded from the sheet but does reach the GitHub release notes. Scope
-your backend commits and this never bites.
+**One remaining difference — deliberately NOT fixed. Don't "fix" it.** Only the in-app
+sheet applies the backend *keyword denylist*. An **unscoped** backend commit
+(`Fix: build universal binary`) is therefore excluded from the sheet but does reach the
+GitHub release notes. Reasons to leave it (reviewed 2026-07-15):
+
+- **It's a dead problem.** All 7 commits that ever hit this are from 2026-06-12 — two
+  days *before* the scope convention landed (`Improve(ci): filter backend commits…`,
+  2026-06-14). Zero occurrences in the 33 days since. Scoping backend commits, which is
+  now routine, avoids it entirely.
+- **The obvious fix causes the bug it prevents.** Copying the 26-keyword denylist into
+  `release.yml` would put the same rule in two languages (bash regex + the Python list
+  in `generate_release_notes.sh`) — a *third* sync point. Two matchers drifting apart is
+  exactly what caused the anchored-grep bug above; adding a third copy invites a rerun.
+- **Worst case is cosmetic:** one line of CI noise in a GitHub release body, editable
+  after the fact.
+
+The only clean fix would be `release.yml` calling `generate_release_notes.sh` for a
+single source of truth — but their fallback semantics genuinely differ (the script falls
+back to the last release *with* changes and marks it `current: false`, which is right for
+the sheet and wrong for a release body: v1.5.3 would publish v1.5.2's changelog). Not
+worth parameterising for a problem that stopped happening.
 
 ## Branch Landing Convention
 
