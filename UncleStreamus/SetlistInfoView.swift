@@ -64,18 +64,29 @@ private class SetlistInfoCoordinator: NSObject, WKNavigationDelegate {
             // Escape any single quotes in the date string (shouldn't occur, but defensive)
             let safe = date.replacingOccurrences(of: "\\", with: "\\\\")
                            .replacingOccurrences(of: "'", with: "\\'")
+            // Reports whether a matching <h4> was found: a miss is a *successful* run, so
+            // only the return value distinguishes "scrolled" from "date absent from page".
             let js = """
             (function(){
                 var h4s = document.querySelectorAll('h4');
                 for (var i = 0; i < h4s.length; i++) {
                     if (h4s[i].textContent.indexOf('\(safe)') !== -1) {
                         h4s[i].scrollIntoView({ block: 'start' });
-                        break;
+                        return true;
                     }
                 }
+                return false;
             })();
             """
-            webView.evaluateJavaScript(js, completionHandler: nil)
+            webView.evaluateJavaScript(js) { result, error in
+                #if DEBUG
+                if let error {
+                    print("[SetlistInfo] scroll-to-date JS failed: \(error.localizedDescription)")
+                } else if result as? Bool == false {
+                    print("[SetlistInfo] no <h4> matching '\(date)' on page — suspect a date mismatch; check FZShowsFetcher.dateExceptions")
+                }
+                #endif
+            }
         }
         DispatchQueue.main.async { self.onLoadFinished?() }
     }
