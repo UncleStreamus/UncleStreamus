@@ -100,17 +100,20 @@ from the in-app sheet. It parses scopes properly (`generate_release_notes.sh:148
 `^(Add|Improve|Fix)(?:\(([^)]+)\))?:` — the scope group is optional), so a
 user-facing scoped commit is kept with the scope stripped.
 
-⚠️ **The two pipelines do not agree, and neither is a superset of the other.**
-`release.yml:35-37` categorises with plain anchored greps (`grep '^Improve:'`), which
-have no scope awareness. Consequences:
-- **Every scoped commit is dropped from the GitHub release notes — including
-  user-facing ones.** A `Fix(player): …` appears in the in-app sheet but *not* in the
-  GitHub release.
-- `release.yml` has **no keyword denylist**, so an *unscoped* backend commit
-  (`Fix: build universal binary`) does reach the GitHub release notes.
+`release.yml` (GitHub release notes) now applies the **same scope rule**: it matches an
+optional scope, strips it, and excludes the backend scopes listed above. So a
+`Fix(player): …` reaches both the in-app sheet and the GitHub release, and a
+`Fix(ci): …` reaches neither.
 
-Practical rule: scope backend commits (they're then excluded from both), and prefer
-**unscoped** `Add:`/`Improve:`/`Fix:` for anything user-facing you want in both places.
+> Until 2026-07-15 `release.yml` used anchored greps (`grep '^Fix:'`) with no scope
+> awareness, so **every** scoped commit was silently dropped from the GitHub release —
+> including user-facing ones. (v1.5.2's notes lost two real CarPlay fixes this way.)
+> If you edit either matcher, keep the two in sync.
+
+**One remaining difference, by design:** only the in-app sheet applies the backend
+*keyword denylist*. An **unscoped** backend commit (`Fix: build universal binary`) is
+therefore still excluded from the sheet but does reach the GitHub release notes. Scope
+your backend commits and this never bites.
 
 ## Branch Landing Convention
 

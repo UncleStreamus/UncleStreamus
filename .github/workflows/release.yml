@@ -32,9 +32,16 @@ jobs:
             COMMITS=$(git log "${PREV_TAG}..HEAD" --pretty=format:'%s' --no-merges)
           fi
 
-          NEW=$(echo "$COMMITS"      | grep '^Add:'     | sed 's/^Add: /- /'     | sort)
-          IMPROVED=$(echo "$COMMITS" | grep '^Improve:' | sed 's/^Improve: /- /' | sort)
-          FIXED=$(echo "$COMMITS"    | grep '^Fix:'     | sed 's/^Fix: /- /'     | sort)
+          # Backend scopes are dev-facing; keep them out of the public notes. Must stay in
+          # sync with Scripts/generate_release_notes.sh (the in-app "What's New" sheet).
+          BACKEND='ci|cd|build|dev|docs|test|chore|deps|infra|release|tooling|project|repo|meta'
+          USER_COMMITS=$(printf '%s\n' "$COMMITS" | grep -Ev "^(Add|Improve|Fix)\((${BACKEND})\): ")
+
+          # Match with an OPTIONAL scope and strip it, so user-facing scoped commits
+          # (e.g. "Fix(player): …") are included — an anchored '^Fix:' silently dropped them.
+          NEW=$(printf '%s\n' "$USER_COMMITS"      | grep -E '^Add(\([^)]*\))?: '     | sed -E 's/^Add(\([^)]*\))?: /- /'     | sort)
+          IMPROVED=$(printf '%s\n' "$USER_COMMITS" | grep -E '^Improve(\([^)]*\))?: ' | sed -E 's/^Improve(\([^)]*\))?: /- /' | sort)
+          FIXED=$(printf '%s\n' "$USER_COMMITS"    | grep -E '^Fix(\([^)]*\))?: '     | sed -E 's/^Fix(\([^)]*\))?: /- /'     | sort)
 
           NOTES=""
           [ -n "$NEW" ]      && NOTES="${NOTES}### New\n${NEW}\n\n"
