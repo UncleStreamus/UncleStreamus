@@ -96,8 +96,53 @@ Backend scopes: `ci`, `cd`, `build`, `dev`, `docs`, `test`, `chore`, `deps`,
 
 `Scripts/generate_release_notes.sh` excludes any backend-scoped commit **and** any
 commit matching a backend keyword denylist (CI/signing/notarize/DMG/workflow/`.md`/…)
-from the in-app sheet. The GitHub release notes (`release.yml`) are **not** filtered
-— they include everything.
+from the in-app sheet. It parses scopes properly (`generate_release_notes.sh:148`,
+`^(Add|Improve|Fix)(?:\(([^)]+)\))?:` — the scope group is optional), so a
+user-facing scoped commit is kept with the scope stripped.
+
+⚠️ **The two pipelines do not agree, and neither is a superset of the other.**
+`release.yml:35-37` categorises with plain anchored greps (`grep '^Improve:'`), which
+have no scope awareness. Consequences:
+- **Every scoped commit is dropped from the GitHub release notes — including
+  user-facing ones.** A `Fix(player): …` appears in the in-app sheet but *not* in the
+  GitHub release.
+- `release.yml` has **no keyword denylist**, so an *unscoped* backend commit
+  (`Fix: build universal binary`) does reach the GitHub release notes.
+
+Practical rule: scope backend commits (they're then excluded from both), and prefer
+**unscoped** `Add:`/`Improve:`/`Fix:` for anything user-facing you want in both places.
+
+## Branch Landing Convention
+
+How to finish `feature/*` work. This is coupled to the commit convention above — the
+first rule only makes sense once you know the release notes read *individual commit
+subjects*.
+
+**1. Never squash-merge.** Both generators read individual subjects
+(`git log --pretty=format:'%s' --no-merges` — `release.yml:30-32`,
+`generate_release_notes.sh:79-81`). A squash collapses a branch's subjects into one,
+silently dropping user-facing lines from the in-app What's New sheet **and** the
+GitHub release. This is the one rule that actually costs something to break.
+
+**2. Default: merge straight to `main` with `--no-ff`.** No PR needed for routine
+work — Feature CI has already run on the `feature/*` push, and a solo PR adds ceremony
+without adding a reviewer. Merge commits are free: both generators pass `--no-merges`,
+so they never surface in release notes. `--no-ff` is worth it even when the branch
+fast-forwards, because it makes the branch revertable as a unit
+(`git revert -m 1 <merge>`) — this project has needed exactly that (see `ce2d620`,
+which had to hand-revert two commits to pull an unshipped feature).
+
+```
+git checkout main && git merge --no-ff feature/<name>
+```
+
+**3. Use a PR when the change is large, risky, or architectural** — there the PR body
+is the durable "why" record, worth more than the merge itself. Precedent: PRs #1, #2
+and #4 all landed as merge commits, never squashed.
+
+**4. Pushing `main` never cuts a release.** Both pipelines fire on a `v*` **tag** only.
+See [[feedback_git_push_auth]] for the HTTPS/`gh`-token push (SSH needs a 1Password
+popup; commits touching `.github/workflows/*` must go over SSH).
 
 ## Release Workflow (macOS DMG)
 
@@ -568,10 +613,11 @@ Platform-Specific:
 Memory files track architectural decisions across Claude Code sessions:
 
 **Memory Files** (`.claude/projects/<project-path>/memory/`):
-- `MEMORY.md` — index of all memory files
-- `audio_fx_ui_plan.md` — Audio FX panel UI design notes
-- `fx_code_analysis.md` — FX code analysis
-- `feedback_git.md` — git commit preferences
+- `MEMORY.md` — **the index; start there.** One line per memory, kept current as
+  memories are added or retired.
+
+Do not re-list individual memory files here — a hand-maintained copy rots (this
+section previously named 4 of ~36, two of which no longer exist).
 
 ### Known Limitations & Workarounds
 
