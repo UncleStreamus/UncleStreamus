@@ -35,7 +35,11 @@ jobs:
           # Backend scopes are dev-facing; keep them out of the public notes. Must stay in
           # sync with Scripts/generate_release_notes.sh (the in-app "What's New" sheet).
           BACKEND='ci|cd|build|dev|docs|test|chore|deps|infra|release|tooling|project|repo|meta'
-          USER_COMMITS=$(printf '%s\n' "$COMMITS" | grep -Ev "^(Add|Improve|Fix)\((${BACKEND})\): ")
+          # '|| true' is load-bearing: this pipeline ENDS in grep, so a release with only
+          # backend commits (grep matches nothing -> exit 1) would kill the step under
+          # 'bash -e' before the "no user-facing changes" fallback below could ever run.
+          # The NEW/IMPROVED/FIXED pipelines below end in sort, so they can't fail this way.
+          USER_COMMITS=$(printf '%s\n' "$COMMITS" | grep -Ev "^(Add|Improve|Fix)\((${BACKEND})\): " || true)
 
           # Match with an OPTIONAL scope and strip it, so user-facing scoped commits
           # (e.g. "Fix(player): …") are included — an anchored '^Fix:' silently dropped them.
