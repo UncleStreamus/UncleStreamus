@@ -649,6 +649,7 @@ section previously named 4 of ~36, two of which no longer exist).
 6. **FLAC metadata lag:** Vorbis short title fires first (bare track name), full metadata arrives via Icecast JSON in next poll; UI merges both to avoid flashing.
 7. **OGG Format B:** Some shows have static Vorbis tags that never change per track; Icecast JSON is the only reliable source for these.
 8. **DVR at live edge:** Preload guard (`buffer.bufferedDuration - nextTs >= 2.0`) prevents premature segment cycling; `BASS_ChannelPlay` always called in MIXTIME callback to keep mixer alive.
+9. **AAC metadata lag — deliberately NOT fixed. Don't "fix" it.** AAC is the only format with no in-band metadata (MP3 has ICY, OGG/FLAC have Vorbis comments), and the `.aac` mountpoint carries no `title` — so it depends entirely on `fetchIcecastMetadata()` reading the `.mp3` mountpoint and runs **one track behind, sometimes two**. The FX early-reset + carry-over features (`4b3faf2`) beat this on the **live path only**; buffer (DVR) playback replays the lag, because `publishTitle` stamps journal entries at metadata-arrival (`+Metadata.swift:394-396`) so the lag is baked in at write time. Timestamping entries at the AAC audio boundary instead **is a no-op** at a 1–2 track lag, and there's no client-side reference to measure the lag against. Reviewed 2026-07-15 — see the `aac_fx_carryover_buffer_gap` memory for the full reasoning and the rejected fix.
 
 ### Testing Strategy
 
