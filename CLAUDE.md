@@ -425,8 +425,10 @@ Platform-Specific:
 - **Per-show storage:** `savePerShowFX()` writes the `FXSnapshot` JSON to both `UserDefaults.standard` (synchronous source of truth — reliable at launch) and `NSUbiquitousKeyValueStore` (cross-device mirror). `restorePerShowFX()` reads UserDefaults first, falling back to KVS and caching any cloud-only snapshot locally. `PerShowFXSync.start()` (called from `UncleStreamusApp.init`) calls `synchronize()` and observes `didChangeExternallyNotification` to mirror cloud changes into UserDefaults.
 
 **Audio Effects DSP Pipeline:**
-- **3-Band EQ** (via `BASS_FX_BFX_PEAKEQ`):
-  - Low: 100 Hz, Mid: 1 kHz, High: 10 kHz — each ±6 dB
+- **3-Band EQ** (three separate `BASS_FX_BFX_BQF` biquad filters — see `applyLowShelf`/`applyMidPeak`/`applyHighShelf`):
+  - Low: low-shelf @ 90 Hz; Mid: peaking @ 2700 Hz; High: high-shelf @ 7500 Hz. Slider range ±8 dB.
+  - Mid peak's bandwidth is gain-dependent (narrows to ~1 octave at full boost/cut).
+  - **Low band is asymmetric:** boosts use a tight 90 Hz shelf (keeps boost as sub/bass); cuts progressively raise the corner (90→200 Hz) and widen the slope (`fS` 0.7→0.35) as the cut deepens, so a cut also pulls down the muddy low-mids. Branch is on the target `eqLowGain` sign so the shape holds steady through the bypass-blend ramp.
   - Applied first in DSP chain
 - **Compressor** (via `BASS_FX_BFX_COMPRESSOR2`):
   - Adaptive threshold: level-meter DSP measures RMS over ~1.5s windows (EMA ~4.5s). Threshold = RMS + headroom (gentle: +6 dB, heavy: +2.25 dB).
