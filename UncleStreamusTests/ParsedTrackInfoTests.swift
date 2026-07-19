@@ -75,6 +75,16 @@ final class ParsedTrackInfoTests: XCTestCase {
         XCTAssertNil(info.year)
     }
 
+    func testFullBracket_yearWithoutTrackNumber_doesNotCrash() {
+        // A year annotation with no (NN) track number used to crash: both the
+        // track-number and year regexes matched the same (1988), inverting the
+        // name range (Swift "Range requires lowerBound <= upperBound" trap).
+        let info = ParsedTrackInfo.parse("[1988 03 25 Uniondale NY AUD] Frank Zappa: When The Lie's So Big (1988) [4:20]")
+        XCTAssertEqual(info.trackName, "When The Lie's So Big")
+        XCTAssertEqual(info.year, "1988")
+        XCTAssertNil(info.trackNumber)
+    }
+
     func testFullBracket_multiWordCity() {
         let info = ParsedTrackInfo.parse("[1973 11 07 Los Angeles CA] Frank Zappa: (01) Montana (1973) [5:00]")
         XCTAssertEqual(info.city, "Los Angeles")

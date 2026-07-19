@@ -238,6 +238,7 @@ extension BASSRadioPlayer {
         stereoDSP = 0
         limiterDSP = 0
         inputGainDSP = 0
+        subBassDSP = 0
         rmsAccumulator = 0
         rmsSampleCount = 0
         lastAppliedThreshold = 0

@@ -649,6 +649,11 @@ extension BASSRadioPlayer {
         if levelMeterDSP != 0 { BASS_ChannelRemoveDSP(mixerHandle, levelMeterDSP); levelMeterDSP = 0 }
         if stereoDSP     != 0 { BASS_ChannelRemoveDSP(mixerHandle, stereoDSP);     stereoDSP     = 0 }
         if limiterDSP    != 0 { BASS_ChannelRemoveDSP(mixerHandle, limiterDSP);    limiterDSP    = 0 }
+        // Must remove subBassDSP too: applyEffects (via configureStreamAttributes below)
+        // re-adds it to mixerHandle. Without this removal the old sub-bass DSP stays
+        // attached and a second one stacks on top — two octave-down generators sharing
+        // the same filter-state vars corrupt each other, producing granular/broken audio.
+        if subBassDSP    != 0 { BASS_ChannelRemoveDSP(mixerHandle, subBassDSP);    subBassDSP    = 0 }
 
         // Free the live source layers only. BASS_ChannelFree on preMixerHandle auto-removes
         // it from mixerHandle and removes its clickGuardDSP and recordingDSP.

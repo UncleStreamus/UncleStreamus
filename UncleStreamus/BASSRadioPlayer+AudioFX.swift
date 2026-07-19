@@ -647,9 +647,21 @@ extension BASSRadioPlayer {
         guard eqLowFX != 0 else { return }
         var p = BASS_BFX_BQF()
         p.lFilter  = Int32(BASS_BFX_BQF_LOWSHELF)
-        p.fCenter  = 90
+        // Asymmetric shape: cuts reach up into the low-mid "mud", boosts stay tight.
+        // Branch on the target `eqLowGain` (not the ramped `gain` arg) so the filter
+        // shape holds steady while the bypass blend ramps — only `fGain` scales.
+        if eqLowGain < 0 {
+            // Cut: progressively raise the corner into the low-mid range and broaden
+            // the slope as the cut deepens (amt 0->1 over 0..-8 dB; Low slider maxDB 8).
+            let amt = min(abs(eqLowGain) / 8.0, 1.0)
+            p.fCenter = 90 + amt * 110      // 90 -> 200 Hz
+            p.fS      = 0.7 - amt * 0.35    // 0.7 -> 0.35 (gentler / wider)
+        } else {
+            // Boost: unchanged — tight low shelf so bass boost stays sub/bass.
+            p.fCenter = 90
+            p.fS      = 0.7
+        }
         p.fGain    = gain
-        p.fS       = 0.7
         p.lChannel = -1
         BASS_FXSetParameters(eqLowFX, &p)
     }

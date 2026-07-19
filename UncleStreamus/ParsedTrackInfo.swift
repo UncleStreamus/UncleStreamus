@@ -238,28 +238,29 @@ struct ParsedTrackInfo {
                 }
                 
                 let afterColon = String(title[colonRange.upperBound...])
-                if let trackRange = afterColon.range(of: #"\((\d+)\)"#, options: .regularExpression) {
-                    let trackText = String(afterColon[trackRange])
-                    trackNumber = String(trackText.dropFirst().dropLast())
+
+                // Track number is a short parenthesized number (1–3 digits); a 4-digit
+                // paren is a year annotation, never a track number. Matching \(\d+\) here
+                // would swallow the year on titles that lack a track number and invert the
+                // name range below (crash: "Range requires lowerBound <= upperBound").
+                let trackNumRange = afterColon.range(of: #"\(\d{1,3}\)"#, options: .regularExpression)
+                if let trackNumRange {
+                    trackNumber = String(afterColon[trackNumRange].dropFirst().dropLast())
                 }
-                
-                if let trackNumEnd = afterColon.range(of: #"\(\d+\)"#, options: .regularExpression)?.upperBound {
-                    if let yearStart = afterColon.range(of: #"\(\d{4}\)"#, options: .regularExpression)?.lowerBound {
-                        trackName = String(afterColon[trackNumEnd..<yearStart]).trimmingCharacters(in: .whitespaces)
-                    } else {
-                        // No year annotation — take everything from after track number to the duration bracket
-                        let afterTrackNum = String(afterColon[trackNumEnd...]).trimmingCharacters(in: .whitespaces)
-                        if let durationStart = afterTrackNum.range(of: #"\[\d"#, options: .regularExpression)?.lowerBound {
-                            trackName = String(afterTrackNum[..<durationStart]).trimmingCharacters(in: .whitespaces)
-                        } else if !afterTrackNum.isEmpty {
-                            trackName = afterTrackNum
-                        }
-                    }
+
+                let yearRange = afterColon.range(of: #"\(\d{4}\)"#, options: .regularExpression)
+                if let yearRange {
+                    year = String(afterColon[yearRange].dropFirst().dropLast())
                 }
-                
-                if let yearRange = afterColon.range(of: #"\((\d{4})\)"#, options: .regularExpression) {
-                    let yearText = String(afterColon[yearRange])
-                    year = String(String(yearText).dropFirst().dropLast())
+
+                // Track name = text after the track number (if any), up to the year
+                // annotation or the duration bracket, whichever comes first.
+                let nameStart = trackNumRange?.upperBound ?? afterColon.startIndex
+                let durStart = afterColon.range(of: #"\[\d"#, options: .regularExpression)?.lowerBound
+                let nameEnd = [yearRange?.lowerBound, durStart].compactMap { $0 }.min() ?? afterColon.endIndex
+                if nameStart <= nameEnd {
+                    let name = String(afterColon[nameStart..<nameEnd]).trimmingCharacters(in: .whitespaces)
+                    if !name.isEmpty { trackName = name }
                 }
             }
         } else {
