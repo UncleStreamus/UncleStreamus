@@ -41,7 +41,6 @@ struct ContentView_iOS: View {
     @State private var availableWidth: CGFloat = 500
     @AppStorage("textScale") private var textScale: Double = 1.1
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
-    @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
     @AppStorage("dvrEnabled") private var dvrEnabled: Bool = true
     @AppStorage("dvrBufferMinutes") private var dvrBufferMinutes: Int = 15
     @State private var expandedFooterSection: FooterSection? = nil
