@@ -25,7 +25,6 @@ struct ContentView: View {
     @AppStorage("textScale") private var textScale: Double = 1.1
     @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "OGG"
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
-    @AppStorage("fxPersistAcrossShows") private var fxPersistAcrossShows: Bool = false
     @State private var panelOpen: Bool = false  // Local state for panel visibility
     @State private var expandedFooterSection: FooterSection? = nil
     @State private var contentBounceOffset: CGFloat = 0
@@ -1278,7 +1277,7 @@ struct ContentView: View {
 
         bassPlayer.onMetadataUpdate = { metadata in
             DispatchQueue.main.async {
-                self.vm.handleMetadata(metadata, fxPersistAcrossShows: self.fxPersistAcrossShows)
+                self.vm.handleMetadata(metadata)
             }
         }
 
@@ -1463,7 +1462,7 @@ struct ContentView: View {
     }
 
     func fetchShowInfo(date: String, showTime: ShowTime = .none) {
-        vm.fetchShowInfo(date: date, showTime: showTime, fxPersistAcrossShows: fxPersistAcrossShows)
+        vm.fetchShowInfo(date: date, showTime: showTime)
     }
 }
 

@@ -65,9 +65,6 @@ final class PlaybackController {
 
     // Read AppStorage-backed preferences straight from UserDefaults so this
     // app-scope object doesn't need the view's @AppStorage wrappers.
-    private var fxPersistAcrossShows: Bool {
-        UserDefaults.standard.object(forKey: "fxPersistAcrossShows") as? Bool ?? false
-    }
     private var dvrEnabled: Bool {
         UserDefaults.standard.object(forKey: "dvrEnabled") as? Bool ?? true
     }
@@ -193,7 +190,7 @@ final class PlaybackController {
 
         bassPlayer.onMetadataUpdate = { [self] metadata in
             DispatchQueue.main.async { [self] in
-                vm.handleMetadata(metadata, fxPersistAcrossShows: fxPersistAcrossShows)
+                vm.handleMetadata(metadata)
             }
         }
 
@@ -771,7 +768,7 @@ final class PlaybackController {
     }
 
     func fetchShowInfo(date: String, showTime: ShowTime = .none) {
-        vm.fetchShowInfo(date: date, showTime: showTime, fxPersistAcrossShows: fxPersistAcrossShows)
+        vm.fetchShowInfo(date: date, showTime: showTime)
     }
 }
 #endif

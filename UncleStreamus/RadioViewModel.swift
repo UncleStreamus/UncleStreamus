@@ -75,7 +75,7 @@ final class RadioViewModel {
     /// Handle a raw metadata string from BASS: merge with the previous track,
     /// publish, trigger the show fetch, and update derived state. Mirrors the
     /// `onMetadataUpdate` body that previously lived in each view.
-    func handleMetadata(_ metadata: String, fxPersistAcrossShows: Bool) {
+    func handleMetadata(_ metadata: String) {
         let newParsed = ParsedTrackInfo.parse(metadata)
 
         // Block if nothing meaningful changed (track name, date, AND duration).
@@ -96,14 +96,14 @@ final class RadioViewModel {
             isFetchingShowInfo = false
         } else if let date = parsedTrack?.date {
             let showTime = ShowTime(from: parsedTrack?.showTime)
-            fetchShowInfo(date: date, showTime: showTime, fxPersistAcrossShows: fxPersistAcrossShows)
+            fetchShowInfo(date: date, showTime: showTime)
         }
 
         if let position = findCurrentTrackPosition() {
             currentSetlistPosition = position
         }
 
-        armAACShowChangeResetIfAtLastTrack(fxPersistAcrossShows: fxPersistAcrossShows)
+        armAACShowChangeResetIfAtLastTrack()
 
         onNowPlayingShouldUpdate()
         onShowDidLoad()
@@ -120,12 +120,12 @@ final class RadioViewModel {
     /// audio, not a live show boundary. The early reset only fires in `restartStream()`
     /// (skipped in DVR mode), so an arm made off replayed metadata would just sit set
     /// until the next genuine live restart — gate it out here so it can't.
-    private func armAACShowChangeResetIfAtLastTrack(fxPersistAcrossShows: Bool) {
+    private func armAACShowChangeResetIfAtLastTrack() {
         guard bassPlayer.activeFormat == "AAC",
               bassPlayer.dvrState == .live,
               let setlist = currentShow?.setlist, !setlist.isEmpty,
               let pos = findCurrentTrackPosition(), pos == setlist.count else { return }
-        let willResetOrRestore = PerShowFXSync.rememberPerShowEnabled || !fxPersistAcrossShows
+        let willResetOrRestore = PerShowFXSync.rememberPerShowEnabled || !PerShowFXSync.persistAcrossShowsEnabled
         guard willResetOrRestore else { return }
         bassPlayer.pendingAACShowChangeReset = true
     }
@@ -134,7 +134,7 @@ final class RadioViewModel {
 
     /// Fetch a show's setlist/venue and update state. Mirrors the per-view
     /// `fetchShowInfo`, including the deferred per-show FX reset.
-    func fetchShowInfo(date: String, showTime: ShowTime = .none, fxPersistAcrossShows: Bool) {
+    func fetchShowInfo(date: String, showTime: ShowTime = .none) {
         let variant = variantDate(date: date, showTime: showTime)
         guard currentShow?.date != variant else { return }
 
@@ -153,7 +153,7 @@ final class RadioViewModel {
         let fxRememberPerShow = PerShowFXSync.rememberPerShowEnabled
         switch fxShowChangeAction(carriedOver: carriedOver,
                                   rememberPerShow: fxRememberPerShow,
-                                  persistAcrossShows: fxPersistAcrossShows,
+                                  persistAcrossShows: PerShowFXSync.persistAcrossShowsEnabled,
                                   variantDate: variant) {
         case .carryOver(let save):
             // Keep the user's window edits for the incoming show; persist as its
