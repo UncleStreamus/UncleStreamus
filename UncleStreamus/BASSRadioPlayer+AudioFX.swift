@@ -70,6 +70,14 @@ enum PerShowFXSync {
         (UserDefaults.standard.object(forKey: "fxRememberPerShow") as? Bool) ?? true
     }
 
+    /// Whether the user's "Keep FX across shows" preference is on. Default false
+    /// (unlike the two settings above), read via `object(forKey:) as? Bool ?? false`
+    /// so a fresh install — where `@AppStorage` hasn't written its default yet —
+    /// matches the `@AppStorage("fxPersistAcrossShows") = false` binding.
+    static var persistAcrossShowsEnabled: Bool {
+        (UserDefaults.standard.object(forKey: "fxPersistAcrossShows") as? Bool) ?? false
+    }
+
     static func start() {
         guard observer == nil else { return }
         let store = NSUbiquitousKeyValueStore.default
