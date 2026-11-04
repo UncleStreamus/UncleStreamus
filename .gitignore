@@ -16,8 +16,8 @@ DerivedData/
 # Swift Package Manager
 .build/
 
-# XcodeBuildMCP workspace cache
-.xcodebuildmcp/
+# MobileBuildMCP (formerly XcodeBuildMCP) project config
+.mobilebuildmcp/
 
 # Signing material / secrets (never commit)
 *.p12
