@@ -150,3 +150,40 @@ func decideWhatsNew(currentBuild: String,
 
     return WhatsNewResult(action: .nothing, buildToRecord: nil)
 }
+
+// MARK: - Double-tap detection (FX sliders)
+
+/// Builds a double-tap out of single taps by timing them.
+///
+/// The FX sliders used to pair `DragGesture(minimumDistance: 0)` with a
+/// `.simultaneousGesture(TapGesture(count: 2))`. As of iOS 27 the drag claims the
+/// touch and the simultaneous double-tap never fires, so the sliders' double-tap-to-reset
+/// stopped working. Detecting the double-tap from the drag's own end events (and from a
+/// single-tap recognizer on labels) doesn't depend on two recognizers sharing a touch.
+struct DoubleTapTracker {
+    /// Max gap between the two taps (roughly UIKit's double-tap window).
+    static let maxInterval: TimeInterval = 0.35
+    /// A drag whose total movement stays within this many points counts as a tap.
+    static let maxTapTravel: Double = 8
+
+    private var lastTap: Date?
+
+    /// Whether a gesture that ended after moving `dx`/`dy` points counts as a tap.
+    static func isTap(dx: Double, dy: Double) -> Bool {
+        abs(dx) <= maxTapTravel && abs(dy) <= maxTapTravel
+    }
+
+    /// Registers a tap at `time`; returns true when it completes a double-tap.
+    /// A completed double-tap resets the tracker, so a third tap starts a new pair.
+    mutating func registerTap(at time: Date = Date()) -> Bool {
+        if let last = lastTap, time.timeIntervalSince(last) <= Self.maxInterval {
+            lastTap = nil
+            return true
+        }
+        lastTap = time
+        return false
+    }
+
+    /// Forgets any pending first tap (e.g. after a real drag).
+    mutating func reset() { lastTap = nil }
+}

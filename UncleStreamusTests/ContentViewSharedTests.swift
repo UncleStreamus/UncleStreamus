@@ -231,4 +231,41 @@ final class ContentViewSharedTests: XCTestCase {
         XCTAssertEqual(filled.city, "Helsinki")
         XCTAssertEqual(filled.state, "FI")
     }
+
+    // MARK: - DoubleTapTracker
+
+    func testDoubleTap_twoQuickTapsFire() {
+        var t = DoubleTapTracker()
+        let t0 = Date()
+        XCTAssertFalse(t.registerTap(at: t0))
+        XCTAssertTrue(t.registerTap(at: t0.addingTimeInterval(0.2)))
+    }
+
+    func testDoubleTap_slowTapsDoNotFire() {
+        var t = DoubleTapTracker()
+        let t0 = Date()
+        XCTAssertFalse(t.registerTap(at: t0))
+        XCTAssertFalse(t.registerTap(at: t0.addingTimeInterval(0.5)))
+    }
+
+    func testDoubleTap_thirdTapStartsNewPair() {
+        var t = DoubleTapTracker()
+        let t0 = Date()
+        _ = t.registerTap(at: t0)
+        XCTAssertTrue(t.registerTap(at: t0.addingTimeInterval(0.1)))
+        XCTAssertFalse(t.registerTap(at: t0.addingTimeInterval(0.2)))
+    }
+
+    func testDoubleTap_resetClearsPendingTap() {
+        var t = DoubleTapTracker()
+        let t0 = Date()
+        _ = t.registerTap(at: t0)
+        t.reset()
+        XCTAssertFalse(t.registerTap(at: t0.addingTimeInterval(0.1)))
+    }
+
+    func testDoubleTap_isTapThreshold() {
+        XCTAssertTrue(DoubleTapTracker.isTap(dx: 3, dy: -4))
+        XCTAssertFalse(DoubleTapTracker.isTap(dx: 0, dy: 20))
+    }
 }

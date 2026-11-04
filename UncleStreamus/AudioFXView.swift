@@ -82,6 +82,7 @@ struct VerticalEQSlider: View {
     @State private var dragStartY: CGFloat = 0
     @State private var isDragging = false
     @State private var lastHapticDB: Int = 0
+    @State private var tapTracker = DoubleTapTracker()
 
     var body: some View {
         GeometryReader { geo in
@@ -167,13 +168,17 @@ struct VerticalEQSlider: View {
 #endif
                         onUpdate()
                     }
-                    .onEnded { _ in isDragging = false }
-            )
-            .simultaneousGesture(
-                TapGesture(count: 2).onEnded {
-                    withAnimation(.spring(response: 0.25)) { value = 0 }
-                    onUpdate()
-                }
+                    .onEnded { drag in
+                        isDragging = false
+                        if DoubleTapTracker.isTap(dx: drag.translation.width, dy: drag.translation.height) {
+                            if tapTracker.registerTap(at: drag.time) {
+                                withAnimation(.spring(response: 0.25)) { value = 0 }
+                                onUpdate()
+                            }
+                        } else {
+                            tapTracker.reset()
+                        }
+                    }
             )
         }
     }
@@ -188,6 +193,7 @@ struct FXHorizontalSlider: View {
 
     private let thumbSize:   CGFloat = 20
     private let trackHeight: CGFloat = 5
+    @State private var tapTracker = DoubleTapTracker()
 
     var body: some View {
         GeometryReader { geo in
@@ -234,12 +240,16 @@ struct FXHorizontalSlider: View {
                         value = max(0, min(1, Float(relX / trackW)))
                         onUpdate()
                     }
-            )
-            .simultaneousGesture(
-                TapGesture(count: 2).onEnded {
-                    withAnimation(.spring(response: 0.25)) { value = resetValue }
-                    onUpdate()
-                }
+                    .onEnded { drag in
+                        if DoubleTapTracker.isTap(dx: drag.translation.width, dy: drag.translation.height) {
+                            if tapTracker.registerTap(at: drag.time) {
+                                withAnimation(.spring(response: 0.25)) { value = resetValue }
+                                onUpdate()
+                            }
+                        } else {
+                            tapTracker.reset()
+                        }
+                    }
             )
         }
         .frame(height: 22)
@@ -255,6 +265,7 @@ struct EQBandView: View {
     let onUpdate: () -> Void
 
     private let trackHeight: CGFloat = 80
+    @State private var tapTracker = DoubleTapTracker()
 
     var body: some View {
         VStack(spacing: 4) {
@@ -265,9 +276,11 @@ struct EQBandView: View {
                 .lineLimit(2)
                 .frame(height: 28)
                 .minimumScaleFactor(0.85)
-                .onTapGesture(count: 2) {
-                    withAnimation(.spring(response: 0.25)) { gain = 0 }
-                    onUpdate()
+                .onTapGesture {
+                    if tapTracker.registerTap() {
+                        withAnimation(.spring(response: 0.25)) { gain = 0 }
+                        onUpdate()
+                    }
                 }
 
             HStack(spacing: 3) {
@@ -282,9 +295,11 @@ struct EQBandView: View {
                 .font(.caption2)
                 .monospacedDigit()
                 .foregroundColor(gain > 0 ? .blue : gain < 0 ? .orange : .secondary)
-                .onTapGesture(count: 2) {
-                    withAnimation(.spring(response: 0.25)) { gain = 0 }
-                    onUpdate()
+                .onTapGesture {
+                    if tapTracker.registerTap() {
+                        withAnimation(.spring(response: 0.25)) { gain = 0 }
+                        onUpdate()
+                    }
                 }
         }
         .frame(width: 75)
@@ -340,6 +355,7 @@ struct StereoWidthSlider: View {
     private let thumbSize:   CGFloat = 20
     private let trackHeight: CGFloat = 5
     @State private var isSnapped = true
+    @State private var tapTracker = DoubleTapTracker()
 
     var body: some View {
         VStack(spacing: 4) {
@@ -402,12 +418,16 @@ struct StereoWidthSlider: View {
                                 value     = newVal
                             }
                         }
-                )
-                .simultaneousGesture(
-                    TapGesture(count: 2).onEnded {
-                        withAnimation(.spring(response: 0.25)) { value = snapPoint }
-                        isSnapped = true
-                    }
+                        .onEnded { drag in
+                            if DoubleTapTracker.isTap(dx: drag.translation.width, dy: drag.translation.height) {
+                                if tapTracker.registerTap(at: drag.time) {
+                                    withAnimation(.spring(response: 0.25)) { value = snapPoint }
+                                    isSnapped = true
+                                }
+                            } else {
+                                tapTracker.reset()
+                            }
+                        }
                 )
             }
             .frame(height: 22)
@@ -454,6 +474,7 @@ struct StereoPanSlider: View {
     private let thumbSize:   CGFloat = 20
     private let trackHeight: CGFloat = 5
     @State private var isSnapped = true
+    @State private var tapTracker = DoubleTapTracker()
 
     var body: some View {
         VStack(spacing: 4) {
@@ -519,12 +540,16 @@ struct StereoPanSlider: View {
                                 value     = newVal
                             }
                         }
-                )
-                .simultaneousGesture(
-                    TapGesture(count: 2).onEnded {
-                        withAnimation(.spring(response: 0.25)) { value = snapPoint }
-                        isSnapped = true
-                    }
+                        .onEnded { drag in
+                            if DoubleTapTracker.isTap(dx: drag.translation.width, dy: drag.translation.height) {
+                                if tapTracker.registerTap(at: drag.time) {
+                                    withAnimation(.spring(response: 0.25)) { value = snapPoint }
+                                    isSnapped = true
+                                }
+                            } else {
+                                tapTracker.reset()
+                            }
+                        }
                 )
             }
             .frame(height: 22)
