@@ -426,7 +426,8 @@ Platform-Specific:
 
 **Audio Effects DSP Pipeline:**
 - **3-Band EQ** (three separate `BASS_FX_BFX_BQF` biquad filters — see `applyLowShelf`/`applyMidPeak`/`applyHighShelf`):
-  - Low: low-shelf @ 90 Hz; Mid: peaking @ 2700 Hz; High: high-shelf @ 7500 Hz. Slider range ±8 dB.
+  - Low: low-shelf @ 90 Hz; Mid: peaking @ 2700 Hz; High: high-shelf @ 7500 Hz.
+  - **Slider range is per-band, not uniform:** Low is ±8 dB (`EQBandView(… maxDB: 8)`), Mid and High are ±6 dB (`EQBandView`'s default `maxDB: 6`) — see `AudioFXView.swift:628-630`.
   - Mid peak's bandwidth is gain-dependent (narrows to ~1 octave at full boost/cut).
   - **Low band is asymmetric:** boosts use a tight 90 Hz shelf (keeps boost as sub/bass); cuts progressively raise the corner (90→200 Hz) and widen the slope (`fS` 0.7→0.35) as the cut deepens, so a cut also pulls down the muddy low-mids. Branch is on the target `eqLowGain` sign so the shape holds steady through the bypass-blend ramp.
   - Applied first in DSP chain
