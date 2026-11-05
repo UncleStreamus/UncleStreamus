@@ -47,11 +47,6 @@ class FilterState: ObservableObject {
         debouncedSearchText = ""
     }
 
-    func clearAll() {
-        clear()
-        clearSearch()
-    }
-
     var exportDescription: String? {
         var parts: [String] = []
         if let p = selectedPeriod { parts.append("Period: \(p)") }

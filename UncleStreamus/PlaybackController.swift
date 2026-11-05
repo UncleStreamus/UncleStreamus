@@ -827,7 +827,7 @@ final class PlaybackController {
         }
     }
 
-    func playStream(showWarning: Bool = true) {
+    func playStream() {
         guard let stream = selectedStream else { return }
 
         configureAudioSession()

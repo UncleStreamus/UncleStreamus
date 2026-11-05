@@ -1423,7 +1423,7 @@ struct ContentView: View {
         }
     }
 
-    func playStream(showWarning: Bool = true) {
+    func playStream() {
         guard let stream = selectedStream else { return }
         #if DEBUG
         print("▶️ playStream() called — stack: \(Thread.callStackSymbols.prefix(5).joined(separator: " | "))")

@@ -1155,7 +1155,7 @@ struct ContentView_iOS: View {
 
     private func configureAudioSession() { controller.configureAudioSession() }
     private func updateNowPlayingInfo() { controller.updateNowPlayingInfo() }
-    func playStream(showWarning: Bool = true) { controller.playStream(showWarning: showWarning) }
+    func playStream() { controller.playStream() }
     func stopStream() { controller.stopStream() }
     func resumeOrOfferBuffer() { controller.resumeOrOfferBuffer() }
 }

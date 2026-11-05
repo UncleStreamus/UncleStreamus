@@ -275,24 +275,6 @@ class FZShowsDatabase {
         }
     }
 
-    /// Re-fetches a single named page (e.g., triggered from Settings "Refresh Now").
-    func refreshPage(_ filename: String, completion: @escaping () -> Void = {}) {
-        guard !isDownloading else { return }
-        isDownloading = true
-        downloadProgress = 0.0
-
-        DispatchQueue.global(qos: .utility).async {
-            self.fetchAndImportPage(filename: filename) {
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.downloadProgress = 1.0
-                    self.updateStats()
-                    completion()
-                }
-            }
-        }
-    }
-
     // MARK: - Private Helpers
 
     private func fetchAndImportPage(filename: String, completion: @escaping () -> Void) {

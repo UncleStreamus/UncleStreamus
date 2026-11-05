@@ -73,27 +73,12 @@ func variantDate(date: String, showTime: ShowTime) -> String {
     }
 }
 
-/// What to do with per-show FX when a new show begins, based on persistence
-/// settings. `.restore` returns to a saved snapshot (or defers the reset to the
-/// fetch completion when none exists yet); `.reset` clears FX; `.keep` leaves
-/// them untouched (persist-across-shows).
-enum FXRestorePlan {
-    case restore(showDate: String)
-    case reset
-    case keep
-}
-
-func fxRestorePlan(variantDate: String, rememberPerShow: Bool, persistAcrossShows: Bool) -> FXRestorePlan {
-    if rememberPerShow { return .restore(showDate: variantDate) }
-    if !persistAcrossShows { return .reset }
-    return .keep
-}
-
-/// What to do with FX when a new show begins, folding in the AAC carry-over case.
-/// When `carriedOver` (the user dialed in FX during the AAC metadata-lag window),
-/// keep those edits for the incoming show — `.carryOver(save:)` persists them as the
-/// new show's snapshot when per-show memory is on. Otherwise this matches
-/// `fxRestorePlan` exactly.
+/// What to do with FX when a new show begins, based on persistence settings plus the
+/// AAC carry-over case. `.restore` returns to a saved snapshot (or defers the reset to
+/// the fetch completion when none exists yet); `.reset` clears FX; `.keep` leaves them
+/// untouched (persist-across-shows). When `carriedOver` (the user dialed in FX during
+/// the AAC metadata-lag window), keep those edits for the incoming show —
+/// `.carryOver(save:)` persists them as the new show's snapshot when per-show memory is on.
 enum FXShowChangeAction: Equatable {
     case carryOver(save: Bool)        // keep current FX; save → persist as new show's snapshot
     case restore(showDate: String)

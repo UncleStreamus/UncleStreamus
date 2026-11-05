@@ -31,26 +31,6 @@ final class ContentViewSharedTests: XCTestCase {
         XCTAssertEqual(variantDate(date: "1980 12 11", showTime: .late), "1980 12 11 L")
     }
 
-    // MARK: - fxRestorePlan
-
-    func testFXRestorePlan_remember() {
-        let plan = fxRestorePlan(variantDate: "X", rememberPerShow: true, persistAcrossShows: false)
-        guard case .restore(let d) = plan else { return XCTFail("expected .restore") }
-        XCTAssertEqual(d, "X")
-    }
-
-    func testFXRestorePlan_resetWhenNotPersisting() {
-        guard case .reset = fxRestorePlan(variantDate: "X", rememberPerShow: false, persistAcrossShows: false) else {
-            return XCTFail("expected .reset")
-        }
-    }
-
-    func testFXRestorePlan_keepWhenPersisting() {
-        guard case .keep = fxRestorePlan(variantDate: "X", rememberPerShow: false, persistAcrossShows: true) else {
-            return XCTFail("expected .keep")
-        }
-    }
-
     // MARK: - fxShowChangeAction (AAC carry-over)
 
     func testFXShowChangeAction_carryOverSavesWhenRemembering() {
