@@ -45,12 +45,7 @@ final class PlaybackController {
     var showDataManager: ShowDataManager?
     var fzShowsDB: FZShowsDatabase?
 
-    let streams = [
-        Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
-        Stream(name: "OGG (90 kbit/s)", url: "https://shoutcast.norbert.de/zappa.ogg", format: "OGG"),
-        Stream(name: "AAC (256 kbit/s)", url: "https://shoutcast.norbert.de/zappa.aac", format: "AAC"),
-        Stream(name: "FLAC (750 kbit/s)", url: "https://shoutcast.norbert.de/zappa.flac", format: "FLAC")
-    ]
+    let streams = Stream.all
 
     // Idempotency guards (promoted from ContentView_iOS's per-view flags): the
     // window scene and the CarPlay scene can both drive `activate()`, and both
@@ -85,7 +80,7 @@ final class PlaybackController {
         UserDefaults.standard.object(forKey: "dvrEnabled") as? Bool ?? true
     }
     private var lastStreamFormat: String {
-        UserDefaults.standard.string(forKey: "lastStreamFormat") ?? "OGG"
+        UserDefaults.standard.string(forKey: "lastStreamFormat") ?? Stream.defaultFormat
     }
 
     // MARK: - Bootstrap / activate

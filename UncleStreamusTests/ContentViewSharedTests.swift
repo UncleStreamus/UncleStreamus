@@ -248,4 +248,27 @@ final class ContentViewSharedTests: XCTestCase {
         XCTAssertTrue(DoubleTapTracker.isTap(dx: 3, dy: -4))
         XCTAssertFalse(DoubleTapTracker.isTap(dx: 0, dy: 20))
     }
+
+    // MARK: - Stream catalogue
+
+    func testStreamCatalogue_fourUniqueFormatsInPickerOrder() {
+        XCTAssertEqual(Stream.all.map(\.format), ["MP3", "OGG", "AAC", "FLAC"])
+        XCTAssertEqual(Set(Stream.all.map(\.url)).count, 4)
+    }
+
+    func testStreamCatalogue_defaultFormatExists() {
+        XCTAssertNotNil(Stream.forFormat(Stream.defaultFormat))
+        XCTAssertEqual(Stream.defaultFormat, "OGG")
+    }
+
+    func testStreamCatalogue_forFormat() {
+        XCTAssertEqual(Stream.forFormat("FLAC")?.url, "https://shoutcast.norbert.de/zappa.flac")
+        XCTAssertNil(Stream.forFormat("WAV"))
+    }
+
+    func testStreamCatalogue_idsAreStable() {
+        // A static list mints each UUID once; repeated reads must agree (picker selection
+        // compares ids).
+        XCTAssertEqual(Stream.all.map(\.id), Stream.all.map(\.id))
+    }
 }

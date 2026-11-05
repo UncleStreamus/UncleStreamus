@@ -217,12 +217,8 @@ enum BASSConfig {
 
     // MARK: - Stream URLs
 
-    let qualities: [(format: String, url: String)] = [
-        ("MP3",       "https://shoutcast.norbert.de/zappa.mp3"),
-        ("OGG",       "https://shoutcast.norbert.de/zappa.ogg"),
-        ("AAC",       "https://shoutcast.norbert.de/zappa.aac"),
-        ("FLAC",      "https://shoutcast.norbert.de/zappa.flac"),
-    ]
+    /// Derived from `Stream.all` so the engine and every UI list share one catalogue.
+    let qualities: [(format: String, url: String)] = Stream.all.map { ($0.format, $0.url) }
 
     // MARK: - Audio Effects
 

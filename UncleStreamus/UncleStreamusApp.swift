@@ -390,8 +390,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // Available streams (must match ContentView)
-    private let streamFormats = ["MP3", "OGG", "AAC", "FLAC"]
+    // Available streams — same catalogue as the window's picker and the engine.
+    private let streamFormats = Stream.all.map(\.format)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil else { return }
