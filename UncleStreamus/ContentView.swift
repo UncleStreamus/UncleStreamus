@@ -1162,30 +1162,10 @@ struct ContentView: View {
         vm.findCurrentTrackPosition()
     }
 
-    /// Renders a setlist row with current track highlighting
-    @ViewBuilder
+    /// Renders a setlist row with current track highlighting (see `SetlistRowView`).
     private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {
-        // Use the confirmed position directly — re-calling findCurrentTrackPosition() here
-        // would use "> vm.currentSetlistPosition" and always highlight the *next* duplicate, not the current one.
-        let isCurrent = vm.currentSetlistPosition == index
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            // Speaker icon for currently playing track (or invisible placeholder)
-            Image(systemName: "speaker.wave.2.fill")
-                .scaledFont(.caption2)
-                .foregroundColor(isCurrent ? .blue : .clear)
-                .frame(width: 14, alignment: .center)
-
-            // Track number
-            Text("\(index).")
-                .scaledFont(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .fixedSize()
-                .frame(minWidth: 20, alignment: .trailing)
-
-            formatSong(song, acronyms: acronyms)
-                .scaledFont(.caption)
-        }
+        SetlistRowView(index: index, song: song, acronyms: acronyms,
+                       isCurrent: vm.currentSetlistPosition == index)
     }
 
     /// Shows the "What's New" sheet once per build update. A first-ever install is
@@ -1438,10 +1418,6 @@ struct ContentView: View {
 
 
     /// Formats a song name using the shared SongFormatter
-    func formatSong(_ song: String, acronyms: [(short: String, full: String)]) -> Text {
-        SongFormatter.format(song, acronyms: acronyms)
-    }
-
     func fetchShowInfo(date: String, showTime: ShowTime = .none) {
         vm.fetchShowInfo(date: date, showTime: showTime)
     }

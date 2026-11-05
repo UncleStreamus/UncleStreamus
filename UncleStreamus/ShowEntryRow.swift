@@ -67,7 +67,7 @@ struct ShowEntryRow: View {
                             Text("\(idx + 1).")
                                 .scaledFont(.caption2)
                                 .foregroundColor(.secondary)
-                            formatSong(song, acronyms: acronyms)
+                            SongFormatter.format(song, acronyms: acronyms)
                                 .scaledFont(.caption2)
                         }
                     }
@@ -236,11 +236,37 @@ struct ShowEntryRow: View {
             #endif
         }
     }
+}
 
-    // MARK: - Song Formatting
+// MARK: - Now-playing setlist row (shared by both ContentViews)
 
-    /// Formats a song name using the shared SongFormatter
-    private func formatSong(_ song: String, acronyms: [(short: String, full: String)]) -> Text {
-        SongFormatter.format(song, acronyms: acronyms)
+/// One row of the now-playing setlist: a speaker icon on the current track (an
+/// invisible placeholder otherwise, so numbers stay aligned), the track number, and
+/// the song with acronyms highlighted. `isCurrent` must come from the confirmed
+/// `vm.currentSetlistPosition` — re-running the position search here would pick the
+/// *next* duplicate of a repeated song, not the current one.
+struct SetlistRowView: View {
+    let index: Int
+    let song: String
+    let acronyms: [(short: String, full: String)]
+    let isCurrent: Bool
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Image(systemName: "speaker.wave.2.fill")
+                .scaledFont(.caption2)
+                .foregroundColor(isCurrent ? .blue : .clear)
+                .frame(width: 14, alignment: .center)
+
+            Text("\(index).")
+                .scaledFont(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+                .fixedSize()
+                .frame(minWidth: 20, alignment: .trailing)
+
+            SongFormatter.format(song, acronyms: acronyms)
+                .scaledFont(.caption)
+        }
     }
 }

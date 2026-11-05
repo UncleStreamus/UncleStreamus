@@ -1018,27 +1018,10 @@ struct ContentView_iOS: View {
         }
     }
 
-    @ViewBuilder
+    /// Renders a setlist row with current track highlighting (see `SetlistRowView`).
     private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {
-        // Use the confirmed position directly — re-calling findCurrentTrackPosition() here
-        // would use "> vm.currentSetlistPosition" and always highlight the *next* duplicate, not the current one.
-        let isCurrent = vm.currentSetlistPosition == index
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Image(systemName: "speaker.wave.2.fill")
-                .scaledFont(.caption2)
-                .foregroundColor(isCurrent ? .blue : .clear)
-                .frame(width: 14, alignment: .center)
-
-            Text("\(index).")
-                .scaledFont(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .fixedSize()
-                .frame(minWidth: 20, alignment: .trailing)
-
-            formatSong(song, acronyms: acronyms)
-                .scaledFont(.caption)
-        }
+        SetlistRowView(index: index, song: song, acronyms: acronyms,
+                       isCurrent: vm.currentSetlistPosition == index)
     }
 
     // MARK: - Placeholder Text
@@ -1101,10 +1084,6 @@ struct ContentView_iOS: View {
     }
 
     // MARK: - Song Formatting
-
-    func formatSong(_ song: String, acronyms: [(short: String, full: String)]) -> Text {
-        SongFormatter.format(song, acronyms: acronyms)
-    }
 
     // MARK: - Audio Session Setup
 
