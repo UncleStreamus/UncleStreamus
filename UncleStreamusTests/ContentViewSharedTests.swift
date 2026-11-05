@@ -249,6 +249,38 @@ final class ContentViewSharedTests: XCTestCase {
         XCTAssertFalse(DoubleTapTracker.isTap(dx: 0, dy: 20))
     }
 
+    // MARK: - Display text
+
+    func testSourceBadge_metadataWins() {
+        XCTAssertEqual(sourceBadge(metadataSource: "FM", showInfo: "SBD master"), "FM")
+    }
+
+    func testSourceBadge_combinedBeatsSingle() {
+        XCTAssertEqual(sourceBadge(metadataSource: nil, showInfo: "aud-sbd matrix"), "AUD-SBD")
+    }
+
+    func testSourceBadge_singleFromShowInfo() {
+        XCTAssertEqual(sourceBadge(metadataSource: nil, showInfo: "Complete SBD"), "SBD")
+        XCTAssertEqual(sourceBadge(metadataSource: nil, showInfo: "stage recording"), "STAGE")
+    }
+
+    func testSourceBadge_nilWhenNothingKnown() {
+        XCTAssertNil(sourceBadge(metadataSource: nil, showInfo: nil))
+        XCTAssertNil(sourceBadge(metadataSource: nil, showInfo: "unknown source"))
+    }
+
+    func testTrackPlaceholder() {
+        XCTAssertEqual(trackPlaceholderText(isPlaying: false, format: "OGG"), "Nothing playing")
+        XCTAssertEqual(trackPlaceholderText(isPlaying: true, format: "OGG"), "Waiting for info...")
+        XCTAssertEqual(trackPlaceholderText(isPlaying: true, format: nil), "Waiting for info...")
+        XCTAssertEqual(trackPlaceholderText(isPlaying: true, format: "MP3"), "No track info")
+    }
+
+    func testShowInfoPlaceholder() {
+        XCTAssertEqual(showInfoPlaceholder(isPlaying: false), "Show Info")
+        XCTAssertEqual(showInfoPlaceholder(isPlaying: true), "Waiting for show info...")
+    }
+
     // MARK: - Stream catalogue
 
     func testStreamCatalogue_fourUniqueFormatsInPickerOrder() {

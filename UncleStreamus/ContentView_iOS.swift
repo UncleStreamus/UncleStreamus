@@ -1044,31 +1044,17 @@ struct ContentView_iOS: View {
     // MARK: - Placeholder Text
 
     private var placeholderText: String {
-        if !isPlaying {
-            return "Nothing playing"
-        } else if selectedStream?.format != "MP3" {
-            return "Waiting for info..."
-        } else {
-            return "No track info"
-        }
+        trackPlaceholderText(isPlaying: isPlaying, format: selectedStream?.format)
     }
 
     /// Source type (AUD/SBD/FM) from metadata, falling back to showInfo HTML when metadata lacks it
     private var displaySource: String? {
-        if let s = vm.parsedTrack?.source { return s }
-        guard let info = vm.currentShow?.showInfo else { return nil }
-        let upper = info.uppercased()
-        for src in ["SBD-AUD", "AUD-SBD", "SBD-FM", "FM-SBD", "AUD-FM", "FM-AUD"] where upper.contains(src) { return src }
-        for src in ["AUD", "SBD", "FM", "STAGE"] where upper.contains(src) { return src }
-        return nil
+        sourceBadge(metadataSource: vm.parsedTrack?.source,
+                    showInfo: vm.currentShow?.showInfo)
     }
 
     private var showInfoPlaceholderText: String {
-        if !isPlaying {
-            return "Show Info"
-        } else {
-            return "Waiting for show info..."
-        }
+        showInfoPlaceholder(isPlaying: isPlaying)
     }
 
     // MARK: - Content Bounce Gesture

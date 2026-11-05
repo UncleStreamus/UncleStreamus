@@ -19,6 +19,33 @@ func dvrFormattedBehind(_ seconds: TimeInterval) -> String {
     return String(format: "%d:%02d", total / 60, total % 60)
 }
 
+// MARK: - Display Text
+
+/// Source badge (AUD/SBD/FM/…) for the track card: the metadata's own source wins;
+/// otherwise scan the show's showInfo text. Combined sources are checked first so
+/// "SBD-AUD" isn't reported as plain "AUD".
+func sourceBadge(metadataSource: String?, showInfo: String?) -> String? {
+    if let metadataSource { return metadataSource }
+    guard let showInfo else { return nil }
+    let upper = showInfo.uppercased()
+    for src in ["SBD-AUD", "AUD-SBD", "SBD-FM", "FM-SBD", "AUD-FM", "FM-AUD"] where upper.contains(src) { return src }
+    for src in ["AUD", "SBD", "FM", "STAGE"] where upper.contains(src) { return src }
+    return nil
+}
+
+/// Track-title placeholder before metadata arrives. MP3 carries in-band ICY titles, so
+/// an MP3 with nothing yet genuinely has no track info; the other formats are still
+/// waiting on Vorbis/Icecast.
+func trackPlaceholderText(isPlaying: Bool, format: String?) -> String {
+    if !isPlaying { return "Nothing playing" }
+    return format != "MP3" ? "Waiting for info..." : "No track info"
+}
+
+/// Show-info header placeholder before a show has loaded.
+func showInfoPlaceholder(isPlaying: Bool) -> String {
+    isPlaying ? "Waiting for show info..." : "Show Info"
+}
+
 // MARK: - Current Track Matching
 
 /// Extracts the first N words from a string for comparison, stripping bracketed
