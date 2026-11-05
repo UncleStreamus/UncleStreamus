@@ -905,4 +905,34 @@ final class ShowTimeFetcherTests: XCTestCase {
         let show = parseVenue("<h4>1970 03 07</h4>", searchDate: "1970 03 07")
         XCTAssertEqual(show?.venue, FZShowsFetcher.unknownVenue)
     }
+
+    // MARK: - FZShowsDatabase.stalePages
+
+    func testStalePages_neverFetchedIsStale() {
+        let now = Date()
+        let stale = FZShowsDatabase.stalePages(["a.html", "b.html"], lastFetched: ["a.html": now], cutoff: now.addingTimeInterval(-60))
+        XCTAssertEqual(stale, ["b.html"])
+    }
+
+    func testStalePages_olderThanCutoffIsStale_newerIsNot() {
+        let cutoff = Date()
+        let stale = FZShowsDatabase.stalePages(
+            ["old.html", "fresh.html", "boundary.html"],
+            lastFetched: ["old.html": cutoff.addingTimeInterval(-1),
+                          "fresh.html": cutoff.addingTimeInterval(1),
+                          "boundary.html": cutoff],
+            cutoff: cutoff)
+        XCTAssertEqual(stale, ["old.html"])   // exactly at cutoff is not stale (strict <)
+    }
+
+    func testStalePages_preservesPageOrder() {
+        let stale = FZShowsDatabase.stalePages(["z.html", "a.html", "m.html"], lastFetched: [:], cutoff: Date())
+        XCTAssertEqual(stale, ["z.html", "a.html", "m.html"])
+    }
+
+    func testStalePages_distantPastMarkerIsStale() {
+        // migrateUnknownVenues() marks pages stale by setting lastFetchedAt = .distantPast.
+        let stale = FZShowsDatabase.stalePages(["6970.html"], lastFetched: ["6970.html": .distantPast], cutoff: Date())
+        XCTAssertEqual(stale, ["6970.html"])
+    }
 }
