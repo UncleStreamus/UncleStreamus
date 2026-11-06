@@ -309,7 +309,7 @@ enum BASSConfig {
     func volumeDown() { setMasterVolume(masterVolume - 0.1) }
 
     var compressorOn:     Bool  = false
-    var compressorAmount: Float = 0.25
+    var compressorAmount: Float = 0.0
 
     // MARK: - Adaptive Compressor (program-dependent threshold)
     // A level-measurement DSP computes a slow-moving RMS average of the input signal.
