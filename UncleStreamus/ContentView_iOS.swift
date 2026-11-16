@@ -29,7 +29,6 @@ struct ContentView_iOS: View {
     private var vm: RadioViewModel { controller.vm }
     private var showDataManager: ShowDataManager? { controller.showDataManager }
     private var fzShowsDB: FZShowsDatabase? { controller.fzShowsDB }
-    private var streams: [Stream] { controller.streams }
     private var isPlaying: Bool {
         get { controller.isPlaying }
         nonmutating set { controller.isPlaying = newValue }
@@ -581,33 +580,7 @@ struct ContentView_iOS: View {
 
             ProportionalHStack(spacing: 10) {
                 // Stream picker
-                Menu {
-                    ForEach(streams) { stream in
-                        Button {
-                            controller.selectStream(stream)
-                        } label: {
-                            HStack {
-                                Text(stream.name)
-                                if selectedStream?.id == stream.id {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "antenna.radiowaves.left.and.right")
-                            .scaledFont(.caption)
-                        Text(selectedStream?.format ?? "Stream")
-                            .scaledFont(.subheadline, weight: .medium)
-                        Image(systemName: "chevron.up.chevron.down")
-                            .scaledFont(.caption2)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color(.tertiarySystemBackground))
-                    .cornerRadius(8)
-                }
+                StreamPickerMenu(controller: controller)
 
                 // FX button
                 Button {
@@ -1123,5 +1096,46 @@ struct ContentView_iOS: View {
     func playStream() { controller.playStream() }
     func stopStream() { controller.stopStream() }
     func resumeOrOfferBuffer() { controller.resumeOrOfferBuffer() }
+}
+
+// MARK: - Stream Picker Menu
+
+/// The transport row's stream-format menu, as its own view so it only redraws when the
+/// selected stream changes. Inline in `streamControlsBar` it was rebuilt on every buffer-time /
+/// pre-buffer / reconnect tick, which replaced the open menu's items mid-tap and cancelled the
+/// row highlight. A native `Picker` gives the system selection rows (highlight + checkmark).
+/// Re-picking the current stream is a no-op (the binding only fires on a change).
+private struct StreamPickerMenu: View {
+    let controller: PlaybackController
+
+    var body: some View {
+        Menu {
+            Picker("Stream", selection: Binding(
+                get: { controller.selectedStream?.format ?? "" },
+                set: { format in
+                    if let stream = controller.streams.first(where: { $0.format == format }) {
+                        controller.selectStream(stream)
+                    }
+                }
+            )) {
+                ForEach(controller.streams) { stream in
+                    Text(stream.name).tag(stream.format)
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .scaledFont(.caption)
+                Text(controller.selectedStream?.format ?? "Stream")
+                    .scaledFont(.subheadline, weight: .medium)
+                Image(systemName: "chevron.up.chevron.down")
+                    .scaledFont(.caption2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(Color(.tertiarySystemBackground))
+            .cornerRadius(8)
+        }
+    }
 }
 #endif
