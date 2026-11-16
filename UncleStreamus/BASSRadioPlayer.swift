@@ -58,6 +58,11 @@ enum BASSConfig {
         return "UncleStreamus/1.0 (\(platform))"
     }()
 
+    // Observation rule: DSP filter/smoothing state and buffer/pump bookkeeping are marked
+    // `@ObservationIgnored`. They're written from BASS's realtime audio thread — some per
+    // *sample* — and each tracked write takes the Observation registrar's lock. No view reads
+    // them. Keep new internal DSP state ignored; only values the UI shows should be tracked.
+
     // MARK: - Public Interface
 
     /// Raw metadata string callback — same format as the old IcecastStreamReader callback.
@@ -150,13 +155,13 @@ enum BASSConfig {
     /// before the blocking BASS_StreamCreateURL call and checked afterward — if another
     /// freeStream() ran concurrently (concurrent restarts from different queues), the generation
     /// will have changed and the stale handle is discarded instead of overwriting a live stream.
-    var streamGeneration: Int = 0
+    @ObservationIgnored var streamGeneration: Int = 0
 
     /// Last decode byte position seen in checkStreamStatus(). Used to detect streams that BASS
     /// keeps in PLAYING state but where decode has frozen (e.g. AAC AudioToolbox ReadBytes loop).
-    var lastKnownStreamBytes: UInt64 = 0
+    @ObservationIgnored var lastKnownStreamBytes: UInt64 = 0
     /// systemUptime when lastKnownStreamBytes last changed. Zero until the stream first decodes data.
-    var lastPositionAdvanceTime: TimeInterval = 0
+    @ObservationIgnored var lastPositionAdvanceTime: TimeInterval = 0
 
     /// True only while the user intends playback to be active.
     /// Set true in switchQuality(); false in stop() / stopWithFadeOut(), and when
@@ -190,21 +195,21 @@ enum BASSConfig {
     // 200 ms at 44.1 kHz stereo float32 — twice the 100 ms tick interval. The headroom lets a
     // jittered or delayed tick pull the backlog and catch up; a buffer sized exactly to the
     // tick could only ever fall further behind the wall clock.
-    var dvrRecordingPumpBuf = [UInt8](repeating: 0, count: 70560)
+    @ObservationIgnored var dvrRecordingPumpBuf = [UInt8](repeating: 0, count: 70560)
     /// Consecutive pump ticks that found the pre-mixer STOPPED (dead live source).
-    var dvrPumpDeadTickCount: Int = 0
+    @ObservationIgnored var dvrPumpDeadTickCount: Int = 0
     /// `systemUptime` of the last pump-driven recovery attempt; throttles the restarts.
-    var dvrPumpLastRecoveryAttempt: TimeInterval = 0
+    @ObservationIgnored var dvrPumpLastRecoveryAttempt: TimeInterval = 0
 
     /// Pump ticks since the pump last started (~10/s). Drives the periodic keepalive health
     /// check on iOS, so it is not DEBUG-only. Reset each time the pump starts.
-    var dvrPumpTickCount: Int = 0
+    @ObservationIgnored var dvrPumpTickCount: Int = 0
 
     #if DEBUG
     // Diagnostics for the DVR background-recording investigation (see plan
     // cosmic-doodling-sifakis). Track recording-pump liveness so we can detect when iOS
     // suspended the app (pump gap) vs the stream stalling. Reset each time the pump starts.
-    var dvrPumpLastTick: Date = .distantPast
+    @ObservationIgnored var dvrPumpLastTick: Date = .distantPast
     #endif
 
     // 3s retry interval, giving up after 12 attempts (~1 minute total).
@@ -250,16 +255,16 @@ enum BASSConfig {
     var lastMetaSyncTitle: String?    // tracks last ICY title seen by BASS_SYNC_META callback
     let cgFadeBufferCount    = 1      // OGG/FLAC/MP3 fade-in buffers (~20ms)
     let cgSilenceBufferCount = 1      // OGG/FLAC/MP3 silent buffers: buf 1 = fade-out (~20ms); no hard-zero (scan catches late splices)
-    var cgFadeBuffersRemaining: Int = 0   // gate buffers remaining (OGG/FLAC/MP3 shared)
-    var cgMP3ScanActive: Bool       = false
-    var cgMP3ScanEnd:    Double     = 0   // systemUptime when scan expires
-    var cgMP3ScanEMA:    Float      = 0   // EMA of D2 spike values (primed at 1.0 on arm)
-    var cgMP3ScanRMSEMA: Float      = 0   // EMA of per-buffer RMS (primed at 1.0 on arm)
-    var cgScanPrevL:     Float      = 0   // last L sample of previous scan buffer (cross-buffer d2)
-    var cgScanPrevPrevL: Float      = 0   // second-to-last L sample (cross-buffer d2)
-    var cgMP3SpikeCount: Int        = 0   // consecutive scan buffers with spike > 1.0 (sustained detector)
-    var cgSyncTime:      Double     = 0   // systemUptime when SYNC fired (for logging)
-    var cgLastGuardTime: Double     = 0   // debounce: systemUptime of last armed guard
+    @ObservationIgnored var cgFadeBuffersRemaining: Int = 0   // gate buffers remaining (OGG/FLAC/MP3 shared)
+    @ObservationIgnored var cgMP3ScanActive: Bool       = false
+    @ObservationIgnored var cgMP3ScanEnd:    Double     = 0   // systemUptime when scan expires
+    @ObservationIgnored var cgMP3ScanEMA:    Float      = 0   // EMA of D2 spike values (primed at 1.0 on arm)
+    @ObservationIgnored var cgMP3ScanRMSEMA: Float      = 0   // EMA of per-buffer RMS (primed at 1.0 on arm)
+    @ObservationIgnored var cgScanPrevL:     Float      = 0   // last L sample of previous scan buffer (cross-buffer d2)
+    @ObservationIgnored var cgScanPrevPrevL: Float      = 0   // second-to-last L sample (cross-buffer d2)
+    @ObservationIgnored var cgMP3SpikeCount: Int        = 0   // consecutive scan buffers with spike > 1.0 (sustained detector)
+    @ObservationIgnored var cgSyncTime:      Double     = 0   // systemUptime when SYNC fired (for logging)
+    @ObservationIgnored var cgLastGuardTime: Double     = 0   // debounce: systemUptime of last armed guard
 
     // MARK: - FLAC Download Buffer Refill Pause
     // When dlBuf falls below a threshold at a track boundary, freeze the stream channel
@@ -311,11 +316,11 @@ enum BASSConfig {
     // A level-measurement DSP computes a slow-moving RMS average of the input signal.
     // The compressor threshold is set relative to this average, so it compresses
     // proportionally regardless of whether the track is quiet or loud.
-    var measuredRMSdB: Float = -20.0       // Current program level (dBFS), slow-moving
-    var rmsAccumulator: Float = 0.0        // Running sum-of-squares for current window
-    var rmsSampleCount: Int = 0            // Samples accumulated so far
+    @ObservationIgnored var measuredRMSdB: Float = -20.0       // Current program level (dBFS), slow-moving
+    @ObservationIgnored var rmsAccumulator: Float = 0.0        // Running sum-of-squares for current window
+    @ObservationIgnored var rmsSampleCount: Int = 0            // Samples accumulated so far
     let rmsWindowSamples: Int = 66150      // ~1.5s window @ 44.1 kHz (stereo frames)
-    var lastAppliedThreshold: Float = 0.0  // Avoid redundant BASS_FXSetParameters calls
+    @ObservationIgnored var lastAppliedThreshold: Float = 0.0  // Avoid redundant BASS_FXSetParameters calls
 
     var stereoWidth: Float = 0.75
     var stereoPan:   Float = 0.5
@@ -327,13 +332,13 @@ enum BASSConfig {
     // MARK: - Stereo DSP Parameter Smoothing
     // Per-buffer exponential smoothing with linear interpolation within each buffer
     // prevents pops/clicks from abrupt parameter jumps at buffer boundaries.
-    var smoothedStereoCoeff: Float = 1.0   // Tracks stereoWidthCoeff
-    var smoothedPanOffset:   Float = 0.0   // Tracks (stereoPan - 0.5) * 2.0
+    @ObservationIgnored var smoothedStereoCoeff: Float = 1.0   // Tracks stereoWidthCoeff
+    @ObservationIgnored var smoothedPanOffset:   Float = 0.0   // Tracks (stereoPan - 0.5) * 2.0
 
     // MARK: - Frequency-Dependent Stereo Processing (400 Hz and 3.5 kHz crossovers)
-    var centerSpreadLPFState:  Float = 0.0  // Low-pass filter state for mono center channel
-    var sideChannelLPFState:   Float = 0.0  // Low-pass filter state for side channel (low/mid crossover ~400 Hz)
-    var sideChannelMidLPFState: Float = 0.0 // Low-pass filter state for side channel (mid/high crossover ~3.5 kHz)
+    @ObservationIgnored var centerSpreadLPFState:  Float = 0.0  // Low-pass filter state for mono center channel
+    @ObservationIgnored var sideChannelLPFState:   Float = 0.0  // Low-pass filter state for side channel (low/mid crossover ~400 Hz)
+    @ObservationIgnored var sideChannelMidLPFState: Float = 0.0 // Low-pass filter state for side channel (mid/high crossover ~3.5 kHz)
     let centerSpreadCrossoverHz: Float = 400.0
     // alpha = 2*pi*f / (2*pi*f + sr) ≈ 0.0556 for 400 Hz @ 44.1 kHz
     let centerSpreadLPFAlpha: Float = 0.0556
@@ -346,24 +351,24 @@ enum BASSConfig {
     // Above ~5 kHz the cascade exceeds 180°, biasing slightly right — balancing the
     // below-2.5 kHz left bias. Net result: much more even spread L and R across typical music.
     // Classic L+=, R-= M/S synthesis is retained; the cascade output drives both.
-    var synthAPFInput:   Float = 0.0   // Stage 1 x[n-1]
-    var synthAPFOutput:  Float = 0.0   // Stage 1 y[n-1]
-    var synthAPF2Input:  Float = 0.0   // Stage 2 x[n-1]
-    var synthAPF2Output: Float = 0.0   // Stage 2 y[n-1]
-    var smoothedMonoFraction: Float = 0.0  // Per-buffer mono detection (0=stereo, 1=mono)
+    @ObservationIgnored var synthAPFInput:   Float = 0.0   // Stage 1 x[n-1]
+    @ObservationIgnored var synthAPFOutput:  Float = 0.0   // Stage 1 y[n-1]
+    @ObservationIgnored var synthAPF2Input:  Float = 0.0   // Stage 2 x[n-1]
+    @ObservationIgnored var synthAPF2Output: Float = 0.0   // Stage 2 y[n-1]
+    @ObservationIgnored var smoothedMonoFraction: Float = 0.0  // Per-buffer mono detection (0=stereo, 1=mono)
     let synthAPFCoeff: Float = -0.75   // APF coefficient for both stages
     // High-pass filter applied to M before the APF cascade — shapes widening by frequency:
     //   < 100 Hz → −12 dB (barely spread)   ~400 Hz → −3 dB (somewhat)   > 1 kHz → < −1 dB (most)
     // α = fs / (fs + 2π·fc) = 44100 / (44100 + 2π·400) ≈ 0.946
-    var synthHPFInput:  Float = 0.0
-    var synthHPFOutput: Float = 0.0
+    @ObservationIgnored var synthHPFInput:  Float = 0.0
+    @ObservationIgnored var synthHPFOutput: Float = 0.0
     let synthHPFAlpha:  Float = 0.9461
 
     // MARK: - Center Spread APF (symmetric high-freq spread for right channel)
     // R channel gets APF-shifted M_highFreq rather than -M_highFreq so it also
     // gains high-frequency content (decorrelated from L) instead of losing it.
-    var spreadAPFInput:  Float = 0.0
-    var spreadAPFOutput: Float = 0.0
+    @ObservationIgnored var spreadAPFInput:  Float = 0.0
+    @ObservationIgnored var spreadAPFOutput: Float = 0.0
 
     // MARK: - DVR
     // macOS only at runtime; properties must be unconditionally declared so @Observable
@@ -399,7 +404,7 @@ enum BASSConfig {
     // Populated by publishTitle() during live streaming; consulted during DVR playback
     // to replay track-change notifications at the correct recorded position.
     // All reads/writes happen on the main thread (append dispatched from publishTitle).
-    var dvrMetadataJournal: [(timestamp: Double, metadata: String)] = []
+    @ObservationIgnored var dvrMetadataJournal: [(timestamp: Double, metadata: String)] = []
     var lastDVRPublishedMetadata: String? = nil
     var dvrMetadataTimer: Timer? = nil
     var dvrBufferFull: Bool = false        // set when recording fills the window
@@ -415,15 +420,15 @@ enum BASSConfig {
     // Keeps DVREndSyncContext objects alive while BASS holds raw pointers to them.
     // Keys are DVR stream handles; values are the context objects. Entries removed
     // when the corresponding stream is freed (so objects outlive their BASS channels).
-    var dvrSyncContexts: [DWORD: AnyObject] = [:]
+    @ObservationIgnored var dvrSyncContexts: [DWORD: AnyObject] = [:]
 
     // MARK: - FX Blend (smooth on/off transitions)
     // Ramp blend 0→1 (passthrough→active) over ~83ms when toggling compressor/EQ or master bypass.
     // Prevents clicks/pops caused by abrupt compressor state jumps or filter coefficient changes.
-    var compressorBlend: Float = 0.0     // 0 = passthrough, 1 = fully active
-    var compressorBlendGoal: Float = 0.0 // desired target
-    var eqBlend: Float = 1.0             // 0 = all bands at 0 dB, 1 = active gains
-    var eqBlendGoal: Float = 1.0
+    @ObservationIgnored var compressorBlend: Float = 0.0     // 0 = passthrough, 1 = fully active
+    @ObservationIgnored var compressorBlendGoal: Float = 0.0 // desired target
+    @ObservationIgnored var eqBlend: Float = 1.0             // 0 = all bands at 0 dB, 1 = active gains
+    @ObservationIgnored var eqBlendGoal: Float = 1.0
     var fxRampTimer: Timer?
 
     // MARK: - Sub Bass (musical octave-down synthesis)
@@ -438,16 +443,16 @@ enum BASSConfig {
     // toggling and is added equally to L+R (bass is centred). Inserted before the
     // limiter so peaks stay protected.
     var subBassEnabled: Bool   = false
-    var subBassBlend: Float    = 0.0   // 0 = silent, 1 = fully mixed in
-    var subBassBlendGoal: Float = 0.0
+    @ObservationIgnored var subBassBlend: Float    = 0.0   // 0 = silent, 1 = fully mixed in
+    @ObservationIgnored var subBassBlendGoal: Float = 0.0
     // DSP state (single-threaded inside the BASS render callback)
-    var subBassSVFLow:  Float = 0.0    // Chamberlin state-variable filter low state
-    var subBassSVFBand: Float = 0.0    // ...band-pass state (≈72 Hz band)
-    var subBassEnv:     Float = 0.0    // envelope follower on the band-pass output
-    var subBassPolarity: Float = 1.0   // ±1 square, flips each rising zero-crossing
-    var subBassPrevPositive: Bool = true
-    var subBassLPAState: Float = 0.0   // ~70 Hz low-pass → octave-down fundamental
-    var subBassLPBState: Float = 0.0   // ~200 Hz low-pass → fundamental + low harmonics
+    @ObservationIgnored var subBassSVFLow:  Float = 0.0    // Chamberlin state-variable filter low state
+    @ObservationIgnored var subBassSVFBand: Float = 0.0    // ...band-pass state (≈72 Hz band)
+    @ObservationIgnored var subBassEnv:     Float = 0.0    // envelope follower on the band-pass output
+    @ObservationIgnored var subBassPolarity: Float = 1.0   // ±1 square, flips each rising zero-crossing
+    @ObservationIgnored var subBassPrevPositive: Bool = true
+    @ObservationIgnored var subBassLPAState: Float = 0.0   // ~70 Hz low-pass → octave-down fundamental
+    @ObservationIgnored var subBassLPBState: Float = 0.0   // ~200 Hz low-pass → fundamental + low harmonics
     // Fixed coefficients (44.1 kHz). f = 2·sin(π·fc/fs); LP α = 2π·fc/(2π·fc+fs).
     let subBassSVFf: Float        = 0.010258  // band-pass centre ≈72 Hz
     let subBassSVFq: Float        = 0.714     // 1/Q (Q ≈ 1.4) — narrow, focuses kick/bass
