@@ -1,4 +1,5 @@
 import Foundation
+import os
 #if os(macOS)
 import Bass
 #endif
@@ -8,7 +9,7 @@ import Bass
 // Rolling WAV ring buffer for DVR "pause live stream" feature.
 //
 // Architecture:
-//   DSP audio thread → append() → in-memory ring buffer (os_unfair_lock)
+//   DSP audio thread → append() → in-memory ring buffer (unfair lock)
 //                                      ↓ drain at ~50 Hz on write queue
 //                              WAV segment files on disk (15 × 60 s)
 //
@@ -36,13 +37,16 @@ final class StreamBuffer {
     // MARK: - In-memory ring buffer (write: audio thread, read: write queue)
 
     // 512 K Float32 samples ≈ 5.8 s of stereo audio @ 44.1 kHz.
-    // Acts as a lock-free-style bridge; os_unfair_lock keeps critical sections <10 µs.
+    // Acts as a lock-free-style bridge; an unfair lock keeps critical sections <10 µs.
+    // OSAllocatedUnfairLock (not a stored `os_unfair_lock` passed as `&lock`): Swift doesn't
+    // guarantee a stored property a stable address, which an unfair lock needs; this one
+    // owns its own heap allocation. Same lock()/unlock() cost, no closures on the audio thread.
     private let memCapacity = 524_288          // Float32 samples
     private var memBuffer:  [Float]
     private var memWritePos = 0
     private var memReadPos  = 0
     private var memAvailable = 0
-    private var lock = os_unfair_lock()
+    private let lock = OSAllocatedUnfairLock()
 
     // MARK: - Disk state (write queue only)
 
@@ -160,7 +164,7 @@ final class StreamBuffer {
         let floats = buffer.assumingMemoryBound(to: Float.self)
         let count  = length / MemoryLayout<Float>.size
 
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         let space = memCapacity - memAvailable
         let n     = min(count, space)
         for i in 0..<n {
@@ -168,7 +172,7 @@ final class StreamBuffer {
             memWritePos = (memWritePos &+ 1) % memCapacity
         }
         memAvailable += n
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
     }
 
     // MARK: - Timing
@@ -278,9 +282,9 @@ final class StreamBuffer {
         // Process in chunks; keep stereo alignment (even sample count).
         let maxChunkSamples = 8192
         while true {
-            os_unfair_lock_lock(&lock)
+            lock.lock()
             let available = memAvailable
-            os_unfair_lock_unlock(&lock)
+            lock.unlock()
             guard available >= 2 else { break }
 
             // Never write past the segment boundary. Without this clamp the chunk that crosses
@@ -297,13 +301,13 @@ final class StreamBuffer {
             let chunkSamples = min(available & ~1, maxChunkSamples, remainingInSegment)
             var chunk = [Float](repeating: 0, count: chunkSamples)
 
-            os_unfair_lock_lock(&lock)
+            lock.lock()
             for i in 0..<chunkSamples {
                 chunk[i]   = memBuffer[memReadPos]
                 memReadPos = (memReadPos &+ 1) % memCapacity
             }
             memAvailable -= chunkSamples
-            os_unfair_lock_unlock(&lock)
+            lock.unlock()
 
             // Float32 → Int16 conversion (clamp then scale)
             var pcm16 = [Int16](repeating: 0, count: chunkSamples)
