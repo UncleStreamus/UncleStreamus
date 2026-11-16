@@ -63,6 +63,62 @@ final class ContentViewSharedTests: XCTestCase {
         XCTAssertEqual(action, .keep)
     }
 
+    // MARK: - showFetchDecision
+
+    func testShowFetchDecision_firstShowIsAChangeAndFetches() {
+        let d = showFetchDecision(variant: "1974 11 08 L", lastVariant: nil,
+                                  loadedShowDate: nil, inFlightVariant: nil)
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: true, shouldFetch: true))
+    }
+
+    func testShowFetchDecision_newShowIsAChangeAndFetches() {
+        let d = showFetchDecision(variant: "1974 11 08 L", lastVariant: "1973 11 07",
+                                  loadedShowDate: "1973 11 07", inFlightVariant: nil)
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: true, shouldFetch: true))
+    }
+
+    func testShowFetchDecision_sameShowAlreadyLoadedDoesNothing() {
+        let d = showFetchDecision(variant: "1973 11 07", lastVariant: "1973 11 07",
+                                  loadedShowDate: "1973 11 07", inFlightVariant: nil)
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: false, shouldFetch: false))
+    }
+
+    /// The Nov-2026 bug: a show that wasn't found (or whose fetch failed) left
+    /// `currentShow` nil, so every later track was treated as a show change and
+    /// re-ran the FX action — wiping FX each track in reset mode. It should only
+    /// retry the fetch.
+    func testShowFetchDecision_sameShowNotFoundRetriesWithoutShowChange() {
+        let d = showFetchDecision(variant: "1988 02 02", lastVariant: "1988 02 02",
+                                  loadedShowDate: nil, inFlightVariant: nil)
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: false, shouldFetch: true))
+    }
+
+    func testShowFetchDecision_sameShowFetchInFlightDoesNothing() {
+        let d = showFetchDecision(variant: "1988 02 02", lastVariant: "1988 02 02",
+                                  loadedShowDate: nil, inFlightVariant: "1988 02 02")
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: false, shouldFetch: false))
+    }
+
+    func testShowFetchDecision_newShowWhilePreviousInFlightFetches() {
+        let d = showFetchDecision(variant: "1974 11 08 E", lastVariant: "1988 02 02",
+                                  loadedShowDate: nil, inFlightVariant: "1988 02 02")
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: true, shouldFetch: true))
+    }
+
+    /// B loaded → A's fetch starts → back to B before it lands. B is still loaded, but a
+    /// show change must still fetch (the caller cancels A's fetch) so A can't overwrite B.
+    func testShowFetchDecision_returningToStillLoadedShowStillFetches() {
+        let d = showFetchDecision(variant: "1973 11 07", lastVariant: "1988 02 02",
+                                  loadedShowDate: "1973 11 07", inFlightVariant: "1988 02 02")
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: true, shouldFetch: true))
+    }
+
+    func testShowFetchDecision_earlyAndLateAreDifferentShows() {
+        let d = showFetchDecision(variant: "1974 11 08 L", lastVariant: "1974 11 08 E",
+                                  loadedShowDate: "1974 11 08 E", inFlightVariant: nil)
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: true, shouldFetch: true))
+    }
+
     // MARK: - decideWhatsNew
 
     private func notes(current: Bool, empty: Bool = false) -> ReleaseNotes {

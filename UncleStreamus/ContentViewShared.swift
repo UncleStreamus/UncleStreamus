@@ -121,6 +121,32 @@ func fxShowChangeAction(carriedOver: Bool, rememberPerShow: Bool,
     return .keep
 }
 
+// MARK: - Show Fetch Decision
+
+/// What `RadioViewModel.fetchShowInfo` should do for an incoming track's show.
+/// `isShowChange` — the show (variant date) differs from the previous track's: run the FX
+/// show-change action, close the AAC carry-over window, stamp `currentShowDate`.
+/// `shouldFetch` — the show isn't loaded and isn't already being fetched.
+struct ShowFetchDecision: Equatable {
+    let isShowChange: Bool
+    let shouldFetch: Bool
+}
+
+/// Keeps "is this a new show?" separate from "do we need to fetch?". They used to be one
+/// check (`currentShow?.date != variant`), so a show that wasn't found — or whose fetch
+/// failed — left `currentShow` nil and every later track counted as a show change,
+/// re-running the FX action (wiping FX each track in reset mode). Now a same-show track
+/// with nothing loaded just retries the fetch, unless one is already in flight.
+/// A show change always fetches — the caller cancels any in-flight fetch on a change, and
+/// even if the show is somehow still loaded (B → A → B inside one fetch), re-fetching is a
+/// cache hit that runs the completion's deferred per-show FX reset for it.
+func showFetchDecision(variant: String, lastVariant: String?,
+                       loadedShowDate: String?, inFlightVariant: String?) -> ShowFetchDecision {
+    let isShowChange = variant != lastVariant
+    let shouldFetch = isShowChange || (loadedShowDate != variant && inFlightVariant != variant)
+    return ShowFetchDecision(isShowChange: isShowChange, shouldFetch: shouldFetch)
+}
+
 // MARK: - What's New / Welcome Gating
 
 /// The UI action that should follow a "What's New" check.
