@@ -695,9 +695,12 @@ final class PlaybackController {
             // Stop audio immediately on interruption (phone call, Siri, another app claiming
             // the session). Use DVR-aware pause so the ring buffer keeps recording through the
             // call; the user can catch up when it ends.
+            // Buffer off → full stopStream() (not bare stopWithFadeOut), so isPlaying, the
+            // lock screen, CarPlay and wasPlayingOnQuit all show stopped. stopWithFadeOut clears
+            // isUserIntendedPlay, so .ended never auto-resumes this case either way.
             switch bassPlayer.dvrState {
             case .live:
-                if dvrEnabled { bassPlayer.dvrPause() } else { bassPlayer.stopWithFadeOut() }
+                if dvrEnabled { bassPlayer.dvrPause() } else { stopStream() }
             case .playing:
                 bassPlayer.dvrPausePlayback()
             case .paused:
@@ -750,7 +753,7 @@ final class PlaybackController {
 
         switch bassPlayer.dvrState {
         case .live:
-            if dvrEnabled { bassPlayer.dvrPause() } else { bassPlayer.stopWithFadeOut() }
+            if dvrEnabled { bassPlayer.dvrPause() } else { stopStream() }
         case .playing:
             bassPlayer.dvrPausePlayback()
         case .paused:
