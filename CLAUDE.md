@@ -360,7 +360,7 @@ Platform-Specific:
 
 **State Management:**
 - `@State` for local view state, `@AppStorage` for persistent user preferences
-- `ShowDataManager` is an `@Observable`, **`@MainActor`-isolated** global singleton, shared across both platforms
+- `ShowDataManager` is an `@Observable`, **`@MainActor`-isolated** class, shared code across both platforms — but **not a singleton**: it's created per owner (iOS `PlaybackController`, macOS `ContentView`, plus a short-lived one in Settings). Cross-instance state must live elsewhere — e.g. favourite-star refreshes go through the shared `FavoritesSignal.shared` (read via `favoriteVersion`), not a per-instance counter
 - `RadioViewModel` (`@Observable`) holds the shared now-playing/show-fetch runtime state; each ContentView keeps its own `@State` instance and assigns references + side-effect closures onto it in `setupPlayer()`
 - `FZShowsDatabase` is an `@Observable` SwiftData-backed singleton (offline show cache)
 - `@Query` properties on views reactively track SwiftData model changes
@@ -563,7 +563,7 @@ Platform-Specific:
 | `FZShowsPageRecord.swift` | SwiftData `@Model` for per-page fetch bookkeeping (filename, `lastFetchedAt`, `showCount`) driving staleness |
 | `RadioViewModel.swift` | Shared `@Observable` runtime state (now-playing/show-fetch) + `updateTrackInfo`/`fetchShowInfo`; menubar (macOS) + CarPlay/now-playing side-effect closures injected by each view |
 | `ContentViewShared.swift` | Pure, platform-neutral logic shared by both ContentViews (variant-date, FX restore plan, launch-sheet decision, current-track matching, inferred artist); unit-tested without a SwiftUI host |
-| `ShowDataManager.swift` | SwiftData persistence — `@Observable`, **`@MainActor`** singleton, `recordListen()`, history/favorites queries, `toggleFavorite()` |
+| `ShowDataManager.swift` | SwiftData persistence — `@Observable`, **`@MainActor`** (one instance per owner, not a singleton), `recordListen()`, history/favorites queries, `toggleFavorite()`; `FavoritesSignal` (shared favourites-changed counter) |
 | `SavedShow.swift` | SwiftData `@Model` — unique key `showDate` ("YYYY MM DD"); setlist/acronyms as JSON `Data` |
 | `ContentView.swift` | macOS main window — track info card, show info section, FX panel (inline), DVR controls, menubar command closures, `DraggableDivider`, `ScrollWheelOverlay` |
 | `ContentView_iOS.swift` | iOS/iPadOS — NavigationStack, iPhone overlay + iPad inline sidebars, DVR controls, sheet-based FX/settings, lock screen integration, CarPlay bridge sync |

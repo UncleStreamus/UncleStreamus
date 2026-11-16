@@ -4,11 +4,25 @@ import Foundation
 import UIKit
 #endif
 
+/// App-wide "favourites changed" signal. `ShowDataManager` is created in more than one
+/// place (each platform's playback owner, plus a short-lived one in Settings → Clear
+/// Favourites), so a per-instance counter only notified views holding *that* instance —
+/// clearing favourites from Settings left the now-playing star filled. Every instance
+/// bumps and reads this one counter instead.
+@Observable
+@MainActor
+final class FavoritesSignal {
+    static let shared = FavoritesSignal()
+    private(set) var version = 0
+    func bump() { version += 1 }
+}
+
 @Observable
 @MainActor
 class ShowDataManager {
     private var modelContext: ModelContext
-    var favoriteVersion: Int = 0
+    /// Read in a view to re-render whenever any favourite changes, from any instance.
+    var favoriteVersion: Int { FavoritesSignal.shared.version }
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
@@ -195,7 +209,7 @@ class ShowDataManager {
             print("ShowDataManager: SwiftData save error — \(error)")
             #endif
         }
-        favoriteVersion += 1
+        FavoritesSignal.shared.bump()
     }
 
     func isFavorite(showDate: String) -> Bool {
@@ -253,7 +267,7 @@ class ShowDataManager {
             print("ShowDataManager: SwiftData save error — \(error)")
             #endif
         }
-        favoriteVersion += 1
+        FavoritesSignal.shared.bump()
     }
 
     // MARK: - iCloud Sync
