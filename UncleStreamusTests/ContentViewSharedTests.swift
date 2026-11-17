@@ -31,26 +31,6 @@ final class ContentViewSharedTests: XCTestCase {
         XCTAssertEqual(variantDate(date: "1980 12 11", showTime: .late), "1980 12 11 L")
     }
 
-    // MARK: - fxRestorePlan
-
-    func testFXRestorePlan_remember() {
-        let plan = fxRestorePlan(variantDate: "X", rememberPerShow: true, persistAcrossShows: false)
-        guard case .restore(let d) = plan else { return XCTFail("expected .restore") }
-        XCTAssertEqual(d, "X")
-    }
-
-    func testFXRestorePlan_resetWhenNotPersisting() {
-        guard case .reset = fxRestorePlan(variantDate: "X", rememberPerShow: false, persistAcrossShows: false) else {
-            return XCTFail("expected .reset")
-        }
-    }
-
-    func testFXRestorePlan_keepWhenPersisting() {
-        guard case .keep = fxRestorePlan(variantDate: "X", rememberPerShow: false, persistAcrossShows: true) else {
-            return XCTFail("expected .keep")
-        }
-    }
-
     // MARK: - fxShowChangeAction (AAC carry-over)
 
     func testFXShowChangeAction_carryOverSavesWhenRemembering() {
@@ -81,6 +61,62 @@ final class ContentViewSharedTests: XCTestCase {
         let action = fxShowChangeAction(carriedOver: false, rememberPerShow: false,
                                         persistAcrossShows: true, variantDate: "X")
         XCTAssertEqual(action, .keep)
+    }
+
+    // MARK: - showFetchDecision
+
+    func testShowFetchDecision_firstShowIsAChangeAndFetches() {
+        let d = showFetchDecision(variant: "1974 11 08 L", lastVariant: nil,
+                                  loadedShowDate: nil, inFlightVariant: nil)
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: true, shouldFetch: true))
+    }
+
+    func testShowFetchDecision_newShowIsAChangeAndFetches() {
+        let d = showFetchDecision(variant: "1974 11 08 L", lastVariant: "1973 11 07",
+                                  loadedShowDate: "1973 11 07", inFlightVariant: nil)
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: true, shouldFetch: true))
+    }
+
+    func testShowFetchDecision_sameShowAlreadyLoadedDoesNothing() {
+        let d = showFetchDecision(variant: "1973 11 07", lastVariant: "1973 11 07",
+                                  loadedShowDate: "1973 11 07", inFlightVariant: nil)
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: false, shouldFetch: false))
+    }
+
+    /// The Nov-2026 bug: a show that wasn't found (or whose fetch failed) left
+    /// `currentShow` nil, so every later track was treated as a show change and
+    /// re-ran the FX action — wiping FX each track in reset mode. It should only
+    /// retry the fetch.
+    func testShowFetchDecision_sameShowNotFoundRetriesWithoutShowChange() {
+        let d = showFetchDecision(variant: "1988 02 02", lastVariant: "1988 02 02",
+                                  loadedShowDate: nil, inFlightVariant: nil)
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: false, shouldFetch: true))
+    }
+
+    func testShowFetchDecision_sameShowFetchInFlightDoesNothing() {
+        let d = showFetchDecision(variant: "1988 02 02", lastVariant: "1988 02 02",
+                                  loadedShowDate: nil, inFlightVariant: "1988 02 02")
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: false, shouldFetch: false))
+    }
+
+    func testShowFetchDecision_newShowWhilePreviousInFlightFetches() {
+        let d = showFetchDecision(variant: "1974 11 08 E", lastVariant: "1988 02 02",
+                                  loadedShowDate: nil, inFlightVariant: "1988 02 02")
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: true, shouldFetch: true))
+    }
+
+    /// B loaded → A's fetch starts → back to B before it lands. B is still loaded, but a
+    /// show change must still fetch (the caller cancels A's fetch) so A can't overwrite B.
+    func testShowFetchDecision_returningToStillLoadedShowStillFetches() {
+        let d = showFetchDecision(variant: "1973 11 07", lastVariant: "1988 02 02",
+                                  loadedShowDate: "1973 11 07", inFlightVariant: "1988 02 02")
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: true, shouldFetch: true))
+    }
+
+    func testShowFetchDecision_earlyAndLateAreDifferentShows() {
+        let d = showFetchDecision(variant: "1974 11 08 L", lastVariant: "1974 11 08 E",
+                                  loadedShowDate: "1974 11 08 E", inFlightVariant: nil)
+        XCTAssertEqual(d, ShowFetchDecision(isShowChange: true, shouldFetch: true))
     }
 
     // MARK: - decideWhatsNew
@@ -267,5 +303,60 @@ final class ContentViewSharedTests: XCTestCase {
     func testDoubleTap_isTapThreshold() {
         XCTAssertTrue(DoubleTapTracker.isTap(dx: 3, dy: -4))
         XCTAssertFalse(DoubleTapTracker.isTap(dx: 0, dy: 20))
+    }
+
+    // MARK: - Display text
+
+    func testSourceBadge_metadataWins() {
+        XCTAssertEqual(sourceBadge(metadataSource: "FM", showInfo: "SBD master"), "FM")
+    }
+
+    func testSourceBadge_combinedBeatsSingle() {
+        XCTAssertEqual(sourceBadge(metadataSource: nil, showInfo: "aud-sbd matrix"), "AUD-SBD")
+    }
+
+    func testSourceBadge_singleFromShowInfo() {
+        XCTAssertEqual(sourceBadge(metadataSource: nil, showInfo: "Complete SBD"), "SBD")
+        XCTAssertEqual(sourceBadge(metadataSource: nil, showInfo: "stage recording"), "STAGE")
+    }
+
+    func testSourceBadge_nilWhenNothingKnown() {
+        XCTAssertNil(sourceBadge(metadataSource: nil, showInfo: nil))
+        XCTAssertNil(sourceBadge(metadataSource: nil, showInfo: "unknown source"))
+    }
+
+    func testTrackPlaceholder() {
+        XCTAssertEqual(trackPlaceholderText(isPlaying: false, format: "OGG"), "Nothing playing")
+        XCTAssertEqual(trackPlaceholderText(isPlaying: true, format: "OGG"), "Waiting for info...")
+        XCTAssertEqual(trackPlaceholderText(isPlaying: true, format: nil), "Waiting for info...")
+        XCTAssertEqual(trackPlaceholderText(isPlaying: true, format: "MP3"), "No track info")
+    }
+
+    func testShowInfoPlaceholder() {
+        XCTAssertEqual(showInfoPlaceholder(isPlaying: false), "Show Info")
+        XCTAssertEqual(showInfoPlaceholder(isPlaying: true), "Waiting for show info...")
+    }
+
+    // MARK: - Stream catalogue
+
+    func testStreamCatalogue_fourUniqueFormatsInPickerOrder() {
+        XCTAssertEqual(Stream.all.map(\.format), ["MP3", "OGG", "AAC", "FLAC"])
+        XCTAssertEqual(Set(Stream.all.map(\.url)).count, 4)
+    }
+
+    func testStreamCatalogue_defaultFormatExists() {
+        XCTAssertNotNil(Stream.forFormat(Stream.defaultFormat))
+        XCTAssertEqual(Stream.defaultFormat, "OGG")
+    }
+
+    func testStreamCatalogue_forFormat() {
+        XCTAssertEqual(Stream.forFormat("FLAC")?.url, "https://shoutcast.norbert.de/zappa.flac")
+        XCTAssertNil(Stream.forFormat("WAV"))
+    }
+
+    func testStreamCatalogue_idsAreStable() {
+        // A static list mints each UUID once; repeated reads must agree (picker selection
+        // compares ids).
+        XCTAssertEqual(Stream.all.map(\.id), Stream.all.map(\.id))
     }
 }

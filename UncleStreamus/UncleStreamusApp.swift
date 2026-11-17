@@ -382,16 +382,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var currentShowInfo: String?
     private var selectedStreamFormat: String {
         get {
-            let format = UserDefaults.standard.string(forKey: "lastStreamFormat") ?? "MP3"
-            return format
+            // Same fallback as the window's @AppStorage — otherwise a fresh install ticks
+            // MP3 in this menu while the app actually plays OGG.
+            UserDefaults.standard.string(forKey: "lastStreamFormat") ?? Stream.defaultFormat
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "lastStreamFormat")
         }
     }
 
-    // Available streams (must match ContentView)
-    private let streamFormats = ["MP3", "OGG", "AAC", "FLAC"]
+    // Available streams — same catalogue as the window's picker and the engine.
+    private let streamFormats = Stream.all.map(\.format)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil else { return }

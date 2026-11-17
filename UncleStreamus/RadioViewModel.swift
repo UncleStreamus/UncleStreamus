@@ -29,6 +29,21 @@ final class RadioViewModel {
     var currentSetlistPosition: Int = 0
     var isFetchingShowInfo: Bool = false
 
+    // MARK: - Show-fetch bookkeeping (internal; no view reads these)
+
+    /// Variant date of the most recent track's show — what "show change" is measured
+    /// against. Deliberately separate from `currentShow`, which stays nil for a show that
+    /// wasn't found (see `showFetchDecision`).
+    @ObservationIgnored private var lastShowVariant: String?
+    /// Variant being fetched right now, so a same-show track doesn't start a duplicate.
+    @ObservationIgnored private var inFlightVariant: String?
+    /// Bumped per fetch and on every show change; a completion only applies if it still
+    /// matches, so a slow fetch for an old show can't overwrite the current one.
+    @ObservationIgnored private var fetchGeneration = 0
+    /// Whether the current show's change was an AAC carry-over, so a retried fetch makes
+    /// the same deferred-reset decision the first one would have.
+    @ObservationIgnored private var showChangeCarriedOver = false
+
     // MARK: - References (owned by the view; set once during setup)
 
     /// Set in the view's setupPlayer() before any metadata can arrive.
@@ -91,6 +106,7 @@ final class RadioViewModel {
             // Non-Zappa broadcast (cover band / guest set): no zappateers setlist
             // exists, so skip the futile fetch. Clear any prior show so the previous
             // Zappa setlist doesn't linger under the new track.
+            cancelInFlightFetch()
             currentShow = nil
             currentSetlistPosition = 0
             isFetchingShowInfo = false
@@ -132,39 +148,63 @@ final class RadioViewModel {
 
     // MARK: - Show fetch
 
+    /// Make any in-flight fetch's completion a no-op (its generation no longer matches).
+    private func cancelInFlightFetch() {
+        fetchGeneration += 1
+        inFlightVariant = nil
+    }
+
     /// Fetch a show's setlist/venue and update state. Mirrors the per-view
     /// `fetchShowInfo`, including the deferred per-show FX reset.
     func fetchShowInfo(date: String, showTime: ShowTime = .none) {
         let variant = variantDate(date: date, showTime: showTime)
-        guard currentShow?.date != variant else { return }
+        let decision = showFetchDecision(variant: variant,
+                                         lastVariant: lastShowVariant,
+                                         loadedShowDate: currentShow?.date,
+                                         inFlightVariant: inFlightVariant)
 
-        bassPlayer.currentShowDate = variant
+        if decision.isShowChange {
+            lastShowVariant = variant
+            bassPlayer.currentShowDate = variant
 
-        // Metadata has now caught up to the new show, so the AAC carry-over window
-        // (if any) is over. Capture whether the user dialed in FX during it and clear
-        // the window synchronously — from here, saving resumes normally against the
-        // new show.
-        let carriedOver = bassPlayer.aacCarryoverActive && bassPlayer.aacCarryoverFXAdjusted
-        bassPlayer.aacCarryoverActive = false
-        bassPlayer.aacCarryoverFXAdjusted = false
+            // Any fetch still in flight is for the previous show — its result is stale.
+            cancelInFlightFetch()
 
-        // On .restore with no snapshot yet, the reset is deferred to the fetch
-        // completion below so a one-poll metadata glitch can't drop FX mid-song.
-        let fxRememberPerShow = PerShowFXSync.rememberPerShowEnabled
-        switch fxShowChangeAction(carriedOver: carriedOver,
-                                  rememberPerShow: fxRememberPerShow,
-                                  persistAcrossShows: PerShowFXSync.persistAcrossShowsEnabled,
-                                  variantDate: variant) {
-        case .carryOver(let save):
-            // Keep the user's window edits for the incoming show; persist as its
-            // snapshot (currentShowDate is already `variant`). `save == false` is the
-            // reset-mode case with no per-show storage — just keep, don't persist.
-            if save { bassPlayer.savePerShowFX(showDate: variant) }
-        case .restore(let showDate): bassPlayer.restorePerShowFX(showDate: showDate)
-        case .reset: bassPlayer.resetAllFX()
-        case .keep: break
+            // Metadata has now caught up to the new show, so the AAC carry-over window
+            // (if any) is over. Capture whether the user dialed in FX during it and clear
+            // the window synchronously — from here, saving resumes normally against the
+            // new show.
+            let carriedOver = bassPlayer.aacCarryoverActive && bassPlayer.aacCarryoverFXAdjusted
+            bassPlayer.aacCarryoverActive = false
+            bassPlayer.aacCarryoverFXAdjusted = false
+            showChangeCarriedOver = carriedOver
+
+            // On .restore with no snapshot yet, the reset is deferred to the fetch
+            // completion below so a one-poll metadata glitch can't drop FX mid-song.
+            switch fxShowChangeAction(carriedOver: carriedOver,
+                                      rememberPerShow: PerShowFXSync.rememberPerShowEnabled,
+                                      persistAcrossShows: PerShowFXSync.persistAcrossShowsEnabled,
+                                      variantDate: variant) {
+            case .carryOver(let save):
+                // Keep the user's window edits for the incoming show; persist as its
+                // snapshot (currentShowDate is already `variant`). `save == false` is the
+                // reset-mode case with no per-show storage — just keep, don't persist.
+                if save { bassPlayer.savePerShowFX(showDate: variant) }
+            case .restore(let showDate): bassPlayer.restorePerShowFX(showDate: showDate)
+            case .reset: bassPlayer.resetAllFX()
+            case .keep: break
+            }
         }
 
+        // Same show, already loaded or already being fetched → nothing to do. Same show
+        // with nothing loaded (not found / network failure) → retry the fetch only.
+        guard decision.shouldFetch else { return }
+
+        let fxRememberPerShow = PerShowFXSync.rememberPerShowEnabled
+        let carriedOver = showChangeCarriedOver
+        fetchGeneration += 1
+        let generation = fetchGeneration
+        inFlightVariant = variant
         isFetchingShowInfo = true
         let fetch: (@escaping (FZShow?) -> Void) -> Void = { [self] completion in
             if let db = fzShowsDB {
@@ -177,7 +217,9 @@ final class RadioViewModel {
         }
         fetch { [weak self] show in
             DispatchQueue.main.async {
-                guard let self else { return }
+                // Superseded by a newer fetch or a show change: drop the stale result.
+                guard let self, generation == self.fetchGeneration else { return }
+                self.inFlightVariant = nil
                 self.currentShow = show
                 // A real new show loaded → disarm any stale AAC early-reset arm so it
                 // can't double-fire if metadata caught up before the next restart.

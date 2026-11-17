@@ -29,7 +29,6 @@ struct ContentView_iOS: View {
     private var vm: RadioViewModel { controller.vm }
     private var showDataManager: ShowDataManager? { controller.showDataManager }
     private var fzShowsDB: FZShowsDatabase? { controller.fzShowsDB }
-    private var streams: [Stream] { controller.streams }
     private var isPlaying: Bool {
         get { controller.isPlaying }
         nonmutating set { controller.isPlaying = newValue }
@@ -581,33 +580,7 @@ struct ContentView_iOS: View {
 
             ProportionalHStack(spacing: 10) {
                 // Stream picker
-                Menu {
-                    ForEach(streams) { stream in
-                        Button {
-                            controller.selectStream(stream)
-                        } label: {
-                            HStack {
-                                Text(stream.name)
-                                if selectedStream?.id == stream.id {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "antenna.radiowaves.left.and.right")
-                            .scaledFont(.caption)
-                        Text(selectedStream?.format ?? "Stream")
-                            .scaledFont(.subheadline, weight: .medium)
-                        Image(systemName: "chevron.up.chevron.down")
-                            .scaledFont(.caption2)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color(.tertiarySystemBackground))
-                    .cornerRadius(8)
-                }
+                StreamPickerMenu(controller: controller)
 
                 // FX button
                 Button {
@@ -1018,57 +991,26 @@ struct ContentView_iOS: View {
         }
     }
 
-    @ViewBuilder
+    /// Renders a setlist row with current track highlighting (see `SetlistRowView`).
     private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {
-        // Use the confirmed position directly — re-calling findCurrentTrackPosition() here
-        // would use "> vm.currentSetlistPosition" and always highlight the *next* duplicate, not the current one.
-        let isCurrent = vm.currentSetlistPosition == index
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Image(systemName: "speaker.wave.2.fill")
-                .scaledFont(.caption2)
-                .foregroundColor(isCurrent ? .blue : .clear)
-                .frame(width: 14, alignment: .center)
-
-            Text("\(index).")
-                .scaledFont(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .fixedSize()
-                .frame(minWidth: 20, alignment: .trailing)
-
-            formatSong(song, acronyms: acronyms)
-                .scaledFont(.caption)
-        }
+        SetlistRowView(index: index, song: song, acronyms: acronyms,
+                       isCurrent: vm.currentSetlistPosition == index)
     }
 
     // MARK: - Placeholder Text
 
     private var placeholderText: String {
-        if !isPlaying {
-            return "Nothing playing"
-        } else if selectedStream?.format != "MP3" {
-            return "Waiting for info..."
-        } else {
-            return "No track info"
-        }
+        trackPlaceholderText(isPlaying: isPlaying, format: selectedStream?.format)
     }
 
     /// Source type (AUD/SBD/FM) from metadata, falling back to showInfo HTML when metadata lacks it
     private var displaySource: String? {
-        if let s = vm.parsedTrack?.source { return s }
-        guard let info = vm.currentShow?.showInfo else { return nil }
-        let upper = info.uppercased()
-        for src in ["SBD-AUD", "AUD-SBD", "SBD-FM", "FM-SBD", "AUD-FM", "FM-AUD"] where upper.contains(src) { return src }
-        for src in ["AUD", "SBD", "FM", "STAGE"] where upper.contains(src) { return src }
-        return nil
+        sourceBadge(metadataSource: vm.parsedTrack?.source,
+                    showInfo: vm.currentShow?.showInfo)
     }
 
     private var showInfoPlaceholderText: String {
-        if !isPlaying {
-            return "Show Info"
-        } else {
-            return "Waiting for show info..."
-        }
+        showInfoPlaceholder(isPlaying: isPlaying)
     }
 
     // MARK: - Content Bounce Gesture
@@ -1116,10 +1058,6 @@ struct ContentView_iOS: View {
 
     // MARK: - Song Formatting
 
-    func formatSong(_ song: String, acronyms: [(short: String, full: String)]) -> Text {
-        SongFormatter.format(song, acronyms: acronyms)
-    }
-
     // MARK: - Audio Session Setup
 
     /// Shows the "What's New" sheet once per build update. A first-ever install is
@@ -1155,8 +1093,49 @@ struct ContentView_iOS: View {
 
     private func configureAudioSession() { controller.configureAudioSession() }
     private func updateNowPlayingInfo() { controller.updateNowPlayingInfo() }
-    func playStream(showWarning: Bool = true) { controller.playStream(showWarning: showWarning) }
+    func playStream() { controller.playStream() }
     func stopStream() { controller.stopStream() }
     func resumeOrOfferBuffer() { controller.resumeOrOfferBuffer() }
+}
+
+// MARK: - Stream Picker Menu
+
+/// The transport row's stream-format menu, as its own view so it only redraws when the
+/// selected stream changes. Inline in `streamControlsBar` it was rebuilt on every buffer-time /
+/// pre-buffer / reconnect tick, which replaced the open menu's items mid-tap and cancelled the
+/// row highlight. A native `Picker` gives the system selection rows (highlight + checkmark).
+/// Re-picking the current stream is a no-op (the binding only fires on a change).
+private struct StreamPickerMenu: View {
+    let controller: PlaybackController
+
+    var body: some View {
+        Menu {
+            Picker("Stream", selection: Binding(
+                get: { controller.selectedStream?.format ?? "" },
+                set: { format in
+                    if let stream = controller.streams.first(where: { $0.format == format }) {
+                        controller.selectStream(stream)
+                    }
+                }
+            )) {
+                ForEach(controller.streams) { stream in
+                    Text(stream.name).tag(stream.format)
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .scaledFont(.caption)
+                Text(controller.selectedStream?.format ?? "Stream")
+                    .scaledFont(.subheadline, weight: .medium)
+                Image(systemName: "chevron.up.chevron.down")
+                    .scaledFont(.caption2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(Color(.tertiarySystemBackground))
+            .cornerRadius(8)
+        }
+    }
 }
 #endif

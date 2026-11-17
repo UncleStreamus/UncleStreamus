@@ -19,6 +19,33 @@ func dvrFormattedBehind(_ seconds: TimeInterval) -> String {
     return String(format: "%d:%02d", total / 60, total % 60)
 }
 
+// MARK: - Display Text
+
+/// Source badge (AUD/SBD/FM/…) for the track card: the metadata's own source wins;
+/// otherwise scan the show's showInfo text. Combined sources are checked first so
+/// "SBD-AUD" isn't reported as plain "AUD".
+func sourceBadge(metadataSource: String?, showInfo: String?) -> String? {
+    if let metadataSource { return metadataSource }
+    guard let showInfo else { return nil }
+    let upper = showInfo.uppercased()
+    for src in ["SBD-AUD", "AUD-SBD", "SBD-FM", "FM-SBD", "AUD-FM", "FM-AUD"] where upper.contains(src) { return src }
+    for src in ["AUD", "SBD", "FM", "STAGE"] where upper.contains(src) { return src }
+    return nil
+}
+
+/// Track-title placeholder before metadata arrives. MP3 carries in-band ICY titles, so
+/// an MP3 with nothing yet genuinely has no track info; the other formats are still
+/// waiting on Vorbis/Icecast.
+func trackPlaceholderText(isPlaying: Bool, format: String?) -> String {
+    if !isPlaying { return "Nothing playing" }
+    return format != "MP3" ? "Waiting for info..." : "No track info"
+}
+
+/// Show-info header placeholder before a show has loaded.
+func showInfoPlaceholder(isPlaying: Bool) -> String {
+    isPlaying ? "Waiting for show info..." : "Show Info"
+}
+
 // MARK: - Current Track Matching
 
 /// Extracts the first N words from a string for comparison, stripping bracketed
@@ -73,27 +100,12 @@ func variantDate(date: String, showTime: ShowTime) -> String {
     }
 }
 
-/// What to do with per-show FX when a new show begins, based on persistence
-/// settings. `.restore` returns to a saved snapshot (or defers the reset to the
-/// fetch completion when none exists yet); `.reset` clears FX; `.keep` leaves
-/// them untouched (persist-across-shows).
-enum FXRestorePlan {
-    case restore(showDate: String)
-    case reset
-    case keep
-}
-
-func fxRestorePlan(variantDate: String, rememberPerShow: Bool, persistAcrossShows: Bool) -> FXRestorePlan {
-    if rememberPerShow { return .restore(showDate: variantDate) }
-    if !persistAcrossShows { return .reset }
-    return .keep
-}
-
-/// What to do with FX when a new show begins, folding in the AAC carry-over case.
-/// When `carriedOver` (the user dialed in FX during the AAC metadata-lag window),
-/// keep those edits for the incoming show — `.carryOver(save:)` persists them as the
-/// new show's snapshot when per-show memory is on. Otherwise this matches
-/// `fxRestorePlan` exactly.
+/// What to do with FX when a new show begins, based on persistence settings plus the
+/// AAC carry-over case. `.restore` returns to a saved snapshot (or defers the reset to
+/// the fetch completion when none exists yet); `.reset` clears FX; `.keep` leaves them
+/// untouched (persist-across-shows). When `carriedOver` (the user dialed in FX during
+/// the AAC metadata-lag window), keep those edits for the incoming show —
+/// `.carryOver(save:)` persists them as the new show's snapshot when per-show memory is on.
 enum FXShowChangeAction: Equatable {
     case carryOver(save: Bool)        // keep current FX; save → persist as new show's snapshot
     case restore(showDate: String)
@@ -107,6 +119,32 @@ func fxShowChangeAction(carriedOver: Bool, rememberPerShow: Bool,
     if rememberPerShow { return .restore(showDate: variantDate) }
     if !persistAcrossShows { return .reset }
     return .keep
+}
+
+// MARK: - Show Fetch Decision
+
+/// What `RadioViewModel.fetchShowInfo` should do for an incoming track's show.
+/// `isShowChange` — the show (variant date) differs from the previous track's: run the FX
+/// show-change action, close the AAC carry-over window, stamp `currentShowDate`.
+/// `shouldFetch` — the show isn't loaded and isn't already being fetched.
+struct ShowFetchDecision: Equatable {
+    let isShowChange: Bool
+    let shouldFetch: Bool
+}
+
+/// Keeps "is this a new show?" separate from "do we need to fetch?". They used to be one
+/// check (`currentShow?.date != variant`), so a show that wasn't found — or whose fetch
+/// failed — left `currentShow` nil and every later track counted as a show change,
+/// re-running the FX action (wiping FX each track in reset mode). Now a same-show track
+/// with nothing loaded just retries the fetch, unless one is already in flight.
+/// A show change always fetches — the caller cancels any in-flight fetch on a change, and
+/// even if the show is somehow still loaded (B → A → B inside one fetch), re-fetching is a
+/// cache hit that runs the completion's deferred per-show FX reset for it.
+func showFetchDecision(variant: String, lastVariant: String?,
+                       loadedShowDate: String?, inFlightVariant: String?) -> ShowFetchDecision {
+    let isShowChange = variant != lastVariant
+    let shouldFetch = isShowChange || (loadedShowDate != variant && inFlightVariant != variant)
+    return ShowFetchDecision(isShowChange: isShowChange, shouldFetch: shouldFetch)
 }
 
 // MARK: - What's New / Welcome Gating

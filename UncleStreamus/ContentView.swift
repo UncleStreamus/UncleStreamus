@@ -23,7 +23,7 @@ struct ContentView: View {
     @State private var availableWidth: CGFloat = 500
     @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = false
     @AppStorage("textScale") private var textScale: Double = 1.1
-    @AppStorage("lastStreamFormat") private var lastStreamFormat: String = "OGG"
+    @AppStorage("lastStreamFormat") private var lastStreamFormat: String = Stream.defaultFormat
     @AppStorage("wasPlayingOnQuit") private var wasPlayingOnQuit: Bool = false
     @State private var panelOpen: Bool = false  // Local state for panel visibility
     @State private var expandedFooterSection: FooterSection? = nil
@@ -51,12 +51,7 @@ struct ContentView: View {
     @AppStorage("hasSeenWelcome") private var hasSeenWelcome: Bool = false
     @State private var showWelcome: Bool = false
 
-    let streams = [
-        Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
-        Stream(name: "OGG (90 kbit/s)", url: "https://shoutcast.norbert.de/zappa.ogg", format: "OGG"),
-        Stream(name: "AAC (256 kbit/s)", url: "https://shoutcast.norbert.de/zappa.aac", format: "AAC"),
-        Stream(name: "FLAC (750 kbit/s)", url: "https://shoutcast.norbert.de/zappa.flac", format: "FLAC"),
-    ]
+    let streams = Stream.all
 
     private let sidebarWidth: CGFloat = 280
     private let dividerWidth: CGFloat = 1  // Width of the visible divider line
@@ -1136,33 +1131,19 @@ struct ContentView: View {
     // MARK: - Placeholder Text
 
     private var placeholderText: String {
-        if !isPlaying {
-            return "Nothing playing"
-        } else if selectedStream?.format != "MP3" {
-            return "Waiting for info..."
-        } else {
-            return "No track info"
-        }
+        trackPlaceholderText(isPlaying: isPlaying, format: selectedStream?.format)
     }
 
     private var showInfoPlaceholderText: String {
-        if !isPlaying {
-            return "Show Info"
-        } else {
-            return "Waiting for show info..."
-        }
+        showInfoPlaceholder(isPlaying: isPlaying)
     }
 
     // MARK: - Favorites
 
     /// Source type (AUD/SBD/FM) from metadata, falling back to showInfo HTML when metadata lacks it
     private var displaySource: String? {
-        if let s = vm.parsedTrack?.source { return s }
-        guard let info = vm.currentShow?.showInfo else { return nil }
-        let upper = info.uppercased()
-        for src in ["SBD-AUD", "AUD-SBD", "SBD-FM", "FM-SBD", "AUD-FM", "FM-AUD"] where upper.contains(src) { return src }
-        for src in ["AUD", "SBD", "FM", "STAGE"] where upper.contains(src) { return src }
-        return nil
+        sourceBadge(metadataSource: vm.parsedTrack?.source,
+                    showInfo: vm.currentShow?.showInfo)
     }
 
     private var isCurrentShowFavorite: Bool {
@@ -1181,30 +1162,10 @@ struct ContentView: View {
         vm.findCurrentTrackPosition()
     }
 
-    /// Renders a setlist row with current track highlighting
-    @ViewBuilder
+    /// Renders a setlist row with current track highlighting (see `SetlistRowView`).
     private func setlistRow(index: Int, song: String, acronyms: [(short: String, full: String)]) -> some View {
-        // Use the confirmed position directly — re-calling findCurrentTrackPosition() here
-        // would use "> vm.currentSetlistPosition" and always highlight the *next* duplicate, not the current one.
-        let isCurrent = vm.currentSetlistPosition == index
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            // Speaker icon for currently playing track (or invisible placeholder)
-            Image(systemName: "speaker.wave.2.fill")
-                .scaledFont(.caption2)
-                .foregroundColor(isCurrent ? .blue : .clear)
-                .frame(width: 14, alignment: .center)
-
-            // Track number
-            Text("\(index).")
-                .scaledFont(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .fixedSize()
-                .frame(minWidth: 20, alignment: .trailing)
-
-            formatSong(song, acronyms: acronyms)
-                .scaledFont(.caption)
-        }
+        SetlistRowView(index: index, song: song, acronyms: acronyms,
+                       isCurrent: vm.currentSetlistPosition == index)
     }
 
     /// Shows the "What's New" sheet once per build update. A first-ever install is
@@ -1423,7 +1384,7 @@ struct ContentView: View {
         }
     }
 
-    func playStream(showWarning: Bool = true) {
+    func playStream() {
         guard let stream = selectedStream else { return }
         #if DEBUG
         print("▶️ playStream() called — stack: \(Thread.callStackSymbols.prefix(5).joined(separator: " | "))")
@@ -1457,10 +1418,6 @@ struct ContentView: View {
 
 
     /// Formats a song name using the shared SongFormatter
-    func formatSong(_ song: String, acronyms: [(short: String, full: String)]) -> Text {
-        SongFormatter.format(song, acronyms: acronyms)
-    }
-
     func fetchShowInfo(date: String, showTime: ShowTime = .none) {
         vm.fetchShowInfo(date: date, showTime: showTime)
     }

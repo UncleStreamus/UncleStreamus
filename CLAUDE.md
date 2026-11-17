@@ -360,9 +360,10 @@ Platform-Specific:
 
 **State Management:**
 - `@State` for local view state, `@AppStorage` for persistent user preferences
-- `ShowDataManager` is an `@Observable`, **`@MainActor`-isolated** global singleton, shared across both platforms
+- `ShowDataManager` is an `@Observable`, **`@MainActor`-isolated** class, shared code across both platforms — but **not a singleton**: it's created per owner (iOS `PlaybackController`, macOS `ContentView`, plus a short-lived one in Settings). Cross-instance state must live elsewhere — e.g. favourite-star refreshes go through the shared `FavoritesSignal.shared` (read via `favoriteVersion`), not a per-instance counter
 - `RadioViewModel` (`@Observable`) holds the shared now-playing/show-fetch runtime state; each ContentView keeps its own `@State` instance and assigns references + side-effect closures onto it in `setupPlayer()`
 - `FZShowsDatabase` is an `@Observable` SwiftData-backed singleton (offline show cache)
+- **`BASSRadioPlayer` observation rule:** internal DSP/filter state and buffer-pump bookkeeping are `@ObservationIgnored` — BASS's realtime audio thread writes them (some per sample) and every tracked write takes the Observation registrar's lock. Only values a view displays (gains, width, `dvrState`, handles, …) stay observed; mark new internal DSP state ignored too
 - `@Query` properties on views reactively track SwiftData model changes
 - **Cross-component commands** (menubar → playback on macOS, CarPlay → playback on iOS) use injected closures rather than `NotificationCenter`; the AppKit menubar invokes weak closures on `RadioViewModel`, CarPlay goes through `CarPlayBridge`
 
@@ -562,8 +563,8 @@ Platform-Specific:
 | `CachedFZShow.swift` | SwiftData `@Model` for a cached scraped show (keyed by `showDate` incl. optional E/L); `toFZShow()` |
 | `FZShowsPageRecord.swift` | SwiftData `@Model` for per-page fetch bookkeeping (filename, `lastFetchedAt`, `showCount`) driving staleness |
 | `RadioViewModel.swift` | Shared `@Observable` runtime state (now-playing/show-fetch) + `updateTrackInfo`/`fetchShowInfo`; menubar (macOS) + CarPlay/now-playing side-effect closures injected by each view |
-| `ContentViewShared.swift` | Pure, platform-neutral logic shared by both ContentViews (variant-date, FX restore plan, launch-sheet decision, current-track matching, inferred artist); unit-tested without a SwiftUI host |
-| `ShowDataManager.swift` | SwiftData persistence — `@Observable`, **`@MainActor`** singleton, `recordListen()`, history/favorites queries, `toggleFavorite()` |
+| `ContentViewShared.swift` | Pure, platform-neutral logic shared by both ContentViews (variant-date, FX show-change action, show-fetch decision, launch-sheet decision, current-track matching, inferred artist, source badge / placeholder text); unit-tested without a SwiftUI host |
+| `ShowDataManager.swift` | SwiftData persistence — `@Observable`, **`@MainActor`** (one instance per owner, not a singleton), `recordListen()`, history/favorites queries, `toggleFavorite()`; `FavoritesSignal` (shared favourites-changed counter) |
 | `SavedShow.swift` | SwiftData `@Model` — unique key `showDate` ("YYYY MM DD"); setlist/acronyms as JSON `Data` |
 | `ContentView.swift` | macOS main window — track info card, show info section, FX panel (inline), DVR controls, menubar command closures, `DraggableDivider`, `ScrollWheelOverlay` |
 | `ContentView_iOS.swift` | iOS/iPadOS — NavigationStack, iPhone overlay + iPad inline sidebars, DVR controls, sheet-based FX/settings, lock screen integration, CarPlay bridge sync |
@@ -587,7 +588,7 @@ Platform-Specific:
 | `SetlistInfoView.swift` | Sheet that loads zappateers.com show page and scrolls to the show date |
 | `TrackInfoView.swift` | iOS inline pane showing donlope track info with Safari link |
 | `BugReportData.swift` / `MailComposerView.swift` | Bug reporting via email — captures show/track/metadata context |
-| Shared utilities | `Acronym.swift`, `Stream.swift`, `PlatformHelpers.swift`, `SongFormatter.swift`, `ScaledFont.swift` |
+| Shared utilities | `Acronym.swift`, `Stream.swift` (`Stream.all` — the single 4-format catalogue every picker/menu/CarPlay list/engine reads), `PlatformHelpers.swift`, `SongFormatter.swift`, `ScaledFont.swift` |
 | iOS-only | `BASSBridgingHeader.h` — BASS C symbols globally available to Swift |
 
 ## Development Notes
@@ -663,14 +664,15 @@ section previously named 4 of ~36, two of which no longer exist).
 
 ### Testing Strategy
 
-**Unit test suite** (`UncleStreamusTests/`, macOS only, ~245 tests as of Jun 2026):
+**Unit test suite** (`UncleStreamusTests/`, macOS only, 373 tests as of Nov 2026):
 - `ParsedTrackInfoTests` — 4 metadata formats, `tracksMatch`, `normalizeTrackName`, `normalizePluralForm`
 - `TourMappingTests` — tour boundaries, gap years, `GeoData.parseLocation`, `GeoData.periodName`, state/province sets
 - `ShowTimeFetcherTests` — `ShowTime` enum, exceptions dict, `decodeHTMLEntities`, `parseSetlist`, `parseShowFromHTML` with mock HTML
 - `SavedShowTests` — `SavedShow.from()`, computed properties, corrupt-data fallbacks, `toFZShow()` round-trip
 - `StreamBufferTests` — `init` clamping, `bufferedDuration` formula, WAV header validation, `updateMaxSegments`
-- `ContentViewSharedTests` — shared pure logic from `ContentViewShared.swift`: `variantDate`, FX restore-plan decisions, the Welcome/What's-New launch-sheet decision, current-track-position matching (incl. duplicates), inferred-artist eras
+- `ContentViewSharedTests` — shared pure logic from `ContentViewShared.swift`: `variantDate`, FX show-change actions, the show-fetch decision (show change vs. retry vs. in-flight), the Welcome/What's-New launch-sheet decision, current-track-position matching (incl. duplicates), inferred-artist eras, source badge / placeholders, the `Stream.all` catalogue
 - `FZShowsImportTests` — `FZShowsDatabase` page-import parsing across every tour-period page (66–69 … orchestral/unreleased/rehearsals)
+- `BASSRadioPlayerLogicTests` — pure decision logic extracted from the player into `BASSRadioPlayerLogic` (playback-state mapping, AAC underrun, staleness, FLAC recovery, reconnect timing, buffer resize/resume/preload/behind-live, compressor threshold, `isFXBeingUsed`)
 
 All tests cover pure/stateless business logic. `BASSRadioPlayer` has no unit tests (requires audio hardware).
 

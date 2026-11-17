@@ -189,26 +189,62 @@ class FZShowsDatabase {
     /// Safe to call if already downloading — subsequent calls are no-ops until done.
     func downloadAllPages(completion: @escaping () -> Void = {}) {
         guard !isDownloading else { return }
+        let pages = FZShowsDatabase.allPageFilenames
+        log("Starting full download (\(pages.count) pages)")
+        importPagesSequentially(pages) {
+            self.log("Download complete — \(self.totalCachedShows) shows total")
+            completion()
+        }
+    }
+
+    /// Re-fetches pages that haven't been refreshed within `staleAfterDays`.
+    func refreshStalePages(staleAfterDays: Int = 30) {
+        guard !isDownloading else { return }
+        let cutoff = Calendar.current.date(byAdding: .day, value: -staleAfterDays, to: Date()) ?? Date()
+        let records = (try? modelContext.fetch(FetchDescriptor<FZShowsPageRecord>())) ?? []
+        let lastFetched = Dictionary(records.map { ($0.filename, $0.lastFetchedAt) },
+                                     uniquingKeysWith: { first, _ in first })   // first wins, as before
+        let stale = Self.stalePages(FZShowsDatabase.allPageFilenames, lastFetched: lastFetched, cutoff: cutoff)
+
+        guard !stale.isEmpty else {
+            log("All pages up to date (checked on launch)")
+            return
+        }
+        log("Refreshing \(stale.count) stale page(s) on launch")
+        importPagesSequentially(stale) {
+            self.log("Stale refresh complete — \(self.totalCachedShows) shows total")
+        }
+    }
+
+    /// Pages due for a re-fetch: never fetched, or last fetched before `cutoff`.
+    /// Order follows `pages`.
+    static func stalePages(_ pages: [String], lastFetched: [String: Date], cutoff: Date) -> [String] {
+        pages.filter { page in
+            guard let fetchedAt = lastFetched[page] else { return true }   // never fetched
+            return fetchedAt < cutoff
+        }
+    }
+
+    /// Imports `pages` one at a time on a utility queue, publishing `downloadProgress` on
+    /// main as each finishes. `onComplete` runs on main after the last page, once
+    /// `isDownloading` is cleared and the stats are refreshed. Callers guard on
+    /// `isDownloading` first.
+    private func importPagesSequentially(_ pages: [String], onComplete: @escaping () -> Void) {
         isDownloading = true
         downloadProgress = 0.0
-
-        let pages = FZShowsDatabase.allPageFilenames
-        var completed = 0
-        log("Starting full download (\(pages.count) pages)")
+        var completed = 0   // only touched on main
 
         func processNext(_ index: Int) {
-            if index >= pages.count {
+            guard index < pages.count else {
                 DispatchQueue.main.async {
                     self.isDownloading = false
                     self.downloadProgress = 1.0
                     self.updateStats()
-                    self.log("Download complete — \(self.totalCachedShows) shows total")
-                    completion()
+                    onComplete()
                 }
                 return
             }
-            let filename = pages[index]
-            fetchAndImportPage(filename: filename) {
+            fetchAndImportPage(filename: pages[index]) {
                 DispatchQueue.main.async {
                     completed += 1
                     self.downloadProgress = Double(completed) / Double(pages.count)
@@ -219,77 +255,6 @@ class FZShowsDatabase {
 
         DispatchQueue.global(qos: .utility).async {
             processNext(0)
-        }
-    }
-
-    /// Re-fetches pages that haven't been refreshed within `staleAfterDays`.
-    func refreshStalePages(staleAfterDays: Int = 30) {
-        guard !isDownloading else { return }
-        let cutoff = Calendar.current.date(byAdding: .day, value: -staleAfterDays, to: Date()) ?? Date()
-
-        let descriptor = FetchDescriptor<FZShowsPageRecord>()
-        let records = (try? modelContext.fetch(descriptor)) ?? []
-        let fetchedFilenames = Set(records.map(\.filename))
-
-        var stale: [String] = []
-        for filename in FZShowsDatabase.allPageFilenames {
-            if let record = records.first(where: { $0.filename == filename }) {
-                if record.lastFetchedAt < cutoff { stale.append(filename) }
-            } else {
-                // Never fetched — treat as stale
-                if !fetchedFilenames.contains(filename) { stale.append(filename) }
-            }
-        }
-
-        guard !stale.isEmpty else {
-            log("All pages up to date (checked on launch)")
-            return
-        }
-        log("Refreshing \(stale.count) stale page(s) on launch")
-
-        isDownloading = true
-        downloadProgress = 0.0
-        var completed = 0
-
-        func processNext(_ index: Int) {
-            if index >= stale.count {
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.downloadProgress = 1.0
-                    self.updateStats()
-                    self.log("Stale refresh complete — \(self.totalCachedShows) shows total")
-                }
-                return
-            }
-            fetchAndImportPage(filename: stale[index]) {
-                DispatchQueue.main.async {
-                    completed += 1
-                    self.downloadProgress = Double(completed) / Double(stale.count)
-                }
-                processNext(index + 1)
-            }
-        }
-
-        DispatchQueue.global(qos: .utility).async {
-            processNext(0)
-        }
-    }
-
-    /// Re-fetches a single named page (e.g., triggered from Settings "Refresh Now").
-    func refreshPage(_ filename: String, completion: @escaping () -> Void = {}) {
-        guard !isDownloading else { return }
-        isDownloading = true
-        downloadProgress = 0.0
-
-        DispatchQueue.global(qos: .utility).async {
-            self.fetchAndImportPage(filename: filename) {
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.downloadProgress = 1.0
-                    self.updateStats()
-                    completion()
-                }
-            }
         }
     }
 

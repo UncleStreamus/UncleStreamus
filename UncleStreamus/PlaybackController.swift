@@ -45,12 +45,7 @@ final class PlaybackController {
     var showDataManager: ShowDataManager?
     var fzShowsDB: FZShowsDatabase?
 
-    let streams = [
-        Stream(name: "MP3 (128 kbit/s)", url: "https://shoutcast.norbert.de/zappa.mp3", format: "MP3"),
-        Stream(name: "OGG (90 kbit/s)", url: "https://shoutcast.norbert.de/zappa.ogg", format: "OGG"),
-        Stream(name: "AAC (256 kbit/s)", url: "https://shoutcast.norbert.de/zappa.aac", format: "AAC"),
-        Stream(name: "FLAC (750 kbit/s)", url: "https://shoutcast.norbert.de/zappa.flac", format: "FLAC")
-    ]
+    let streams = Stream.all
 
     // Idempotency guards (promoted from ContentView_iOS's per-view flags): the
     // window scene and the CarPlay scene can both drive `activate()`, and both
@@ -85,7 +80,7 @@ final class PlaybackController {
         UserDefaults.standard.object(forKey: "dvrEnabled") as? Bool ?? true
     }
     private var lastStreamFormat: String {
-        UserDefaults.standard.string(forKey: "lastStreamFormat") ?? "OGG"
+        UserDefaults.standard.string(forKey: "lastStreamFormat") ?? Stream.defaultFormat
     }
 
     // MARK: - Bootstrap / activate
@@ -700,9 +695,12 @@ final class PlaybackController {
             // Stop audio immediately on interruption (phone call, Siri, another app claiming
             // the session). Use DVR-aware pause so the ring buffer keeps recording through the
             // call; the user can catch up when it ends.
+            // Buffer off → full stopStream() (not bare stopWithFadeOut), so isPlaying, the
+            // lock screen, CarPlay and wasPlayingOnQuit all show stopped. stopWithFadeOut clears
+            // isUserIntendedPlay, so .ended never auto-resumes this case either way.
             switch bassPlayer.dvrState {
             case .live:
-                if dvrEnabled { bassPlayer.dvrPause() } else { bassPlayer.stopWithFadeOut() }
+                if dvrEnabled { bassPlayer.dvrPause() } else { stopStream() }
             case .playing:
                 bassPlayer.dvrPausePlayback()
             case .paused:
@@ -755,7 +753,7 @@ final class PlaybackController {
 
         switch bassPlayer.dvrState {
         case .live:
-            if dvrEnabled { bassPlayer.dvrPause() } else { bassPlayer.stopWithFadeOut() }
+            if dvrEnabled { bassPlayer.dvrPause() } else { stopStream() }
         case .playing:
             bassPlayer.dvrPausePlayback()
         case .paused:
@@ -827,7 +825,7 @@ final class PlaybackController {
         }
     }
 
-    func playStream(showWarning: Bool = true) {
+    func playStream() {
         guard let stream = selectedStream else { return }
 
         configureAudioSession()
